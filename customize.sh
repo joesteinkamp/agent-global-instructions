@@ -30,13 +30,63 @@ TS_HOST="your-host.ts.net"
 TS_IP=""
 AUTONOMY="aggressive"          # aggressive | balanced
 TEAM_ROLES="front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher"
-INC_MEMORY="y"; INC_TEAMS="y"; INC_ARTIFACTS="y"; INC_PROJECT="y"; INC_DOCS="y"; INC_CORRECTIONS="y"
+MCP_RULES=""                   # per-server "when to use" bullets; usually filled by --scan-mcp
+INC_MEMORY="y"; INC_TEAMS="y"; INC_TOOLS="y"; INC_ARTIFACTS="y"; INC_PROJECT="y"; INC_DOCS="y"; INC_CORRECTIONS="y"
 
 MEM_BLOCK='  - A dedicated memory store on this machine — e.g. an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.
   - Any `MEMORY.md` / `memory/` directory, or `AGENTS.md` / `CLAUDE.md`, shipped by the project or tool you'\''re running under.'
 
 # Local, gitignored overrides (your personal answers live here, not in git):
 [ -f "$DIR/my-context.env" ] && . "$DIR/my-context.env"
+# Scanned MCP rules live in their own gitignored file (see --scan-mcp):
+[ -f "$DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$DIR/mcp-rules.local")"
+
+# ---- MCP detection ----------------------------------------------------------
+# Print the names of MCP servers configured for Claude Code on this machine.
+detect_mcps() {
+  command -v claude >/dev/null 2>&1 || return 0
+  claude mcp list 2>/dev/null \
+    | grep -E ': https?://' \
+    | sed -E 's/: https?:\/\/.*$//; s/[[:space:]]+$//' \
+    | awk 'NF && !seen[$0]++'
+}
+
+# Suggest a default "when to use" rule for a server, by name.
+suggest_rule() {
+  local n; n="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$n" in
+    *notion*work*)     echo "**Notion (work)** — work notes, projects, and docs; keep separate from personal.";;
+    *notion*personal*) echo "**Notion (personal)** — personal notes only; keep separate from work.";;
+    *notion*)          echo "**Notion** — notes and docs.";;
+    *gmail*)           echo "**Gmail** — read/search freely; draft replies but never send without my confirmation.";;
+    *calendar*)        echo "**Calendar** — read/check freely; never create, change, or RSVP to events without my confirmation.";;
+    *drive*)           echo "**Google Drive** — read/search freely; ask before creating or overwriting files.";;
+    *figma*)           echo "**Figma** — pull designs and specs for reference.";;
+    *robinhood*)       echo "**Robinhood** — read positions/quotes only; NEVER place, cancel, or modify orders without my explicit confirmation.";;
+    *)                 echo "**$1** — (describe when to use this).";;
+  esac
+}
+
+# Build MCP_RULES from detected servers + suggested defaults, save to
+# mcp-rules.local (gitignored). $1=interactive lets you edit each rule.
+scan_mcp() {
+  local names out="" n def rule
+  names="$(detect_mcps)"
+  if [ -z "$names" ]; then
+    echo "No MCP servers detected (needs the 'claude' CLI with servers configured)."; return 0
+  fi
+  echo "Detected MCP servers:"; printf '%s\n' "$names" | sed 's/^/  - /'; echo ""
+  while IFS= read -r n; do
+    [ -z "$n" ] && continue
+    def="$(suggest_rule "$n")"
+    if [ "${1:-}" = "interactive" ]; then rule="$(ask "Rule for '$n'" "$def")"; else rule="$def"; fi
+    out="${out}${out:+
+}- ${rule}"
+  done <<< "$names"
+  printf '%s\n' "$out" > "$DIR/mcp-rules.local"
+  MCP_RULES="$out"
+  echo ""; echo "Saved $DIR/mcp-rules.local"
+}
 
 # Escape a value for safe use on the right-hand side of sed s|...|...| .
 esc() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
@@ -48,6 +98,7 @@ render() {
   [ "$INC_MEMORY" = "y" ]      && keep="${keep}memory-os:"
   [ "$AUTONOMY" = "aggressive" ] && keep="${keep}autonomy-aggressive:" || keep="${keep}autonomy-balanced:"
   [ "$INC_TEAMS" = "y" ]       && keep="${keep}agent-teams:"
+  [ "$INC_TOOLS" = "y" ]       && keep="${keep}tools-mcp:"
   [ "$INC_ARTIFACTS" = "y" ]   && keep="${keep}artifacts:"
   case "$PREVIEW" in
     tailscale) keep="${keep}preview-tailscale:";;
@@ -58,6 +109,7 @@ render() {
   [ "$INC_CORRECTIONS" = "y" ] && keep="${keep}corrections:"
 
   local memfile; memfile="$(mktemp)"; printf '%s\n' "$MEM_BLOCK" > "$memfile"
+  local mcpfile; mcpfile="$(mktemp)"; printf '%s' "$MCP_RULES" > "$mcpfile"
 
   awk -v keep="$keep" '
     BEGIN { drop=0 }
@@ -78,6 +130,7 @@ render() {
     }
   ' "$TEMPLATE" \
   | awk -v f="$memfile" '/{{MEMORY_PATHS}}/{while((getline l < f)>0) print l; next} {print}' \
+  | awk -v f="$mcpfile" '/{{MCP_RULES}}/{while((getline l < f)>0) print l; next} {print}' \
   | sed -e "s|{{NAME}}|$(esc "$NAME")|g" \
         -e "s|{{CALL_ME}}|$(esc "$CALL_ME")|g" \
         -e "s|{{PRONOUNS}}|$(esc "$PRONOUNS")|g" \
@@ -89,7 +142,7 @@ render() {
         -e "s|{{TS_HOST}}|$(esc "$TS_HOST")|g" \
         -e "s|{{TS_IP}}|$(esc "$TS_IP")|g"
 
-  rm -f "$memfile"
+  rm -f "$memfile" "$mcpfile"
 }
 
 write_project() {
@@ -100,8 +153,9 @@ write_project() {
 
 # ---- non-interactive paths --------------------------------------------------
 case "${1:-}" in
-  --print)   render; exit 0;;
-  --project) write_project; exit 0;;
+  --print)    render; exit 0;;
+  --project)  write_project; exit 0;;
+  --scan-mcp) scan_mcp; exit 0;;
 esac
 
 # ---- prompts ----------------------------------------------------------------
@@ -140,6 +194,12 @@ case "$AUTONOMY" in bal*) AUTONOMY="balanced";; *) AUTONOMY="aggressive";; esac
 INC_TEAMS="$(ask_one 'Include "agent teams & subagents" section?' "y/n")"; INC_TEAMS="${INC_TEAMS:0:1}"
 if [ "$INC_TEAMS" = "y" ]; then
   TEAM_ROLES="$(ask 'Roles you draw from (comma-separated)' "$TEAM_ROLES")"
+fi
+
+INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n")"; INC_TOOLS="${INC_TOOLS:0:1}"
+if [ "$INC_TOOLS" = "y" ]; then
+  DO_SCAN="$(ask_one 'Scan this machine'\''s MCP servers and add usage rules?' "y/n")"
+  [ "${DO_SCAN:0:1}" = "y" ] && scan_mcp interactive
 fi
 
 echo ""

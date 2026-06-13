@@ -52,6 +52,14 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Use subagents for long, decomposable work;** the main thread coordinates and integrates.
 <!--/SECTION:agent-teams-->
 
+<!--SECTION:tools-mcp-->
+## Tools & MCP servers
+
+- **Use tools on demand — don't preload them into context.** Discover or enable a tool when the task needs it; don't keep every MCP server's tools resident. It wastes context and tokens.
+- **Pick the one server that fits the task;** don't fan out across all of them.
+{{MCP_RULES}}
+<!--/SECTION:tools-mcp-->
+
 <!--SECTION:artifacts-->
 ## Output artifacts
 

@@ -1,5 +1,7 @@
 # Personal answers — never commit
 my-context.env
+# Scanned MCP server rules (your personal service list) — never commit
+mcp-rules.local
 
 # Rendered, personalized output — generate locally with ./customize.sh
 /AGENTS.md
