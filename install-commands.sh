@@ -17,6 +17,7 @@ if [ "${1:-}" = "--project" ]; then DEST="$DIR/.claude/commands"; else DEST="$HO
 mkdir -p "$DEST"
 
 for f in "$SRC"/*.md; do
+  [ "$(basename "$f")" = "README.md" ] && continue   # docs, not a command
   cp "$f" "$DEST/"
   echo "  installed /$(basename "$f" .md)"
 done
