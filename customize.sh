@@ -50,7 +50,7 @@ render() {
   [ "$INC_TEAMS" = "y" ]       && keep="${keep}agent-teams:"
   [ "$INC_ARTIFACTS" = "y" ]   && keep="${keep}artifacts:"
   case "$PREVIEW" in
-    tailscale) keep="${keep}preview-tailscale:dev-servers:";;
+    tailscale) keep="${keep}preview-tailscale:";;
     local)     keep="${keep}preview-local:";;
   esac
   [ "$INC_PROJECT" = "y" ]     && keep="${keep}project-instructions:"

@@ -63,24 +63,13 @@ Proceed on clear tasks, but check in at genuine forks. Be a thoughtful collabora
 - **Keep Markdown for** anything that lands in an issue tracker, GitHub PR descriptions, notes apps, commit messages, or short specs under ~100 lines.
 - Don't ask which format — pick by the rule above and proceed.
 <!--SECTION:preview-tailscale-->
-- **Headless — serve over Tailscale, don't expect a local browser:** this box has no browser/display, so opening a file locally does nothing. For HTML artifacts **and** web apps, start a local webserver bound to `0.0.0.0` (reachable over Tailscale — see the section below), then reply telling me the exact port/URL to navigate to, e.g. `http://{{TS_HOST}}:PORT/`. Verify it returns 200 before handing it over. Pick a free, memorable port and keep the server running.
+- **Headless — serve over Tailscale, don't expect a local browser:** this box has no browser/display, so opening a file locally does nothing. For HTML artifacts **and** web apps, start a local webserver bound to `0.0.0.0` (reachable over Tailscale), then reply telling me the exact port/URL to navigate to, e.g. `http://{{TS_HOST}}:PORT/`. Verify it returns 200 before handing it over. Pick a free, memorable port and keep the server running.
 <!--/SECTION:preview-tailscale-->
 <!--SECTION:preview-local-->
 - When you produce an HTML artifact or a dev/preview server, open it locally (bind `localhost`) and give me the path/URL.
 <!--/SECTION:preview-local-->
 <!--/SECTION:artifacts-->
 
-<!--SECTION:dev-servers-->
-## Viewing dev/preview servers (Tailscale, not SSH tunnels)
-
-- I reach machines over **Tailscale** and view servers directly at the MagicDNS name (this box: `{{TS_HOST}}`, Tailscale IP `{{TS_IP}}`). Do **not** hand me `ssh -L` tunnel commands.
-- Bind servers to **all interfaces** (`0.0.0.0`), never `127.0.0.1` — localhost-only binding is why `*.ts.net:PORT` fails.
-- **Vite/Astro host-allowlist gotcha:** binding to 0.0.0.0 is necessary but not sufficient — these servers return **403** for an unrecognized `*.ts.net` Host even when the IP works.
-  - `astro dev` (Vite): add `vite.server.allowedHosts: ['.ts.net']`, then `npm run dev -- --host 0.0.0.0`.
-  - `astro preview`: separate host check that `vite.preview.allowedHosts` does NOT fix — serve the build with a plain static server instead: `python3 -m http.server PORT --bind 0.0.0.0 --directory dist`.
-- Verify on the box before handing me a URL: `curl http://{{TS_HOST}}:PORT/` should return 200 (not 403/000). If a firewall is active, allow the port on `tailscale0`.
-
-<!--/SECTION:dev-servers-->
 <!--SECTION:project-instructions-->
 ## Project-specific instructions
 
