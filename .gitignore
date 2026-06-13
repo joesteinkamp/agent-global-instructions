@@ -1,0 +1,7 @@
+# Personal answers — never commit
+my-context.env
+
+# Rendered, personalized output — generate locally with ./customize.sh
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
