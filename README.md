@@ -17,9 +17,14 @@ Nothing is hardcoded to any one person or machine.
 | `customize.sh` | Asks questions, fills the template, writes the finalized file(s). |
 | `my-context.env.example` | Copy to `my-context.env` (gitignored) to save your answers. |
 | `sync.sh` | Mirror a rendered `AGENTS.md` to `CLAUDE.md` / `GEMINI.md` in this dir. |
+| `commands/` + `install-commands.sh` | Slash-command shortcuts (`/ship`, `/save`, `/pr`, `/sync`, `/tidy`) → `~/.claude/commands/`. |
+| `hooks/` + `install-hooks.sh` | Claude Code guardrail hooks (auto-format, block protected paths, block dangerous shell) → merged into `settings.json`. |
 
-Rendered output (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) and your
-`my-context.env` are **gitignored** — they're personal, generate them locally.
+Rendered output (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), your `my-context.env`,
+and `mcp-rules.local` are **gitignored** — they're personal, generate them locally.
+
+The three pieces are independent: instructions (model-facing), commands (prompt
+shortcuts), and hooks (deterministic enforcement). Install whichever you want.
 
 ## Quick start
 
