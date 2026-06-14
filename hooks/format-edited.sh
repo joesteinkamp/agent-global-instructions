@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# PostToolUse(Edit|Write|MultiEdit) — auto-format the file just edited using the
-# PROJECT's Prettier or ESLint, if present. Never blocks: always exits 0.
+# PostToolUse / AfterTool — auto-format the file just edited using the PROJECT's
+# Prettier or ESLint, if present. Cross-tool (Claude Code, Codex, Antigravity/
+# Gemini); needs no platform dialect since it never blocks: always exits 0.
 set -u
 
 input="$(cat)"
 command -v jq >/dev/null 2>&1 || exit 0
-fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty')"
+fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // empty')"
 [ -z "$fp" ] && exit 0
 [ -f "$fp" ] || exit 0
 
