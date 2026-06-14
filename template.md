@@ -52,6 +52,14 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Use subagents for long, decomposable work;** the main thread coordinates and integrates.
 <!--/SECTION:agent-teams-->
 
+<!--SECTION:validate-->
+## Validate after larger changes
+
+- **After a larger code change (~8+ files or ~200+ lines), run a multi-role review team** to find improvement opportunities before treating the work as done — don't wait for me to ask.
+- **Default panel:** technical architect, back-end engineer, front-end engineer, plus a UI/UX lens when UI changed. Run them in parallel as subagents; each returns concrete, prioritized suggestions (`file:line` + fix). Then dedupe and summarize, top impact first.
+- It's a validation pass — surface opportunities and any real bugs; don't apply changes unless I say so.
+<!--/SECTION:validate-->
+
 <!--SECTION:tools-mcp-->
 ## Tools & MCP servers
 
@@ -65,6 +73,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 - **Default to a single self-contained HTML file** for comparison, exploration, tuning, or research — mockups, parameter editors, research synthesis, PR explainers, dashboards.
 - **Use Markdown for** issues, PR descriptions, notes apps, commits, or specs under ~100 lines.
+- **Reviews, audits, and multi-finding syntheses are artifacts, not chat.** When the work is a set of findings, options, or results (code reviews, audits, research, comparisons), build the HTML artifact **first** and hand me the link — don't dump the findings inline as the primary deliverable.
 - Don't ask which format — pick and proceed.
 <!--SECTION:preview-tailscale-->
 - **Headless — serve over Tailscale, no local browser.** Start a webserver on `0.0.0.0`, verify it returns 200, then give me `http://{{TS_HOST}}:PORT/`. Keep it running.

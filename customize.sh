@@ -31,7 +31,7 @@ TS_IP=""
 AUTONOMY="aggressive"          # aggressive | balanced
 TEAM_ROLES="front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher"
 MCP_RULES=""                   # per-server "when to use" bullets; usually filled by --scan-mcp
-INC_MEMORY="y"; INC_TEAMS="y"; INC_TOOLS="y"; INC_ARTIFACTS="y"; INC_PROJECT="y"; INC_DOCS="y"; INC_CORRECTIONS="y"
+INC_MEMORY="y"; INC_TEAMS="y"; INC_VALIDATE="y"; INC_TOOLS="y"; INC_ARTIFACTS="y"; INC_PROJECT="y"; INC_DOCS="y"; INC_CORRECTIONS="y"
 
 MEM_BLOCK='  - A dedicated memory store on this machine — e.g. an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.
   - Any `MEMORY.md` / `memory/` directory, or `AGENTS.md` / `CLAUDE.md`, shipped by the project or tool you'\''re running under.'
@@ -98,6 +98,7 @@ render() {
   [ "$INC_MEMORY" = "y" ]      && keep="${keep}memory-os:"
   [ "$AUTONOMY" = "aggressive" ] && keep="${keep}autonomy-aggressive:" || keep="${keep}autonomy-balanced:"
   [ "$INC_TEAMS" = "y" ]       && keep="${keep}agent-teams:"
+  [ "$INC_VALIDATE" = "y" ]    && keep="${keep}validate:"
   [ "$INC_TOOLS" = "y" ]       && keep="${keep}tools-mcp:"
   [ "$INC_ARTIFACTS" = "y" ]   && keep="${keep}artifacts:"
   case "$PREVIEW" in
@@ -196,6 +197,7 @@ if [ "$INC_TEAMS" = "y" ]; then
   TEAM_ROLES="$(ask 'Roles you draw from (comma-separated)' "$TEAM_ROLES")"
 fi
 
+INC_VALIDATE="$(ask_one 'Include "validate after larger changes" section?' "y/n")"; INC_VALIDATE="${INC_VALIDATE:0:1}"
 INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n")"; INC_TOOLS="${INC_TOOLS:0:1}"
 if [ "$INC_TOOLS" = "y" ]; then
   DO_SCAN="$(ask_one 'Scan this machine'\''s MCP servers and add usage rules?' "y/n")"

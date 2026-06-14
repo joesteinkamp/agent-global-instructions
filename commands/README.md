@@ -10,6 +10,7 @@ you type `/<name>`. Install them with `../install-commands.sh`.
 | `/pr`   | Open a PR with a generated title/body — stops before merge. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/tidy` | Run the project's formatter / linter / tests and fix what's safe (no commit). |
+| `/validate` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities. No changes applied. |
 
 Most take optional arguments, e.g. `/ship fix login redirect` uses that as the
 commit message / PR title.

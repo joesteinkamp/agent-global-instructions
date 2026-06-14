@@ -18,7 +18,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 
 copy_scripts() {  # $1 = hooks dir
   mkdir -p "$1"
-  for s in guard-paths guard-bash format-edited log-tool; do
+  for s in guard-paths guard-bash format-edited log-tool validate-nudge; do
     cp "$SRC/$s.sh" "$1/$s.sh"; chmod +x "$1/$s.sh"
   done
 }
@@ -33,7 +33,7 @@ merge_json() {  # $1 = settings file, $2 = hooks object json
   jq --argjson add "$add" '
     .hooks = (.hooks // {})
     | .hooks |= with_entries(.value |= map(select(
-        ((.hooks // []) | map(.command) | any(test("/(guard-paths|guard-bash|format-edited|log-tool)\\.sh")))  | not
+        ((.hooks // []) | map(.command) | any(test("/(guard-paths|guard-bash|format-edited|log-tool|validate-nudge)\\.sh")))  | not
       )))
     | reduce ($add | to_entries[]) as $e (.;
         .hooks[$e.key] = ((.hooks[$e.key] // []) + $e.value))
@@ -45,7 +45,7 @@ cmd() { printf 'env HOOK_PLATFORM=%s "%s/%s.sh"' "$1" "$2" "$3"; }  # platform, 
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" '{
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg vn "$(cmd claude "$hd" validate-nudge)" '{
     PreToolUse: [
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
       {matcher:"Edit|Write|MultiEdit|NotebookEdit", hooks:[{type:"command",command:$gp}]},
@@ -54,23 +54,25 @@ install_claude() {
     PostToolUse: [
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
       {matcher:"Edit|Write|MultiEdit", hooks:[{type:"command",command:$fm}]}
-    ]
+    ],
+    Stop: [ {hooks:[{type:"command",command:$vn}]} ]
   }')"
-  echo "  claude  -> $sf (log, auto-format, guard paths, guard bash)"
+  echo "  claude  -> $sf (log, auto-format, guard paths, guard bash, validate-nudge)"
 }
 
 install_codex() {
   local hd="$HOME/.codex/hooks" sf="$HOME/.codex/hooks.json"
   copy_scripts "$hd"
   # Codex currently surfaces only the Bash tool to hooks, so wire the shell guard + logging.
-  merge_json "$sf" "$(jq -n --arg gb "$(cmd codex "$hd" guard-bash)" --arg lg "$(cmd codex "$hd" log-tool)" '{
+  merge_json "$sf" "$(jq -n --arg gb "$(cmd codex "$hd" guard-bash)" --arg lg "$(cmd codex "$hd" log-tool)" --arg vn "$(cmd codex "$hd" validate-nudge)" '{
     PreToolUse: [
       {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
       {matcher:"Bash", hooks:[{type:"command",command:$gb,timeout:30}]}
     ],
-    PostToolUse: [ {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]} ]
+    PostToolUse: [ {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]} ],
+    Stop: [ {hooks:[{type:"command",command:$vn,timeout:30}]} ]
   }')"
-  echo "  codex   -> $sf (log, guard bash; path-guard/format pending Codex edit-tool hooks)"
+  echo "  codex   -> $sf (log, guard bash, validate-nudge; path-guard/format pending Codex edit-tool hooks)"
 }
 
 install_gemini() {
