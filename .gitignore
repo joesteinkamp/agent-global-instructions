@@ -7,6 +7,9 @@ mcp-rules.local
 *.jsonl
 .ai-logs/
 
+# Generated review/audit artifacts — local, never commit
+review/
+
 # Rendered, personalized output — generate locally with ./customize.sh
 /AGENTS.md
 /CLAUDE.md
