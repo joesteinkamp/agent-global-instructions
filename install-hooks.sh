@@ -18,7 +18,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 
 copy_scripts() {  # $1 = hooks dir
   mkdir -p "$1"
-  for s in guard-paths guard-bash format-edited; do
+  for s in guard-paths guard-bash format-edited log-tool; do
     cp "$SRC/$s.sh" "$1/$s.sh"; chmod +x "$1/$s.sh"
   done
 }
@@ -33,7 +33,7 @@ merge_json() {  # $1 = settings file, $2 = hooks object json
   jq --argjson add "$add" '
     .hooks = (.hooks // {})
     | .hooks |= with_entries(.value |= map(select(
-        ((.hooks // []) | map(.command) | any(test("/(guard-paths|guard-bash|format-edited)\\.sh")))  | not
+        ((.hooks // []) | map(.command) | any(test("/(guard-paths|guard-bash|format-edited|log-tool)\\.sh")))  | not
       )))
     | reduce ($add | to_entries[]) as $e (.;
         .hooks[$e.key] = ((.hooks[$e.key] // []) + $e.value))
@@ -45,37 +45,49 @@ cmd() { printf 'env HOOK_PLATFORM=%s "%s/%s.sh"' "$1" "$2" "$3"; }  # platform, 
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" '{
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" '{
     PreToolUse: [
+      {matcher:"*", hooks:[{type:"command",command:$lg}]},
       {matcher:"Edit|Write|MultiEdit|NotebookEdit", hooks:[{type:"command",command:$gp}]},
       {matcher:"Bash", hooks:[{type:"command",command:$gb}]}
     ],
-    PostToolUse: [ {matcher:"Edit|Write|MultiEdit", hooks:[{type:"command",command:$fm}]} ]
+    PostToolUse: [
+      {matcher:"*", hooks:[{type:"command",command:$lg}]},
+      {matcher:"Edit|Write|MultiEdit", hooks:[{type:"command",command:$fm}]}
+    ]
   }')"
-  echo "  claude  -> $sf (auto-format, guard paths, guard bash)"
+  echo "  claude  -> $sf (log, auto-format, guard paths, guard bash)"
 }
 
 install_codex() {
   local hd="$HOME/.codex/hooks" sf="$HOME/.codex/hooks.json"
   copy_scripts "$hd"
-  # Codex currently surfaces only the Bash tool to hooks, so wire the shell guard.
-  merge_json "$sf" "$(jq -n --arg gb "$(cmd codex "$hd" guard-bash)" '{
-    PreToolUse: [ {matcher:"Bash", hooks:[{type:"command",command:$gb,timeout:30}]} ]
+  # Codex currently surfaces only the Bash tool to hooks, so wire the shell guard + logging.
+  merge_json "$sf" "$(jq -n --arg gb "$(cmd codex "$hd" guard-bash)" --arg lg "$(cmd codex "$hd" log-tool)" '{
+    PreToolUse: [
+      {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
+      {matcher:"Bash", hooks:[{type:"command",command:$gb,timeout:30}]}
+    ],
+    PostToolUse: [ {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]} ]
   }')"
-  echo "  codex   -> $sf (guard bash; path-guard/format pending Codex edit-tool hooks)"
+  echo "  codex   -> $sf (log, guard bash; path-guard/format pending Codex edit-tool hooks)"
 }
 
 install_gemini() {
   local hd="$HOME/.gemini/hooks" sf="$HOME/.gemini/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd gemini "$hd" guard-paths)" --arg gb "$(cmd gemini "$hd" guard-bash)" --arg fm "$(cmd gemini "$hd" format-edited)" '{
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd gemini "$hd" guard-paths)" --arg gb "$(cmd gemini "$hd" guard-bash)" --arg fm "$(cmd gemini "$hd" format-edited)" --arg lg "$(cmd gemini "$hd" log-tool)" '{
     BeforeTool: [
+      {matcher:".*", hooks:[{type:"command",command:$lg}]},
       {matcher:"run_shell_command", hooks:[{type:"command",command:$gb}]},
       {matcher:"write_file|replace", hooks:[{type:"command",command:$gp}]}
     ],
-    AfterTool: [ {matcher:"write_file|replace", hooks:[{type:"command",command:$fm}]} ]
+    AfterTool: [
+      {matcher:".*", hooks:[{type:"command",command:$lg}]},
+      {matcher:"write_file|replace", hooks:[{type:"command",command:$fm}]}
+    ]
   }')"
-  echo "  gemini  -> $sf (auto-format, guard paths, guard bash) — also used by Antigravity"
+  echo "  gemini  -> $sf (log, auto-format, guard paths, guard bash) — also used by Antigravity"
 }
 
 targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex gemini)

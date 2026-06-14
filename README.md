@@ -18,7 +18,8 @@ Nothing is hardcoded to any one person or machine.
 | `my-context.env.example` | Copy to `my-context.env` (gitignored) to save your answers. |
 | `sync.sh` | Mirror a rendered `AGENTS.md` to `CLAUDE.md` / `GEMINI.md` in this dir. |
 | `commands/` + `install-commands.sh` | Slash-command shortcuts (`/ship`, `/save`, `/pr`, `/sync`, `/tidy`) → `~/.claude/commands/`. |
-| `hooks/` + `install-hooks.sh` | Guardrail hooks (auto-format, block protected paths, block dangerous shell) for **Claude Code, Codex, and Antigravity/Gemini** → merged into each tool's config. |
+| `hooks/` + `install-hooks.sh` | Guardrail hooks (auto-format, block protected paths, block dangerous shell) + **observability** (log every tool call to JSONL) for **Claude Code, Codex, and Antigravity/Gemini** → merged into each tool's config. |
+| `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
 
 Rendered output (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), your `my-context.env`,
 and `mcp-rules.local` are **gitignored** — they're personal, generate them locally.

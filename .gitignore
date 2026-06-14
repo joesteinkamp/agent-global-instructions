@@ -3,6 +3,10 @@ my-context.env
 # Scanned MCP server rules (your personal service list) — never commit
 mcp-rules.local
 
+# Tool-call audit logs — local, never commit
+*.jsonl
+.ai-logs/
+
 # Rendered, personalized output — generate locally with ./customize.sh
 /AGENTS.md
 /CLAUDE.md

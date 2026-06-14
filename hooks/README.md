@@ -12,6 +12,25 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `guard-paths.sh` | edit tools (before) | **Blocks** edits to `build/ dist/ .next/ out/ coverage/ node_modules/ .git/`, `.env*`, lockfiles. |
 | `guard-bash.sh`  | shell tool (before) | **Blocks** `rm -rf` on root/home/parent and force-pushes (allows `--force-with-lease`). Won't block `rm -rf node_modules`. |
 | `format-edited.sh` | edit tools (after) | Auto-formats the edited file with the project's Prettier/ESLint. Never blocks. |
+| `log-tool.sh` | every tool (before + after) | **Observability** — appends one JSONL record per tool event to an audit log. Never blocks. |
+
+## Observability
+
+`log-tool.sh` records every tool call to `$AI_TOOL_LOG` (default
+`~/.ai-logs/tool-calls.jsonl`) — timestamp, harness, session, event,
+tool name, and truncated input/response. Wired to the before- and after-tool
+events of every tool, so a long unattended run leaves a full audit trail.
+
+Read it back with `../audit.sh`:
+
+```
+./audit.sh            # readable timeline (last 50)
+./audit.sh -n 200     # last 200
+./audit.sh --stats    # counts by harness / tool / event
+./audit.sh --follow   # live tail while a run is in progress
+```
+
+Logs are gitignored. Rotate/trim the file yourself if it grows large.
 
 ## Per-tool wiring
 
