@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # Stop hook — when a turn ends with a LARGER change, nudge the agent to run the
-# validation review team (/validate) before finishing. Fires once (loop-guarded
-# via stop_hook_active). Claude + Codex only (Gemini has no per-turn Stop event).
+# validation review team (/validate) before finishing. Claude + Codex only
+# (Gemini has no per-turn Stop event).
+#
+# Fires at most once per distinct diff: the diff fingerprint of the last nudge
+# is remembered, so it does NOT re-fire every turn (incl. pure conversation)
+# while a large uncommitted diff sits there. It nudges again only once the diff
+# materially changes. (stop_hook_active still guards the same-turn continuation.)
 #
 # Thresholds: VALIDATE_MIN_FILES (default 8), VALIDATE_MIN_LINES (default 200).
+# State dir: $AI_NUDGE_STATE (default ~/.ai-logs).
 set -u
 
 PLATFORM="${HOOK_PLATFORM:-claude}"
@@ -26,6 +32,15 @@ lines=$(( ins + del ))
 
 minf="${VALIDATE_MIN_FILES:-8}"; minl="${VALIDATE_MIN_LINES:-200}"
 if [ "${files:-0}" -lt "$minf" ] && [ "$lines" -lt "$minl" ]; then exit 0; fi
+
+# De-dupe across turns: fingerprint the actual diff content (falls back to
+# counts). If we already nudged for this exact diff, stay quiet until it changes.
+fp="$(git -C "$cwd" diff HEAD 2>/dev/null | cksum | tr -d ' ')-${files}-${lines}"
+state_dir="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; mkdir -p "$state_dir" 2>/dev/null || true
+key="$(printf '%s' "$cwd" | cksum | cut -d' ' -f1)"
+marker="$state_dir/.validate-nudge.$key"
+[ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$fp" ] && exit 0
+printf '%s' "$fp" > "$marker" 2>/dev/null || true
 
 reason="Larger change detected (${files} files, ${lines} lines vs HEAD). Before finishing, run the validation review team (/validate) to surface improvement opportunities — or tell me you've intentionally skipped it."
 case "$PLATFORM" in
