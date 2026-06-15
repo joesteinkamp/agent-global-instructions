@@ -16,9 +16,18 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$DIR/hooks"
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 
+# Clean up any temp file left behind if jq fails or we're interrupted.
+TMPFILES=()
+trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
+
 copy_scripts() {  # $1 = hooks dir
   mkdir -p "$1"
   for s in guard-paths guard-bash format-edited log-tool validate-nudge; do
+    # Back up a hand-edited hook script before replacing it with the canonical one.
+    if [ -f "$1/$s.sh" ] && ! cmp -s "$SRC/$s.sh" "$1/$s.sh"; then
+      cp "$1/$s.sh" "$1/$s.sh.bak.$(date +%s)"   # timestamped: never clobber a prior backup
+      echo "  backed up your edited $s.sh -> $s.sh.bak.<ts>"
+    fi
     cp "$SRC/$s.sh" "$1/$s.sh"; chmod +x "$1/$s.sh"
   done
 }
@@ -29,7 +38,7 @@ merge_json() {  # $1 = settings file, $2 = hooks object json
   local f="$1" add="$2" tmp
   [ -f "$f" ] || echo '{}' > "$f"
   cp "$f" "$f.backup.$(date +%s)"
-  tmp="$(mktemp)"
+  tmp="$(mktemp)"; TMPFILES+=("$tmp")
   jq --argjson add "$add" '
     .hooks = (.hooks // {})
     | .hooks |= with_entries(.value |= map(select(

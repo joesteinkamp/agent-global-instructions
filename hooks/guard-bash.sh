@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# PreToolUse / BeforeTool guard: block clearly catastrophic shell commands.
+# PreToolUse / BeforeTool guard: trip on clearly catastrophic shell commands.
 # Cross-tool (Claude Code, Codex, Antigravity/Gemini) via HOOK_PLATFORM.
-# Conservative — does NOT block routine cleanup like `rm -rf node_modules`.
+#
+# BEST-EFFORT TRIPWIRE, NOT A SECURITY BOUNDARY. It only sees the shell tool's
+# command string and matches heuristically — obfuscated, variable-expanded, or
+# unusual spellings can bypass it. Treat it as a seatbelt against fat-finger
+# mistakes, not a sandbox. It deliberately allows routine cleanup like
+# `rm -rf node_modules` or `rm -rf dist`.
 set -u
 
 PLATFORM="${HOOK_PLATFORM:-claude}"
@@ -17,17 +22,24 @@ block() {  # $1 = reason
   esac
 }
 
-# Catastrophic recursive deletes (root, home, parent dir).
-case "$cmd" in
-  *"rm -rf /"*|*"rm -fr /"*|*"rm -rf ~"*|*'rm -rf $HOME'*|*"rm -rf .."*|*"rm -rf /*"*)
-    block "BLOCKED: destructive 'rm -rf' on a root/home/parent path: '$cmd'. Use a specific subdirectory (or 'trash').";;
-esac
+# --- catastrophic recursive delete -------------------------------------------
+# Trip only when an `rm` with a recursive flag targets a catastrophic path as a
+# WHOLE token (root, root-glob, home, or parent) — so deeper paths like
+# /tmp/build or ./dist are allowed. `rm` may be an absolute path (/bin/rm).
+if [[ "$cmd" =~ (^|[^[:alnum:]_])rm[[:space:]] ]] \
+   && { [[ "$cmd" =~ [[:space:]]-[[:alnum:]]*[rR][[:alnum:]]* ]] || [[ "$cmd" == *--recursive* ]]; } \
+   && [[ "$cmd" =~ (^|[[:space:]])[\"\']?(/|/\*|~|~/|\$HOME|\.\.)[\"\']?([[:space:]]|\;|\&|\||$) ]]; then
+  block "BLOCKED: 'rm -r' targeting a root/home/parent path: '$cmd'. Delete a specific subdirectory instead (or use 'trash'). [best-effort guard]"
+fi
 
-# Force pushes (allow the safer --force-with-lease).
-case "$cmd" in
-  *push*--force-with-lease*) : ;;
-  *push*--force*|*push*" -f"*)
-    block "BLOCKED: force push detected: '$cmd'. Avoid force-pushing; use --force-with-lease if you must.";;
-esac
+# --- force push --------------------------------------------------------------
+# Allow the safe --force-with-lease; trip on --force, a -f flag, or a +refspec.
+if [[ "$cmd" == *push* ]] && [[ "$cmd" != *--force-with-lease* ]]; then
+  if [[ "$cmd" == *--force* ]] \
+     || [[ "$cmd" =~ [[:space:]]-[[:alnum:]]*f[[:alnum:]]*([[:space:]]|$) ]] \
+     || [[ "$cmd" =~ push[[:space:]]([^[:space:]]+[[:space:]]+)*\+[^[:space:]] ]]; then
+    block "BLOCKED: force push detected: '$cmd'. Avoid force-pushing; use --force-with-lease if you must. [best-effort guard]"
+  fi
+fi
 
 exit 0

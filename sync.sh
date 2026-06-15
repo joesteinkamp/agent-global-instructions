@@ -7,6 +7,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$DIR/AGENTS.md"
+[ -f "$SRC" ] || { echo "No AGENTS.md to sync — run ./customize.sh --project first." >&2; exit 1; }
 
 # Filename aliases, all kept within this project directory.
 TARGETS=(

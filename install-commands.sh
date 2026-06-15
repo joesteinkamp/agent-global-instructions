@@ -16,10 +16,20 @@ SRC="$DIR/commands"
 if [ "${1:-}" = "--project" ]; then DEST="$DIR/.claude/commands"; else DEST="$HOME/.claude/commands"; fi
 mkdir -p "$DEST"
 
+backed_up=0
 for f in "$SRC"/*.md; do
-  [ "$(basename "$f")" = "README.md" ] && continue   # docs, not a command
-  cp "$f" "$DEST/"
+  base="$(basename "$f")"
+  [ "$base" = "README.md" ] && continue              # docs, not a command
+  dst="$DEST/$base"
+  # If an installed copy exists and differs, back it up before overwriting so a
+  # hand-edited command is never silently lost.
+  if [ -f "$dst" ] && ! cmp -s "$f" "$dst"; then
+    cp "$dst" "$dst.bak.$(date +%s)"; backed_up=1   # timestamped: never clobber a prior backup
+    echo "  backed up your edited $base -> $base.bak.<ts>"
+  fi
+  cp "$f" "$dst"
   echo "  installed /$(basename "$f" .md)"
 done
 echo "-> $DEST"
+[ "$backed_up" = 1 ] && echo "(your prior versions were saved as *.bak)"
 echo "Type / in Claude Code to see them."

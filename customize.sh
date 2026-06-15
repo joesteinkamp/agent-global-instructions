@@ -7,39 +7,112 @@
 #                              + my-context.env if present)
 #   ./customize.sh --project   non-interactive — write AGENTS/CLAUDE/GEMINI.md
 #                              into this directory (uses defaults + my-context.env)
+#   ./customize.sh --global    non-interactive — write the machine-wide files
+#                              (~/.claude, ~/AGENTS.md, ~/.codex, ~/.gemini)
+#   ./customize.sh --scan-mcp  detect MCP servers and write mcp-rules.local
 #
 # Defaults are GENERIC on purpose (this is a shareable template). To keep your
 # own answers without editing this script or committing them, copy
 # my-context.env.example -> my-context.env (gitignored) and set your values.
+#
+# Env knobs: set any variable below in the environment to override a default
+# (e.g. PREVIEW=tailscale ./customize.sh --print). Set AIGI_NO_USER_ENV=1 to
+# ignore my-context.env / mcp-rules.local (used by the examples and test.sh).
 set -euo pipefail
+
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+  echo "customize.sh needs bash 4+ (found ${BASH_VERSION:-unknown}). On macOS: brew install bash, then run with that bash." >&2
+  exit 1
+fi
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE="$DIR/template.md"
 [ -f "$TEMPLATE" ] || { echo "Missing template: $TEMPLATE" >&2; exit 1; }
 
-# ---- generic defaults (overridable by my-context.env) -----------------------
-NAME="Your full name"
-CALL_ME="your name"
-PRONOUNS="they/them"
-ROLE="your role"
-TIMEZONE="your timezone & city"
-CARES="quality work and shipping fast"
-ENVIRONMENT=""                 # optional; if empty, the Environment line is omitted
-PREVIEW="local"                # tailscale | local | none
-TS_HOST="your-host.ts.net"
-TS_IP=""
-AUTONOMY="aggressive"          # aggressive | balanced
-TEAM_ROLES="front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher"
-MCP_RULES=""                   # per-server "when to use" bullets; usually filled by --scan-mcp
-INC_MEMORY="y"; INC_TEAMS="y"; INC_VALIDATE="y"; INC_TOOLS="y"; INC_ARTIFACTS="y"; INC_PROJECT="y"; INC_DOCS="y"; INC_CORRECTIONS="y"
+# ---- single source of truth for variable names ------------------------------
+# Adding a template {{VAR}} is a one-line change here: SUBST_VARS drives both the
+# values handed to awk and the substitution loop, and all three lists drive the
+# load_env allowlist — nothing to keep in sync by hand.
+SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST TS_IP)  # {{VAR}} <-> $VAR
+CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK)                                                        # control render, not substituted
+INC_VARS=(INC_MEMORY INC_TEAMS INC_VALIDATE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS)
 
-MEM_BLOCK='  - A dedicated memory store on this machine — e.g. an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.
+# ---- temp-file cleanup (no leaks on error paths) ----------------------------
+TMPFILES=()
+cleanup() { [ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true; }
+trap cleanup EXIT
+# mktmp [dir]: temp file in $dir (default $TMPDIR). render_to passes the
+# destination's dir so the later mv is a same-filesystem (atomic) rename.
+mktmp() {
+  local d="${1:-${TMPDIR:-/tmp}}" t
+  t="$(mktemp "$d/.aigi.XXXXXX" 2>/dev/null)" || { echo "mktemp failed in $d" >&2; return 1; }
+  TMPFILES+=("$t"); printf '%s' "$t"
+}
+
+# ---- generic defaults (override via env or my-context.env) -------------------
+# `: "${VAR:=default}"` keeps an inherited environment value if one is set.
+: "${NAME:=Your full name}"
+: "${CALL_ME:=your name}"
+: "${PRONOUNS:=they/them}"
+: "${ROLE:=your role}"
+: "${TIMEZONE:=your timezone & city}"
+: "${CARES:=quality work and shipping fast}"
+: "${ENVIRONMENT:=}"            # optional; if empty, the Environment line is omitted
+: "${PREVIEW:=local}"          # tailscale | local | none
+: "${TS_HOST:=your-host.ts.net}"
+: "${TS_IP:=}"
+: "${AUTONOMY:=aggressive}"    # aggressive | balanced
+: "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
+: "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
+: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_VALIDATE:=y}"; : "${INC_TOOLS:=y}"
+: "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"
+
+if [ -z "${MEM_BLOCK:-}" ]; then
+  MEM_BLOCK='  - A dedicated memory store on this machine — e.g. an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.
   - Any `MEMORY.md` / `memory/` directory, or `AGENTS.md` / `CLAUDE.md`, shipped by the project or tool you'\''re running under.'
+fi
 
-# Local, gitignored overrides (your personal answers live here, not in git):
-[ -f "$DIR/my-context.env" ] && . "$DIR/my-context.env"
-# Scanned MCP rules live in their own gitignored file (see --scan-mcp):
-[ -f "$DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$DIR/mcp-rules.local")"
+# ---- safe loader: parse KEY=VALUE (NO sourcing => no code execution) ---------
+# Only allow-listed keys are honored; values may be single/double quoted and may
+# span multiple lines while inside quotes. Assignment is via printf -v, never eval.
+# A value's closing quote must end its line (the natural shell style); the
+# continuation loop reads further lines only while the quote is still open.
+load_env() {
+  local file="$1" line key val rest k
+  local -A ALLOWED=()
+  for k in "${SUBST_VARS[@]}" "${CTRL_VARS[@]}" "${INC_VARS[@]}"; do ALLOWED[$k]=1; done
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"                       # tolerate CRLF (Windows) files
+    case "$line" in ''|'#'*) continue;; esac
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"; key="${key//[[:space:]]/}"
+    [ -n "${ALLOWED[$key]:-}" ] || continue
+    val="${line#*=}"
+    case "$val" in
+      \"*) val="${val#\"}"
+           while [[ "$val" != *\" ]]; do
+             IFS= read -r rest || { echo "load_env: unterminated \" for $key in ${file##*/} — ignoring" >&2; continue 2; }
+             val="$val"$'\n'"${rest%$'\r'}"
+           done
+           val="${val%\"}";;
+      \'*) val="${val#\'}"
+           while [[ "$val" != *\' ]]; do
+             IFS= read -r rest || { echo "load_env: unterminated ' for $key in ${file##*/} — ignoring" >&2; continue 2; }
+             val="$val"$'\n'"${rest%$'\r'}"
+           done
+           val="${val%\'}"
+           val="${val//\'\\\'\'/\'}";;          # POSIX single-quote idiom '\'' -> '
+      *)   val="${val#"${val%%[![:space:]]*}"}" # unquoted: trim surrounding whitespace
+           val="${val%"${val##*[![:space:]]}"}";;
+    esac
+    printf -v "$key" '%s' "$val"
+  done < "$file"
+}
+
+if [ -z "${AIGI_NO_USER_ENV:-}" ]; then
+  [ -f "$DIR/my-context.env" ] && load_env "$DIR/my-context.env"
+  [ -f "$DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$DIR/mcp-rules.local")"
+fi
 
 # ---- MCP detection ----------------------------------------------------------
 # Print the names of MCP servers configured for Claude Code on this machine.
@@ -88,80 +161,123 @@ scan_mcp() {
   echo ""; echo "Saved $DIR/mcp-rules.local"
 }
 
-# Escape a value for safe use on the right-hand side of sed s|...|...| .
-esc() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
-
 # ---- render(): filter sections + substitute vars, print to stdout -----------
+# One awk pass. Variable values are passed through the environment (ENVIRON[],
+# which performs NO escape processing), and substituted literally — so newlines,
+# backslashes, ampersands, pipes, and braces in any value are safe. Section
+# nesting is handled with a depth counter, so blocks can nest arbitrarily.
 render() {
   local keep=":"
-  [ -n "$ENVIRONMENT" ]        && keep="${keep}env-desc:"
-  [ "$INC_MEMORY" = "y" ]      && keep="${keep}memory-os:"
+  [ -n "$ENVIRONMENT" ]          && keep="${keep}env-desc:"
+  [ "$INC_MEMORY" = "y" ]        && keep="${keep}memory-os:"
   [ "$AUTONOMY" = "aggressive" ] && keep="${keep}autonomy-aggressive:" || keep="${keep}autonomy-balanced:"
-  [ "$INC_TEAMS" = "y" ]       && keep="${keep}agent-teams:"
-  [ "$INC_VALIDATE" = "y" ]    && keep="${keep}validate:"
-  [ "$INC_TOOLS" = "y" ]       && keep="${keep}tools-mcp:"
-  [ "$INC_ARTIFACTS" = "y" ]   && keep="${keep}artifacts:"
+  [ "$INC_TEAMS" = "y" ]         && keep="${keep}agent-teams:"
+  [ "$INC_VALIDATE" = "y" ]      && keep="${keep}validate:"
+  [ "$INC_TOOLS" = "y" ]         && keep="${keep}tools-mcp:"
+  [ "$INC_ARTIFACTS" = "y" ]     && keep="${keep}artifacts:"
   case "$PREVIEW" in
     tailscale) keep="${keep}preview-tailscale:";;
     local)     keep="${keep}preview-local:";;
   esac
-  [ "$INC_PROJECT" = "y" ]     && keep="${keep}project-instructions:"
-  [ "$INC_DOCS" = "y" ]        && keep="${keep}docs-first:"
-  [ "$INC_CORRECTIONS" = "y" ] && keep="${keep}corrections:"
+  [ "$INC_PROJECT" = "y" ]       && keep="${keep}project-instructions:"
+  [ "$INC_DOCS" = "y" ]          && keep="${keep}docs-first:"
+  [ "$INC_CORRECTIONS" = "y" ]   && keep="${keep}corrections:"
 
-  local memfile; memfile="$(mktemp)"; printf '%s\n' "$MEM_BLOCK" > "$memfile"
-  local mcpfile; mcpfile="$(mktemp)"; printf '%s' "$MCP_RULES" > "$mcpfile"
+  # Pass values via the environment (ENVIRON[] does NO escape processing) using
+  # `env`, so nothing leaks into the calling shell. SUBST_VARS drives both the
+  # passthrough and the awk substitution loop.
+  local v envargs=(AIGI_KEEP="$keep" AIGI_MEMORY_PATHS="$MEM_BLOCK" AIGI_MCP_RULES="$MCP_RULES" "AIGI_SUBST_VARS=${SUBST_VARS[*]}")
+  for v in "${SUBST_VARS[@]}"; do envargs+=("AIGI_$v=${!v}"); done
 
-  awk -v keep="$keep" '
-    BEGIN { drop=0 }
-    {
-      line=$0
-      if (line ~ /<!--SECTION:[a-z-]+-->/) {
-        n=line; sub(/^.*<!--SECTION:/,"",n); sub(/-->.*$/,"",n)
-        if (drop) next
-        if (index(keep, ":" n ":")>0) next
-        drop=1; dropname=n; next
+  env "${envargs[@]}" awk '
+    # Single left-to-right pass: copy literal text, and on each {{KEY}} emit the
+    # mapped value WITHOUT re-scanning it — so a value that itself contains
+    # "{{OTHER}}" is never re-expanded (order-independent, values stay literal).
+    function render_line(s,   out, i, j, key) {
+      out = ""
+      while ((i = index(s, "{{")) > 0) {
+        j = index(substr(s, i + 2), "}}")
+        if (j == 0) break                              # no closing braces: rest is literal
+        key = substr(s, i + 2, j - 1)
+        out = out substr(s, 1, i - 1)
+        out = out (key in val ? val[key] : "{{" key "}}")   # unknown placeholder: leave literal
+        s = substr(s, i + j + 3)
       }
-      if (line ~ /<!--\/SECTION:[a-z-]+-->/) {
-        n=line; sub(/^.*<!--\/SECTION:/,"",n); sub(/-->.*$/,"",n)
-        if (drop && n==dropname) drop=0
-        next
-      }
-      if (!drop) print line
+      return out s
     }
-  ' "$TEMPLATE" \
-  | awk -v f="$memfile" '/{{MEMORY_PATHS}}/{while((getline l < f)>0) print l; next} {print}' \
-  | awk -v f="$mcpfile" '/{{MCP_RULES}}/{while((getline l < f)>0) print l; next} {print}' \
-  | sed -e "s|{{NAME}}|$(esc "$NAME")|g" \
-        -e "s|{{CALL_ME}}|$(esc "$CALL_ME")|g" \
-        -e "s|{{PRONOUNS}}|$(esc "$PRONOUNS")|g" \
-        -e "s|{{ROLE}}|$(esc "$ROLE")|g" \
-        -e "s|{{TIMEZONE}}|$(esc "$TIMEZONE")|g" \
-        -e "s|{{CARES}}|$(esc "$CARES")|g" \
-        -e "s|{{ENVIRONMENT}}|$(esc "$ENVIRONMENT")|g" \
-        -e "s|{{TEAM_ROLES}}|$(esc "$TEAM_ROLES")|g" \
-        -e "s|{{TS_HOST}}|$(esc "$TS_HOST")|g" \
-        -e "s|{{TS_IP}}|$(esc "$TS_IP")|g"
+    BEGIN {
+      keep = ENVIRON["AIGI_KEEP"]; drop = 0
+      nv = split(ENVIRON["AIGI_SUBST_VARS"], vars, " ")
+      for (k = 1; k <= nv; k++) val[vars[k]] = ENVIRON["AIGI_" vars[k]]
+    }
+    {
+      line = $0
+      if (line ~ /<!--SECTION:[A-Za-z0-9_-]+-->/) {
+        if (drop > 0) { drop++; next }                 # nested inside a dropped block
+        n = line; sub(/^.*<!--SECTION:/, "", n); sub(/-->.*$/, "", n)
+        if (index(keep, ":" n ":") > 0) next           # keep: strip marker line only
+        drop = 1; next                                 # start dropping this block
+      }
+      if (line ~ /<!--\/SECTION:[A-Za-z0-9_-]+-->/) {
+        if (drop > 0) { drop--; next }                 # close of a dropped (possibly nested) block
+        next                                           # close of a kept block: strip marker
+      }
+      if (drop > 0) next
 
-  rm -f "$memfile" "$mcpfile"
+      if (line == "{{MEMORY_PATHS}}") { if (ENVIRON["AIGI_MEMORY_PATHS"] != "") printf "%s\n", ENVIRON["AIGI_MEMORY_PATHS"]; next }
+      if (line == "{{MCP_RULES}}")    { if (ENVIRON["AIGI_MCP_RULES"]    != "") printf "%s\n", ENVIRON["AIGI_MCP_RULES"];    next }
+
+      print render_line(line)
+    }
+  ' "$TEMPLATE"
+}
+
+# Render to a file atomically: temp file in the SAME dir as the destination, so
+# the mv is a same-filesystem rename. A failed render never touches the dest and
+# leaves no temp behind. Pass a second arg to back up an existing dest first.
+render_to() {  # $1 = destination path, $2 = "backup" to save dest.bak.<ts> if it exists
+  local dest="$1" tmp; tmp="$(mktmp "$(dirname "$dest")")" || return 1
+  if ! render > "$tmp"; then rm -f "$tmp"; echo "Render failed; $dest left unchanged." >&2; return 1; fi
+  if [ "${2:-}" = "backup" ] && [ -f "$dest" ] && ! cmp -s "$tmp" "$dest"; then
+    cp "$dest" "$dest.bak.$(date +%Y%m%d-%H%M%S)" && echo "  backed up existing $dest -> $dest.bak.<ts>"
+  fi
+  mv "$tmp" "$dest"
 }
 
 write_project() {
-  render > "$DIR/AGENTS.md";  echo "  wrote $DIR/AGENTS.md"
+  render_to "$DIR/AGENTS.md" || return 1
+  echo "  wrote $DIR/AGENTS.md"
   cp "$DIR/AGENTS.md" "$DIR/CLAUDE.md"; echo "  wrote $DIR/CLAUDE.md"
   cp "$DIR/AGENTS.md" "$DIR/GEMINI.md"; echo "  wrote $DIR/GEMINI.md"
+}
+
+# Machine-wide files are precious (you may have hand-curated them), so back up
+# any existing copy before overwriting — mirroring install-commands/-hooks.sh.
+write_global() {
+  mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.gemini"
+  render_to "$HOME/.claude/CLAUDE.md" backup && echo "  wrote ~/.claude/CLAUDE.md"
+  render_to "$HOME/AGENTS.md"         backup && echo "  wrote ~/AGENTS.md"
+  render_to "$HOME/.codex/AGENTS.md"  backup && echo "  wrote ~/.codex/AGENTS.md"
+  render_to "$HOME/.gemini/GEMINI.md" backup && echo "  wrote ~/.gemini/GEMINI.md"
 }
 
 # ---- non-interactive paths --------------------------------------------------
 case "${1:-}" in
   --print)    render; exit 0;;
   --project)  write_project; exit 0;;
+  --global)
+    echo "Writing machine-wide instruction files (overwrites them if present):"
+    echo "  ~/.claude/CLAUDE.md  ~/AGENTS.md  ~/.codex/AGENTS.md  ~/.gemini/GEMINI.md"
+    write_global; exit 0;;
   --scan-mcp) scan_mcp; exit 0;;
 esac
 
 # ---- prompts ----------------------------------------------------------------
+# ask:     free-text with a [default] shown; Enter returns the default.
+# ask_one: a choice; pass the menu to display AND the real default separately,
+#          so Enter returns the default (not the menu string).
 ask()    { local v; read -r -p "$1 [$2]: " v </dev/tty || true; printf '%s' "${v:-$2}"; }
-ask_one(){ local v; read -r -p "$1 ($2): " v </dev/tty || true; printf '%s' "${v:-$2}"; }
+ask_one(){ local v; read -r -p "$1 [$3] ($2): " v </dev/tty || true; printf '%s' "${v:-$3}"; }
 
 echo "== Customize AI instructions =="
 echo "(press Enter to accept the [default] in brackets)"
@@ -180,7 +296,7 @@ ENVIRONMENT="$(ask 'Describe your environment (optional; e.g. headless Linux ser
 
 echo ""
 echo "-- How you preview / test web & HTML work --"
-PREVIEW="$(ask_one 'Preview method' "tailscale/local/none")"
+PREVIEW="$(ask_one 'Preview method' "tailscale/local/none" "$PREVIEW")"
 case "$PREVIEW" in tail*) PREVIEW="tailscale";; non*) PREVIEW="none";; *) PREVIEW="local";; esac
 if [ "$PREVIEW" = "tailscale" ]; then
   TS_HOST="$(ask 'Tailscale MagicDNS hostname' "$TS_HOST")"
@@ -189,28 +305,28 @@ fi
 
 echo ""
 echo "-- How you like work done --"
-AUTONOMY="$(ask_one 'Autonomy posture' "aggressive/balanced")"
+AUTONOMY="$(ask_one 'Autonomy posture' "aggressive/balanced" "$AUTONOMY")"
 case "$AUTONOMY" in bal*) AUTONOMY="balanced";; *) AUTONOMY="aggressive";; esac
 
-INC_TEAMS="$(ask_one 'Include "agent teams & subagents" section?' "y/n")"; INC_TEAMS="${INC_TEAMS:0:1}"
+INC_TEAMS="$(ask_one 'Include "agent teams & subagents" section?' "y/n" "$INC_TEAMS")"; INC_TEAMS="${INC_TEAMS:0:1}"
 if [ "$INC_TEAMS" = "y" ]; then
   TEAM_ROLES="$(ask 'Roles you draw from (comma-separated)' "$TEAM_ROLES")"
 fi
 
-INC_VALIDATE="$(ask_one 'Include "validate after larger changes" section?' "y/n")"; INC_VALIDATE="${INC_VALIDATE:0:1}"
-INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n")"; INC_TOOLS="${INC_TOOLS:0:1}"
+INC_VALIDATE="$(ask_one 'Include "validate after larger changes" section?' "y/n" "$INC_VALIDATE")"; INC_VALIDATE="${INC_VALIDATE:0:1}"
+INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n" "$INC_TOOLS")"; INC_TOOLS="${INC_TOOLS:0:1}"
 if [ "$INC_TOOLS" = "y" ]; then
-  DO_SCAN="$(ask_one 'Scan this machine'\''s MCP servers and add usage rules?' "y/n")"
+  DO_SCAN="$(ask_one 'Scan this machine'\''s MCP servers and add usage rules?' "y/n" "n")"
   [ "${DO_SCAN:0:1}" = "y" ] && scan_mcp interactive
 fi
 
 echo ""
 echo "-- Optional sections --"
-INC_MEMORY="$(ask_one 'Include "look for a memory OS" section?' "y/n")";       INC_MEMORY="${INC_MEMORY:0:1}"
-INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y/n")"; INC_ARTIFACTS="${INC_ARTIFACTS:0:1}"
-INC_PROJECT="$(ask_one 'Include "encourage project-specific instructions" section?' "y/n")"; INC_PROJECT="${INC_PROJECT:0:1}"
-INC_DOCS="$(ask_one 'Include "documentation first" section?' "y/n")";          INC_DOCS="${INC_DOCS:0:1}"
-INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section?' "y/n")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
+INC_MEMORY="$(ask_one 'Include "look for a memory OS" section?' "y/n" "$INC_MEMORY")";       INC_MEMORY="${INC_MEMORY:0:1}"
+INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y/n" "$INC_ARTIFACTS")"; INC_ARTIFACTS="${INC_ARTIFACTS:0:1}"
+INC_PROJECT="$(ask_one 'Include "encourage project-specific instructions" section?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
+INC_DOCS="$(ask_one 'Include "documentation first" section?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
+INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
 
 # ---- output target ----------------------------------------------------------
 echo ""
@@ -219,22 +335,18 @@ echo "  1) This project dir (AGENTS.md + CLAUDE.md + GEMINI.md)            [defa
 echo "  2) Global config on this machine (~/.claude, ~/AGENTS.md, ~/.codex, ~/.gemini)"
 echo "  3) A custom file path"
 echo "  4) Print to screen only"
-TARGET="$(ask_one 'Choose' "1/2/3/4")"; TARGET="${TARGET:-1}"
+TARGET="$(ask_one 'Choose' "1/2/3/4" "1")"
 
 case "$TARGET" in
   2)
     echo ""; echo "This OVERWRITES your machine-wide instructions:"
     echo "  ~/.claude/CLAUDE.md  ~/AGENTS.md  ~/.codex/AGENTS.md  ~/.gemini/GEMINI.md"
-    CONFIRM="$(ask_one 'Proceed?' "y/N")"
+    CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
     case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted."; exit 0;; esac
-    mkdir -p "$HOME/.codex" "$HOME/.gemini"
-    render > "$HOME/.claude/CLAUDE.md";  echo "  wrote ~/.claude/CLAUDE.md"
-    render > "$HOME/AGENTS.md";          echo "  wrote ~/AGENTS.md"
-    render > "$HOME/.codex/AGENTS.md";   echo "  wrote ~/.codex/AGENTS.md"
-    render > "$HOME/.gemini/GEMINI.md";  echo "  wrote ~/.gemini/GEMINI.md"
+    write_global
     ;;
   3)
-    OUT="$(ask 'Output file path' "$DIR/AGENTS.md")"; render > "$OUT"; echo "  wrote $OUT";;
+    OUT="$(ask 'Output file path' "$DIR/AGENTS.md")"; render_to "$OUT" && echo "  wrote $OUT";;
   4)
     echo ""; render;;
   *)
