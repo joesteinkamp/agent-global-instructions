@@ -59,6 +59,7 @@ Logs are gitignored. Rotate/trim the file yourself if it grows large.
   `echo`), while still catching split/long flags and `/bin/rm`. It is not
   exhaustive — see the boundary note at the top.
 - Configure protected paths with `CLAUDE_PROTECTED_PATHS` (colon-separated globs).
-  Note: `guard-paths.sh` matches the raw path and does not resolve `..`/symlinks.
+  `guard-paths.sh` resolves relative paths against the tool's cwd and follows
+  `..`/symlinks (via `realpath`/`readlink -m`) before matching.
 - `install-hooks.sh` is idempotent and backs up each settings file before merging.
 - Hooks are a safety net, not a sandbox — `guard-bash` only sees the shell tool.
