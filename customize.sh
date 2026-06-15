@@ -233,10 +233,15 @@ render() {
 }
 
 # Render to a file atomically: temp file in the SAME dir as the destination, so
-# the mv is a same-filesystem rename. A failed render never touches the dest.
-render_to() {  # $1 = destination path
+# the mv is a same-filesystem rename. A failed render never touches the dest and
+# leaves no temp behind. Pass a second arg to back up an existing dest first.
+render_to() {  # $1 = destination path, $2 = "backup" to save dest.bak.<ts> if it exists
   local dest="$1" tmp; tmp="$(mktmp "$(dirname "$dest")")" || return 1
-  if render > "$tmp"; then mv "$tmp" "$dest"; else echo "Render failed; $dest left unchanged." >&2; return 1; fi
+  if ! render > "$tmp"; then rm -f "$tmp"; echo "Render failed; $dest left unchanged." >&2; return 1; fi
+  if [ "${2:-}" = "backup" ] && [ -f "$dest" ] && ! cmp -s "$tmp" "$dest"; then
+    cp "$dest" "$dest.bak.$(date +%Y%m%d-%H%M%S)" && echo "  backed up existing $dest -> $dest.bak.<ts>"
+  fi
+  mv "$tmp" "$dest"
 }
 
 write_project() {
@@ -246,12 +251,14 @@ write_project() {
   cp "$DIR/AGENTS.md" "$DIR/GEMINI.md"; echo "  wrote $DIR/GEMINI.md"
 }
 
+# Machine-wide files are precious (you may have hand-curated them), so back up
+# any existing copy before overwriting — mirroring install-commands/-hooks.sh.
 write_global() {
   mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.gemini"
-  render_to "$HOME/.claude/CLAUDE.md" && echo "  wrote ~/.claude/CLAUDE.md"
-  render_to "$HOME/AGENTS.md"         && echo "  wrote ~/AGENTS.md"
-  render_to "$HOME/.codex/AGENTS.md"  && echo "  wrote ~/.codex/AGENTS.md"
-  render_to "$HOME/.gemini/GEMINI.md" && echo "  wrote ~/.gemini/GEMINI.md"
+  render_to "$HOME/.claude/CLAUDE.md" backup && echo "  wrote ~/.claude/CLAUDE.md"
+  render_to "$HOME/AGENTS.md"         backup && echo "  wrote ~/AGENTS.md"
+  render_to "$HOME/.codex/AGENTS.md"  backup && echo "  wrote ~/.codex/AGENTS.md"
+  render_to "$HOME/.gemini/GEMINI.md" backup && echo "  wrote ~/.gemini/GEMINI.md"
 }
 
 # ---- non-interactive paths --------------------------------------------------
