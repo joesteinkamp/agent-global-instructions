@@ -20,8 +20,9 @@ mkdir -p "$DEST"
 backup_file() {  # $1 = file to back up
   cp "$1" "$(mktemp "$1.bak.XXXXXX")"
   local n=0 b
-  while IFS= read -r b; do n=$((n+1)); [ "$n" -gt 5 ] && rm -f -- "$b"; done \
+  while IFS= read -r b; do n=$((n+1)); if [ "$n" -gt 5 ]; then rm -f -- "$b"; fi; done \
     < <(ls -1t -- "$1".bak.* 2>/dev/null)
+  return 0   # prune's last test is usually false; don't let the fn return 1 under set -e
 }
 
 backed_up=0
