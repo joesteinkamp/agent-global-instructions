@@ -103,9 +103,7 @@ rm -f /tmp/aigi_pwned
 out="$(
   AIGI_NO_USER_ENV="" bash -c '
     set -euo pipefail
-    SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST TS_IP)
-    CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK)
-    INC_VARS=(INC_MEMORY INC_TEAMS INC_VALIDATE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS)
+    '"$(sed -n '/^SUBST_VARS=/p;/^CTRL_VARS=/p;/^INC_VARS=/p' "$CUSTOMIZE")"'
     NAME=""; ROLE=""; CARES=""; EVIL=""
     '"$(sed -n '/^load_env() {/,/^}/p' "$CUSTOMIZE")"'
     load_env "$1"
