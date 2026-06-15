@@ -16,17 +16,33 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$DIR/hooks"
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 
+# Single source of truth for the hook scripts. Drives the copy loop AND the jq
+# idempotency filter, so they can't drift. HOOK_RE matches /<our-script>.sh
+# (anchored on the dir slash so it won't match an unrelated user hook that just
+# mentions the bare name; not end-anchored since wired commands end in .sh").
+HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool validate-nudge)
+HOOK_RE="/($(IFS='|'; echo "${HOOK_SCRIPTS[*]}"))\\.sh"
+
 # Clean up any temp file left behind if jq fails or we're interrupted.
 TMPFILES=()
 trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
 
+# Back up a file to a collision-free name, keeping only the 5 newest backups.
+backup_file() {  # $1 = file to back up
+  cp "$1" "$(mktemp "$1.backup.XXXXXX")"
+  local n=0 b
+  while IFS= read -r b; do n=$((n+1)); [ "$n" -gt 5 ] && rm -f -- "$b"; done \
+    < <(ls -1t -- "$1".backup.* 2>/dev/null)
+}
+
 copy_scripts() {  # $1 = hooks dir
   mkdir -p "$1"
-  for s in guard-paths guard-bash format-edited log-tool validate-nudge; do
+  local s
+  for s in "${HOOK_SCRIPTS[@]}"; do
     # Back up a hand-edited hook script before replacing it with the canonical one.
     if [ -f "$1/$s.sh" ] && ! cmp -s "$SRC/$s.sh" "$1/$s.sh"; then
-      cp "$1/$s.sh" "$1/$s.sh.bak.$(date +%s)"   # timestamped: never clobber a prior backup
-      echo "  backed up your edited $s.sh -> $s.sh.bak.<ts>"
+      cp "$1/$s.sh" "$(mktemp "$1/$s.sh.bak.XXXXXX")"
+      echo "  backed up your edited $s.sh"
     fi
     cp "$SRC/$s.sh" "$1/$s.sh"; chmod +x "$1/$s.sh"
   done
@@ -37,16 +53,17 @@ copy_scripts() {  # $1 = hooks dir
 merge_json() {  # $1 = settings file, $2 = hooks object json
   local f="$1" add="$2" tmp
   [ -f "$f" ] || echo '{}' > "$f"
-  cp "$f" "$f.backup.$(date +%s)"
   tmp="$(mktemp)"; TMPFILES+=("$tmp")
-  jq --argjson add "$add" '
+  jq --argjson add "$add" --arg pat "$HOOK_RE" '
     .hooks = (.hooks // {})
     | .hooks |= with_entries(.value |= map(select(
-        ((.hooks // []) | map(.command) | any(test("/(guard-paths|guard-bash|format-edited|log-tool|validate-nudge)\\.sh")))  | not
+        ((.hooks // []) | map(.command) | any(test($pat)))  | not
       )))
     | reduce ($add | to_entries[]) as $e (.;
         .hooks[$e.key] = ((.hooks[$e.key] // []) + $e.value))
-  ' "$f" > "$tmp" && mv "$tmp" "$f"
+  ' "$f" > "$tmp" || { echo "  merge failed for $f (left unchanged)" >&2; return 1; }
+  if cmp -s "$tmp" "$f"; then return 0; fi          # no change: no write, no backup
+  backup_file "$f"; mv "$tmp" "$f"
 }
 
 cmd() { printf 'env HOOK_PLATFORM=%s "%s/%s.sh"' "$1" "$2" "$3"; }  # platform, hookdir, script

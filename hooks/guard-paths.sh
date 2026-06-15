@@ -13,6 +13,7 @@ input="$(cat)"
 command -v jq >/dev/null 2>&1 || exit 0
 fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // empty')"
 [ -z "$fp" ] && exit 0
+cwd="$(printf '%s' "$input" | jq -r '.cwd // empty')"
 
 block() {  # $1 = reason
   case "$PLATFORM" in
@@ -21,9 +22,25 @@ block() {  # $1 = reason
   esac
 }
 
+# Canonicalize so relative paths, ".." traversal, and symlinks can't slip past
+# the globs. Resolve a relative path against the tool's cwd first, then follow
+# symlinks/normalize with realpath/readlink if available (-m: don't require the
+# file to exist). Match BOTH the original and resolved path.
+abs="$fp"
+case "$fp" in /*) ;; *) [ -n "$cwd" ] && abs="$cwd/$fp";; esac
+if command -v realpath >/dev/null 2>&1; then
+  abs="$(realpath -m "$abs" 2>/dev/null || printf '%s' "$abs")"
+elif command -v readlink >/dev/null 2>&1; then
+  abs="$(readlink -m "$abs" 2>/dev/null || printf '%s' "$abs")"
+fi
+
 default_globs='*/build/*:*/dist/*:*/.next/*:*/out/*:*/coverage/*:*/node_modules/*:*/.git/*:*/.env:*/.env.*:.env:.env.*'
 IFS=':' read -ra globs <<< "${CLAUDE_PROTECTED_PATHS:-$default_globs}"
 for g in "${globs[@]}"; do
+  # shellcheck disable=SC2254
+  case "$abs" in
+    $g) block "BLOCKED: '$fp' resolves to a protected/generated path (matched '$g'). Don't edit it — it's build output, a dependency, or sensitive. Override via CLAUDE_PROTECTED_PATHS if intentional.";;
+  esac
   # shellcheck disable=SC2254
   case "$fp" in
     $g) block "BLOCKED: '$fp' is a protected/generated path (matched '$g'). Don't edit it — it's build output, a dependency, or sensitive. Override via CLAUDE_PROTECTED_PATHS if intentional.";;
