@@ -235,13 +235,13 @@ render() {
 # Render to a file atomically: temp file in the SAME dir as the destination, so
 # the mv is a same-filesystem rename. A failed render never touches the dest and
 # leaves no temp behind. Pass a second arg to back up an existing dest first.
-render_to() {  # $1 = destination path, $2 = "backup" to save dest.bak.<ts> if it exists
+render_to() {  # $1 = destination path, $2 = "backup" to save dest.bak.XXXXXX if it exists
   local dest="$1" tmp; tmp="$(mktmp "$(dirname "$dest")")" || return 1
   if ! render > "$tmp"; then rm -f "$tmp"; echo "Render failed; $dest left unchanged." >&2; return 1; fi
   if [ "${2:-}" = "backup" ] && [ -f "$dest" ] && ! cmp -s "$tmp" "$dest"; then
     cp "$dest" "$(mktemp "$dest.bak.XXXXXX")" && echo "  backed up existing $dest"
     local n=0 b
-    while IFS= read -r b; do n=$((n+1)); [ "$n" -gt 5 ] && rm -f -- "$b"; done \
+    while IFS= read -r b; do n=$((n+1)); if [ "$n" -gt 5 ]; then rm -f -- "$b"; fi; done \
       < <(ls -1t -- "$dest".bak.* 2>/dev/null)
   fi
   mv "$tmp" "$dest"

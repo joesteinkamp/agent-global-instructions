@@ -28,7 +28,7 @@ block() {  # $1 = reason
 # /tmp/build or ./dist are allowed. `rm` may be an absolute path (/bin/rm).
 if [[ "$cmd" =~ (^|[^[:alnum:]_])rm[[:space:]] ]] \
    && { [[ "$cmd" =~ [[:space:]]-[[:alnum:]]*[rR][[:alnum:]]* ]] || [[ "$cmd" == *--recursive* ]]; } \
-   && [[ "$cmd" =~ (^|[[:space:]])[\"\']?(/|/\*|~|~/|\$HOME|\.\.)[\"\']?([[:space:]]|\;|\&|\||$) ]]; then
+   && [[ "$cmd" =~ (^|[[:space:]])[\"\']?(/|/\*|~|~/|\$HOME|\$HOME/|\.\.)[\"\']?([[:space:]]|\;|\&|\||$) ]]; then
   block "BLOCKED: 'rm -r' targeting a root/home/parent path: '$cmd'. Delete a specific subdirectory instead (or use 'trash'). [best-effort guard]"
 fi
 
