@@ -190,16 +190,26 @@ render() {
   for v in "${SUBST_VARS[@]}"; do envargs+=("AIGI_$v=${!v}"); done
 
   env "${envargs[@]}" awk '
-    # literal (non-regex, non-& ) replace of all occurrences of key with val
-    function subst(s, key, val,   out, i) {
+    # Single left-to-right pass: copy literal text, and on each {{KEY}} emit the
+    # mapped value WITHOUT re-scanning it — so a value that itself contains
+    # "{{OTHER}}" is never re-expanded (order-independent, values stay literal).
+    function render_line(s,   out, i, j, key) {
       out = ""
-      while ((i = index(s, key)) > 0) {
-        out = out substr(s, 1, i - 1) val
-        s = substr(s, i + length(key))
+      while ((i = index(s, "{{")) > 0) {
+        j = index(substr(s, i + 2), "}}")
+        if (j == 0) break                              # no closing braces: rest is literal
+        key = substr(s, i + 2, j - 1)
+        out = out substr(s, 1, i - 1)
+        out = out (key in val ? val[key] : "{{" key "}}")   # unknown placeholder: leave literal
+        s = substr(s, i + j + 3)
       }
       return out s
     }
-    BEGIN { keep = ENVIRON["AIGI_KEEP"]; drop = 0; nv = split(ENVIRON["AIGI_SUBST_VARS"], vars, " ") }
+    BEGIN {
+      keep = ENVIRON["AIGI_KEEP"]; drop = 0
+      nv = split(ENVIRON["AIGI_SUBST_VARS"], vars, " ")
+      for (k = 1; k <= nv; k++) val[vars[k]] = ENVIRON["AIGI_" vars[k]]
+    }
     {
       line = $0
       if (line ~ /<!--SECTION:[A-Za-z0-9_-]+-->/) {
@@ -217,8 +227,7 @@ render() {
       if (line == "{{MEMORY_PATHS}}") { if (ENVIRON["AIGI_MEMORY_PATHS"] != "") printf "%s\n", ENVIRON["AIGI_MEMORY_PATHS"]; next }
       if (line == "{{MCP_RULES}}")    { if (ENVIRON["AIGI_MCP_RULES"]    != "") printf "%s\n", ENVIRON["AIGI_MCP_RULES"];    next }
 
-      for (k = 1; k <= nv; k++) line = subst(line, "{{" vars[k] "}}", ENVIRON["AIGI_" vars[k]])
-      print line
+      print render_line(line)
     }
   ' "$TEMPLATE"
 }
