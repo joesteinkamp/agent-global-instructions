@@ -25,6 +25,7 @@ Three layers, all optional and independent — pick what you want:
 | `my-context.env.example` | Copy to `my-context.env` (gitignored) to save your answers. |
 | `examples/` | Two finished sample renders so you can see the output without running anything. |
 | `sync.sh` | Mirror a rendered `AGENTS.md` to `CLAUDE.md` / `GEMINI.md` in this dir. |
+| `sync-global.sh` | Keep the hand-maintained **global** files in sync — copy `~/.claude/CLAUDE.md` to `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, `~/AGENTS.md` (backs up differences). |
 | `commands/` + `install-commands.sh` | Slash-command shortcuts (`/ship`, `/save`, `/pr`, `/sync`, `/tidy`, `/validate`) → `~/.claude/commands/`. |
 | `hooks/` + `install-hooks.sh` | Guardrail hooks (auto-format, block protected paths, block dangerous shell) + **observability** (log every tool call to JSONL) for **Claude Code, Codex, and Antigravity/Gemini** → merged into each tool's config. |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
