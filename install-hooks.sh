@@ -27,8 +27,13 @@ HOOK_RE="/($(IFS='|'; echo "${HOOK_SCRIPTS[*]}"))\\.sh"
 TMPFILES=()
 trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
 
-# Back up a file to a guaranteed-unique name (no same-second collisions).
-backup_file() { cp "$1" "$(mktemp "$1.backup.XXXXXX")"; }
+# Back up a file to a collision-free name, keeping only the 5 newest backups.
+backup_file() {  # $1 = file to back up
+  cp "$1" "$(mktemp "$1.backup.XXXXXX")"
+  local n=0 b
+  while IFS= read -r b; do n=$((n+1)); [ "$n" -gt 5 ] && rm -f -- "$b"; done \
+    < <(ls -1t -- "$1".backup.* 2>/dev/null)
+}
 
 copy_scripts() {  # $1 = hooks dir
   mkdir -p "$1"

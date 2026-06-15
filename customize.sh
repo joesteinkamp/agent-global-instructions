@@ -239,7 +239,10 @@ render_to() {  # $1 = destination path, $2 = "backup" to save dest.bak.<ts> if i
   local dest="$1" tmp; tmp="$(mktmp "$(dirname "$dest")")" || return 1
   if ! render > "$tmp"; then rm -f "$tmp"; echo "Render failed; $dest left unchanged." >&2; return 1; fi
   if [ "${2:-}" = "backup" ] && [ -f "$dest" ] && ! cmp -s "$tmp" "$dest"; then
-    cp "$dest" "$dest.bak.$(date +%Y%m%d-%H%M%S)" && echo "  backed up existing $dest -> $dest.bak.<ts>"
+    cp "$dest" "$(mktemp "$dest.bak.XXXXXX")" && echo "  backed up existing $dest"
+    local n=0 b
+    while IFS= read -r b; do n=$((n+1)); [ "$n" -gt 5 ] && rm -f -- "$b"; done \
+      < <(ls -1t -- "$dest".bak.* 2>/dev/null)
   fi
   mv "$tmp" "$dest"
 }

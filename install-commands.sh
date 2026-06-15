@@ -16,6 +16,14 @@ SRC="$DIR/commands"
 if [ "${1:-}" = "--project" ]; then DEST="$DIR/.claude/commands"; else DEST="$HOME/.claude/commands"; fi
 mkdir -p "$DEST"
 
+# Back up to a collision-free name (mktemp) and keep only the 5 newest backups.
+backup_file() {  # $1 = file to back up
+  cp "$1" "$(mktemp "$1.bak.XXXXXX")"
+  local n=0 b
+  while IFS= read -r b; do n=$((n+1)); [ "$n" -gt 5 ] && rm -f -- "$b"; done \
+    < <(ls -1t -- "$1".bak.* 2>/dev/null)
+}
+
 backed_up=0
 for f in "$SRC"/*.md; do
   base="$(basename "$f")"
@@ -24,8 +32,8 @@ for f in "$SRC"/*.md; do
   # If an installed copy exists and differs, back it up before overwriting so a
   # hand-edited command is never silently lost.
   if [ -f "$dst" ] && ! cmp -s "$f" "$dst"; then
-    cp "$dst" "$dst.bak.$(date +%s)"; backed_up=1   # timestamped: never clobber a prior backup
-    echo "  backed up your edited $base -> $base.bak.<ts>"
+    backup_file "$dst"; backed_up=1
+    echo "  backed up your edited $base"
   fi
   cp "$f" "$dst"
   echo "  installed /$(basename "$f" .md)"
