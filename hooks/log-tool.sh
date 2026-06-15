@@ -32,8 +32,8 @@ log_resp="${AI_LOG_RESPONSES:-1}"
 jq -c --arg tool "$platform" --arg ts "$ts" --arg logresp "$log_resp" '
   # mask common secret shapes in a string (best-effort)
   def redact:
-    gsub("(?i)(?<k>authorization|api[_-]?key|secret|password|passwd|token|access[_-]?key)(?<s>\"?\\s*[:=]\\s*\"?)[^\\s\"'"'"',]+"; "\(.k)\(.s)***")
-    | gsub("(?i)bearer\\s+[A-Za-z0-9._\\-]+"; "bearer ***")
+    gsub("(?i)bearer\\s+[A-Za-z0-9._\\-]+"; "bearer ***")
+    | gsub("(?i)(?<k>authorization|api[_-]?key|secret|password|passwd|token|access[_-]?key)(?<s>\"?\\s*[:=]\\s*\"?)[^\\s\"'"'"',]+"; "\(.k)\(.s)***")
     | gsub("(?i)(?<sch>postgres|postgresql|mysql|mongodb|redis|amqp)://[^:@/\\s]+:[^@/\\s]+@"; "\(.sch)://***:***@")
     | gsub("AKIA[0-9A-Z]{16}"; "AKIA****************")
     | gsub("(?<p>gh[pousr]_)[A-Za-z0-9]{20,}"; "\(.p)***")
