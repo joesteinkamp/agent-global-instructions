@@ -59,13 +59,15 @@ assert_has "ampersand/pipe/angle chars render literally" 'speed & scale | <x>'
 assert_has "newline in a value is preserved"             'second \ line'
 
 # 7. Every {{VAR}} placeholder in the template is substituted in a full render.
+#    (for-loop, not a while|grep pipeline — the latter exits after the first
+#    match and silently can't fail.)
 render
-if grep -oE '\{\{[A-Z_]+\}\}' "$DIR/template.md" | sort -u | while read -r v; do
-     grep -qF "$v" /tmp/aigi_test.out && echo "$v"; done | grep -q .; then
-  bad "all template placeholders are handled"
-else
-  ok "all template placeholders are handled"
-fi
+leaks=""
+for v in $(grep -oE '\{\{[A-Z_]+\}\}' "$DIR/template.md" | sort -u); do
+  grep -qF -- "$v" /tmp/aigi_test.out && leaks="$leaks $v"
+done
+[ -z "$leaks" ] && ok "all template placeholders are handled" \
+                || bad "template placeholders leaked:$leaks"
 
 # 8. Every <!--SECTION:x--> in the template is referenced by render()'s keep
 #    builder — catches a section added to the template with no toggle (which
@@ -84,6 +86,20 @@ if [ "$(grep -cE '<!--/?SECTION:[A-Za-z0-9_-]+-->.*<!--/?SECTION:' "$DIR/templat
 else
   bad "a template line has two SECTION markers (breaks the depth counter)"
 fi
+
+# 10. The committed examples are reproducible from their .env inputs (so they
+#     can't silently drift from the template).
+for ex in "$DIR"/examples/*.env; do
+  [ -e "$ex" ] || continue
+  base="$(basename "$ex" .env)"; md="$DIR/examples/$base.md"
+  ( set -a; . "$ex"; set +a; AIGI_NO_USER_ENV=1 "$CUSTOMIZE" --print ) > /tmp/aigi_ex.out 2>/dev/null
+  if [ -f "$md" ] && diff -q /tmp/aigi_ex.out "$md" >/dev/null; then
+    ok "example $base reproduces from $base.env"
+  else
+    bad "example $base reproduces from $base.env"
+  fi
+done
+rm -f /tmp/aigi_ex.out
 
 # ---- load_env (the parser) — runs WITHOUT AIGI_NO_USER_ENV via a temp env ----
 echo ""
@@ -116,6 +132,35 @@ echo "$out" | grep -qF 'line two'             && ok "multi-line quoted value pre
 echo "$out" | grep -qF 'EVIL=[<unset>]'       && ok "non-allowlisted key ignored" || bad "non-allowlisted key ignored"
 [ ! -e /tmp/aigi_pwned ] && ok "value is NOT executed (no code injection)" || bad "value is NOT executed (no code injection)"
 rm -f "$ENVF" /tmp/aigi_pwned
+
+# ---- installer smoke tests — run the installers into a throwaway HOME so a
+#      regression like "backup_file returns 1 and set -e aborts before merge"
+#      is caught. Needs jq (the installers do too).
+echo ""
+echo "== installer smoke tests =="
+if command -v jq >/dev/null 2>&1; then
+  SMOKE="$(mktemp -d)"
+  if HOME="$SMOKE" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1 \
+     && grep -q 'guard-bash' "$SMOKE/.claude/settings.json" 2>/dev/null; then
+    ok "install-hooks merges hooks on a fresh install"
+  else
+    bad "install-hooks merges hooks on a fresh install"
+  fi
+  n1="$(jq '.hooks.PreToolUse | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
+  HOME="$SMOKE" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+  n2="$(jq '.hooks.PreToolUse | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
+  [ -n "$n1" ] && [ "$n1" = "$n2" ] && ok "install-hooks is idempotent (no duplication)" \
+                                    || bad "install-hooks is idempotent (no duplication)"
+  if HOME="$SMOKE" bash "$DIR/install-commands.sh" >/dev/null 2>&1 \
+     && [ -f "$SMOKE/.claude/commands/ship.md" ]; then
+    ok "install-commands installs command files"
+  else
+    bad "install-commands installs command files"
+  fi
+  rm -rf "$SMOKE"
+else
+  echo "  (skipped — jq not installed)"
+fi
 
 echo ""
 echo "$pass passed, $fail failed"

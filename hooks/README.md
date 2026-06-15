@@ -54,10 +54,11 @@ Logs are gitignored. Rotate/trim the file yourself if it grows large.
   (`settings.json` → `hooks` → `BeforeTool`/`AfterTool`). If your Antigravity
   build reads hooks from a different path (e.g. `.agents/hooks.json`), copy the
   same `hooks` block there.
-- `guard-bash.sh` anchors on the target operand, so it allows targeted deletes
-  (`rm -rf /tmp/build`) and commands that merely *mention* a bomb (e.g. inside an
-  `echo`), while still catching split/long flags and `/bin/rm`. It is not
-  exhaustive — see the boundary note at the top.
+- `guard-bash.sh` anchors on the target operand, so targeted deletes
+  (`rm -rf /tmp/build`) and most quoted/argument mentions of a dangerous string
+  pass, while split/long flags and `/bin/rm` are caught. A bare catastrophic
+  token anywhere in the line can still trip it (errs safe). Not exhaustive — see
+  the boundary note at the top.
 - Configure protected paths with `CLAUDE_PROTECTED_PATHS` (colon-separated globs).
   `guard-paths.sh` resolves relative paths against the tool's cwd and follows
   `..`/symlinks (via `realpath`/`readlink -m`) before matching.
