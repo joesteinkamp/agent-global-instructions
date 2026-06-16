@@ -111,6 +111,11 @@ All non-interactive modes read your saved `my-context.env`.
   HTML-artifact preference stays either way; only the *serving* method changes.
 - **How you like work done** — autonomy posture (aggressive/balanced); whether
   to encourage agent teams (and which roles); subagents for long work.
+- **Where your memory lives** — when the memory-OS section is on, it asks
+  whether your memory is a local file/db store (e.g. Hermes at `~/.hermes/`), a
+  notes app reached over MCP (e.g. Notion, Obsidian), both, or generic — and
+  tailors what the agent is told to look for. Set non-interactively with
+  `MEM_KIND` + `MEM_PATH` / `MEM_TOOL` (or override the bullets via `MEM_BLOCK`).
 - **Which sections to include** — memory-OS discovery, agent teams,
   improve-after-larger-changes, tools & MCP servers, output artifacts,
   project-specific instructions, docs-first, correction capture.

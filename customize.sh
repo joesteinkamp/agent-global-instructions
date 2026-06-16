@@ -40,7 +40,7 @@ TEMPLATE="$DIR/template.md"
 # values handed to awk and the substitution loop, and all three lists drive the
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST TS_IP)  # {{VAR}} <-> $VAR
-CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK)                                                        # control render, not substituted
+CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                             # control render, not substituted
 INC_VARS=(INC_MEMORY INC_TEAMS INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
@@ -73,10 +73,12 @@ mktmp() {
 : "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
 : "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"
 
-if [ -z "${MEM_BLOCK:-}" ]; then
-  MEM_BLOCK='  - A dedicated memory store on this machine — e.g. an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.
-  - Any `MEMORY.md` / `memory/` directory, or `AGENTS.md` / `CLAUDE.md`, shipped by the project or tool you'\''re running under.'
-fi
+# Where the user's memory / notes actually live. MEM_KIND drives which bullets
+# the memory-os section renders ({{MEMORY_PATHS}}); MEM_PATH / MEM_TOOL fill in
+# the specifics. Default stays GENERIC so the shared template names no one store.
+: "${MEM_KIND:=generic}"        # generic | local | mcp | both
+: "${MEM_PATH:=}"               # local store path (e.g. ~/.hermes/) when local/both
+: "${MEM_TOOL:=}"               # notes app via MCP (e.g. Notion, Obsidian) when mcp/both
 
 # ---- safe loader: parse KEY=VALUE (NO sourcing => no code execution) ---------
 # Only allow-listed keys are honored; values may be single/double quoted and may
@@ -126,6 +128,35 @@ if [ -z "${AIGI_NO_USER_ENV:-}" ]; then
   [ -f "$DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$DIR/mcp-rules.local")"
 fi
 
+# Record whether MEM_BLOCK was supplied verbatim (env or my-context.env) BEFORE
+# we ever build one — build_mem_block honors that as a power-user escape hatch.
+MEM_BLOCK_EXPLICIT=""; [ -n "${MEM_BLOCK:-}" ] && MEM_BLOCK_EXPLICIT=1
+
+# Build the {{MEMORY_PATHS}} bullets from MEM_KIND/MEM_PATH/MEM_TOOL. Re-runnable:
+# it only short-circuits on an explicit MEM_BLOCK, so calling it after the
+# interactive prompts rebuilds from the freshly chosen backend.
+build_mem_block() {
+  [ -n "$MEM_BLOCK_EXPLICIT" ] && return 0
+  local proj='  - Any `MEMORY.md` / `memory/` directory, or `AGENTS.md` / `CLAUDE.md`, shipped by the project or tool you'\''re running under.'
+  local localb mcpb
+  if [ -n "$MEM_PATH" ]; then
+    localb="  - A local memory store at \`$MEM_PATH\` — read its identity/values files, curated user facts, and any per-agent memory directories before anything personal."
+  else
+    localb='  - A local memory store on this machine — an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.'
+  fi
+  if [ -n "$MEM_TOOL" ]; then
+    mcpb="  - My notes live in **$MEM_TOOL** — reach it through its MCP server and search there for relevant context before asking me."
+  else
+    mcpb='  - My notes live in a connected notes app — reach it through its MCP server and search there before asking me.'
+  fi
+  case "$MEM_KIND" in
+    local) MEM_BLOCK="$localb"$'\n'"$proj";;
+    mcp)   MEM_BLOCK="$mcpb"$'\n'"$proj";;
+    both)  MEM_BLOCK="$localb"$'\n'"$mcpb"$'\n'"$proj";;
+    *)     MEM_BLOCK='  - A dedicated memory store on this machine — e.g. an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.'$'\n'"$proj";;
+  esac
+}
+
 # ---- normalize & validate enum/toggle inputs --------------------------------
 # Canonicalize toggles (accept y/Y/yes/YES/true/1/on) and the enums (any case)
 # from ANY source — environment, my-context.env, or interactive answers — so
@@ -149,6 +180,14 @@ normalize_inputs() {
     non*)  PREVIEW=none;;
     *) echo "customize.sh: unknown PREVIEW='$PREVIEW' (expected tailscale/local/none); using local." >&2; PREVIEW=local;;
   esac
+  case "$(lc "$MEM_KIND")" in
+    loc*)        MEM_KIND=local;;
+    both)        MEM_KIND=both;;
+    mcp|note*|notion*|obsid*) MEM_KIND=mcp;;
+    gen*|'')     MEM_KIND=generic;;
+    *) echo "customize.sh: unknown MEM_KIND='$MEM_KIND' (expected generic/local/mcp/both); using generic." >&2; MEM_KIND=generic;;
+  esac
+  build_mem_block
 }
 normalize_inputs
 
@@ -374,6 +413,20 @@ fi
 echo ""
 echo "-- Optional sections --"
 INC_MEMORY="$(ask_one 'Include "look for a memory OS" section?' "y/n" "$INC_MEMORY")";       INC_MEMORY="${INC_MEMORY:0:1}"
+if [ "$INC_MEMORY" = "y" ]; then
+  echo "  Where does your memory / notes live? This tailors what the agent looks for."
+  echo "    1) Local files or a memory OS on this machine (e.g. Hermes at ~/.hermes)"
+  echo "    2) A notes app via its MCP server (e.g. Notion, Obsidian)"
+  echo "    3) Both a local store and a notes app"
+  echo "    4) Generic — don't name a specific store"
+  case "$(ask_one 'Memory backend' "1/2/3/4" "4")" in
+    1) MEM_KIND=local; MEM_PATH="$(ask 'Path to your local memory store' "${MEM_PATH:-~/.hermes/}")";;
+    2) MEM_KIND=mcp;   MEM_TOOL="$(ask 'Notes app name (as exposed by its MCP server)' "${MEM_TOOL:-Notion}")";;
+    3) MEM_KIND=both;  MEM_PATH="$(ask 'Path to your local memory store' "${MEM_PATH:-~/.hermes/}")"
+                       MEM_TOOL="$(ask 'Notes app name (as exposed by its MCP server)' "${MEM_TOOL:-Notion}")";;
+    *) MEM_KIND=generic;;
+  esac
+fi
 INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y/n" "$INC_ARTIFACTS")"; INC_ARTIFACTS="${INC_ARTIFACTS:0:1}"
 INC_PROJECT="$(ask_one 'Include "encourage project-specific instructions" section?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
 INC_DOCS="$(ask_one 'Include "documentation first" section?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"

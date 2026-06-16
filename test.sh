@@ -58,6 +58,18 @@ CARES=$'speed & scale | <x>\nsecond \\ line' render
 assert_has "ampersand/pipe/angle chars render literally" 'speed & scale | <x>'
 assert_has "newline in a value is preserved"             'second \ line'
 
+# 6b. Memory backend: MEM_KIND tailors the {{MEMORY_PATHS}} bullets.
+MEM_KIND=local MEM_PATH='~/.hermes/' render
+assert_has "MEM_KIND=local names the local store path" 'local memory store at `~/.hermes/`'
+MEM_KIND=mcp MEM_TOOL='Obsidian' render
+assert_has "MEM_KIND=mcp names the notes app"      'notes live in **Obsidian**'
+assert_no  "MEM_KIND=mcp omits the local-store bullet" 'local memory store at'
+MEM_KIND=both MEM_PATH='~/.hermes/' MEM_TOOL='Notion' render
+assert_has "MEM_KIND=both names the local store" 'local memory store at `~/.hermes/`'
+assert_has "MEM_KIND=both names the notes app"   'notes live in **Notion**'
+MEM_BLOCK='  - Hand-written bullet.' MEM_KIND=local render
+assert_has "explicit MEM_BLOCK overrides MEM_KIND" 'Hand-written bullet.'
+
 # 7. Every {{VAR}} placeholder in the template is substituted in a full render.
 #    (for-loop, not a while|grep pipeline — the latter exits after the first
 #    match and silently can't fail.)
