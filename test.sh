@@ -169,7 +169,70 @@ if command -v jq >/dev/null 2>&1; then
   else
     bad "install-commands installs command files"
   fi
+
+  # The permissions snippet is valid JSON with deny rules.
+  if jq -e '.permissions.deny | length > 0' "$DIR/settings-permissions.snippet.json" >/dev/null 2>&1; then
+    ok "settings-permissions.snippet.json is valid with deny rules"
+  else
+    bad "settings-permissions.snippet.json is valid with deny rules"
+  fi
+
+  # install-settings merges the Claude-only permissions layer, idempotently.
+  if HOME="$SMOKE" bash "$DIR/install-settings.sh" >/dev/null 2>&1 \
+     && jq -e '.permissions.deny | index("Read(./.env)")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+    ok "install-settings merges the permissions deny layer"
+  else
+    bad "install-settings merges the permissions deny layer"
+  fi
+  p1="$(jq '.permissions.deny | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
+  HOME="$SMOKE" bash "$DIR/install-settings.sh" >/dev/null 2>&1
+  p2="$(jq '.permissions.deny | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
+  [ -n "$p1" ] && [ "$p1" = "$p2" ] && ok "install-settings is idempotent (no duplication)" \
+                                    || bad "install-settings is idempotent (no duplication)"
+
+  # install-hooks wired the SessionStart memory loader (Claude).
+  if jq -e '.hooks.SessionStart[0].hooks[0].command | test("load-memory")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+    ok "install-hooks wires the SessionStart load-memory hook"
+  else
+    bad "install-hooks wires the SessionStart load-memory hook"
+  fi
+
+  # load-memory emits valid SessionStart context for a found store, silent otherwise.
+  MEMPROJ="$(mktemp -d)"; : > "$MEMPROJ/MEMORY.md"
+  lm_out="$(printf '{"cwd":"%s","source":"startup"}' "$MEMPROJ" | HOOK_PLATFORM=claude bash "$DIR/hooks/load-memory.sh" 2>/dev/null)"
+  if printf '%s' "$lm_out" | jq -e '.hookSpecificOutput.additionalContext | length > 0' >/dev/null 2>&1; then
+    ok "load-memory emits SessionStart additionalContext for a found store"
+  else
+    bad "load-memory emits SessionStart additionalContext for a found store"
+  fi
+  EMPTYPROJ="$(mktemp -d)"
+  lm_empty="$(printf '{"cwd":"%s","source":"startup"}' "$EMPTYPROJ" | HOME="$EMPTYPROJ" HOOK_PLATFORM=claude bash "$DIR/hooks/load-memory.sh" 2>/dev/null)"
+  [ -z "$lm_empty" ] && ok "load-memory stays silent when no store exists" \
+                     || bad "load-memory stays silent when no store exists"
+  rm -rf "$MEMPROJ" "$EMPTYPROJ"
+
+  # uninstall reverses hooks, permissions, and commands cleanly.
+  HOME="$SMOKE" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+  if ! jq -e '(.hooks // {}) | has("SessionStart")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
+     && ! jq -e '(.permissions // {}) | has("deny")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
+     && [ ! -f "$SMOKE/.claude/commands/ship.md" ]; then
+    ok "uninstall strips hooks, permissions, and command files"
+  else
+    bad "uninstall strips hooks, permissions, and command files"
+  fi
   rm -rf "$SMOKE"
+
+  # install.sh orchestrates every layer into a throwaway HOME.
+  SMOKE2="$(mktemp -d)"
+  if HOME="$SMOKE2" bash "$DIR/install.sh" --yes claude >/dev/null 2>&1 </dev/null \
+     && jq -e '.permissions.deny and .hooks.SessionStart' "$SMOKE2/.claude/settings.json" >/dev/null 2>&1 \
+     && [ -f "$SMOKE2/.claude/commands/ship.md" ] \
+     && [ -f "$SMOKE2/.claude/CLAUDE.md" ]; then
+    ok "install.sh orchestrates instructions + commands + hooks + settings"
+  else
+    bad "install.sh orchestrates instructions + commands + hooks + settings"
+  fi
+  rm -rf "$SMOKE2"
 else
   echo "  (skipped — jq not installed)"
 fi

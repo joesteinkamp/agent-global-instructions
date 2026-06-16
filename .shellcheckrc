@@ -1,0 +1,27 @@
+# ShellCheck config for this repo. CI runs `shellcheck --shell=bash` with the
+# default (style) severity, so it reports info/style notes too. The codes below
+# are disabled because the scripts use these idioms deliberately — they are not
+# bugs. Keep this list tight; prefer fixing a finding over adding to it.
+
+# A && B || C — used throughout test.sh as a terse assert. Safe here: the ok()/
+# bad() branches only printf + increment a counter, so B never fails into C.
+disable=SC2015
+
+# "Expressions don't expand in single quotes" — intentional: single-quoted awk
+# and jq program bodies, and literal Markdown backticks in rendered bullets.
+disable=SC2016
+
+# "Want to escape a single quote?" — the POSIX '\'' idiom is built on purpose
+# (customize.sh load_env), kept literal for bash 3.2 compatibility.
+disable=SC1003
+
+# "Tilde does not expand in quotes" — intentional literal '~/.hermes/' in the
+# MEM_KIND render tests; the test asserts that exact string appears verbatim.
+disable=SC2088
+
+# for-over-$(grep ...) — deliberate (test.sh notes why a while|grep pipeline
+# would mask a failure); inputs are controlled, single-token lines.
+disable=SC2013
+
+# "Can't follow non-constant source" — sourcing each examples/*.env by design.
+disable=SC1090

@@ -1,0 +1,24 @@
+name: CI
+
+# Lint every shell script and run the smoke-test suite. The whole harness is
+# bash, so shellcheck + ./test.sh is the regression net.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck and jq
+        run: sudo apt-get update && sudo apt-get install -y shellcheck jq
+
+      - name: ShellCheck
+        # All scripts target bash 3.2+; lint them as bash.
+        run: shellcheck --shell=bash ./*.sh hooks/*.sh
+
+      - name: Smoke tests
+        run: ./test.sh
