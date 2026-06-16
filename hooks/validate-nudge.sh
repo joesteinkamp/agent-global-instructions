@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stop hook — when a turn ends with a LARGER change, nudge the agent to run the
-# validation review team (/validate) before finishing. Claude + Codex only
+# improvement review (/improve) before finishing. Claude + Codex only
 # (Gemini has no per-turn Stop event).
 #
 # Fires at most once per distinct diff: the diff fingerprint of the last nudge
@@ -42,7 +42,7 @@ marker="$state_dir/.validate-nudge.$key"
 [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$fp" ] && exit 0
 printf '%s' "$fp" > "$marker" 2>/dev/null || true
 
-reason="Larger change detected (${files} files, ${lines} lines vs HEAD). Before finishing, run the validation review team (/validate) to surface improvement opportunities — or tell me you've intentionally skipped it."
+reason="Larger change detected (${files} files, ${lines} lines vs HEAD). Before finishing, run the improvement review (/improve) to surface improvement opportunities — or tell me you've intentionally skipped it."
 case "$PLATFORM" in
   claude) jq -nc --arg r "$reason" '{decision:"block",reason:$r}'; exit 0;;
   *)      echo "$reason" >&2; exit 2;;

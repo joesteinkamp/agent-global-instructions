@@ -8,7 +8,7 @@ Changed files: !`git --no-pager diff --stat HEAD 2>/dev/null`
 Untracked: !`git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
 Recent commits: !`git --no-pager log --oneline -5 2>/dev/null`
 
-Run a **validation review team** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). $ARGUMENTS
+Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). $ARGUMENTS
 
 1. Scope the changes and decide whether they touch UI.
 2. Spin up the review team **in parallel** — one subagent per lens (Task/Agent tool):
@@ -19,4 +19,4 @@ Run a **validation review team** on the recent changes (working tree vs HEAD, pl
    Give each only the diff + the relevant files. Ask each for concrete, prioritized **improvement opportunities** (not praise), each with `file:line` and a suggested change.
 3. Collect findings, **dedupe**, group by theme, sort by impact.
 4. Present a tight summary: top opportunities first (where + why + suggested fix). Call out any real bugs separately.
-5. This is a validation pass — **don't apply changes unless I ask.**
+5. This is a review pass — **don't apply changes unless I ask.**

@@ -10,12 +10,12 @@ It comes in four independent parts — use any subset:
 1. **Instructions** (model-facing) — a customizable `template.md` rendered into
    per-tool instruction files. *Advice* the assistant should follow.
 2. **Commands** — slash-command shortcuts (`/ship`, `/save`, `/pr`, `/sync`,
-   `/tidy`, `/validate`) for repeatable workflows.
+   `/tidy`, `/improve`) for repeatable workflows.
 3. **Guardrails & observability** (hooks) — auto-format, block edits to
    generated/sensitive paths, trip on catastrophic shell, and log every tool
    call to JSONL. *Enforcement* the model can't skip.
 4. **Validation** — a multi-role review team you run after big changes
-   (`/validate`), plus a Stop hook that nudges you to run it.
+   (`/improve`), plus a Stop hook that nudges you to run it.
 
 ## What's here
 
@@ -95,7 +95,7 @@ Portable prompt shortcuts. `./install-commands.sh` copies them to
 | `/pr` | Open a PR with a generated title/body — stops before merge. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/tidy` | Run the project's formatter/linter/tests and fix what's safe. |
-| `/validate` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
+| `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 
 ## 3. Guardrails & observability (hooks)
 
@@ -111,7 +111,7 @@ dialect (exit-2 for Claude/Codex, a `{"decision":"deny"}` JSON for Gemini).
 | `guard-bash` | before shell | Trip on catastrophic `rm -r` (root/home/parent) and force-pushes. Best-effort tripwire, not a sandbox. |
 | `format-edited` | after edits | Auto-format the edited file with the project's Prettier/ESLint. |
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
-| `validate-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/validate` (once per distinct diff). |
+| `validate-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/improve` (once per distinct diff). |
 
 Read the audit trail with `./audit.sh` (`--stats`, `--follow`, `-n N`). The log
 lives at `~/.ai-logs/tool-calls.jsonl` (`$AI_TOOL_LOG`); set `AI_LOG_RESPONSES=0`
@@ -122,7 +122,7 @@ to drop tool responses.
 After a larger change, run a review team to find improvement opportunities
 before calling the work done:
 
-- **`/validate`** spins up parallel subagents — technical architect, back-end,
+- **`/improve`** spins up parallel subagents — technical architect, back-end,
   front-end, and a UI/UX lens when UI changed — each returning concrete,
   prioritized fixes with `file:line`, then deduped into one summary.
 - **`validate-nudge`** (Stop hook, Claude + Codex) reminds you to run it when a
