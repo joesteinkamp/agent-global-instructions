@@ -18,6 +18,7 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `format-edited.sh` | edit tools (after) | Auto-formats the edited file with the project's Prettier/ESLint. Never blocks. |
 | `log-tool.sh` | every tool (before + after) | **Observability** — appends one JSONL record per tool event to an audit log. Never blocks. |
 | `improve-nudge.sh` | turn end (Stop) | When a turn ends with a **larger** diff (≥ `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`, default 8/200), nudges the agent to run `/improve`. Fires once (loop-guarded). Claude + Codex only — Gemini has no per-turn Stop event. |
+| `load-memory.sh` | session start | Injects a pointer to your **out-of-tool** memory stores (Hermes `~/.hermes/`, OpenClaw `~/.openclaw/workspace/`, project `MEMORY.md`/`memory/`) as `SessionStart` `additionalContext`, so the agent reads them before personal tasks. Lists only stores that exist; silent otherwise. Never blocks. Claude only — others have no equivalent context injection. Complements Claude's native auto-memory (`~/.claude/projects/<project>/memory/`), which it doesn't duplicate. |
 
 ## Observability
 
@@ -41,7 +42,7 @@ Logs are gitignored. Rotate/trim the file yourself if it grows large.
 
 | Tool | Config file | Events | Block dialect |
 |------|-------------|--------|---------------|
-| **Claude Code** | `~/.claude/settings.json` | `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse` | exit 2 + stderr |
+| **Claude Code** | `~/.claude/settings.json` | `SessionStart`, `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse`, `Stop` | exit 2 + stderr |
 | **Codex** | `~/.codex/hooks.json` | `PreToolUse` (`Bash`) | exit 2 + stderr |
 | **Antigravity / Gemini** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |
 

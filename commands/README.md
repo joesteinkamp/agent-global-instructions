@@ -6,11 +6,10 @@ you type `/<name>`. Install them with `../install-commands.sh`.
 | Command | What it does |
 |---------|--------------|
 | `/ship` | Stage → commit → push, and on a feature branch open + **merge** the PR (squash, delete branch), then return to default. The all-in-one. |
-| `/save` | Quick checkpoint: commit + push, no PR. |
-| `/pr`   | Open a PR with a generated title/body — stops before merge. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/tidy` | Run the project's formatter / linter / tests and fix what's safe (no commit). |
 | `/improve` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities. No changes applied. |
+| `/audit` | Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores the UI against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
 
 Most take optional arguments, e.g. `/ship fix login redirect` uses that as the
 commit message / PR title.

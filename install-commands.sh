@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the portable command files into Claude Code's command directory so
-# they work as /ship, /save, /pr, /sync, /tidy everywhere.
+# they work as /ship, /sync, /tidy, /improve, /audit everywhere.
 #
 #   ./install-commands.sh            -> ~/.claude/commands/   (global, default)
 #   ./install-commands.sh --project  -> ./.claude/commands/   (this repo only)

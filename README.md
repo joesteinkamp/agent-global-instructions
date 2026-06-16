@@ -32,19 +32,22 @@ change there is overwritten on the next render. To change the output, edit
 re-run `./customize.sh`. When you pull updates to this repo, just re-render to
 refresh the snapshots — your `my-context.env` is never touched.
 
-## The four parts
+## The parts
 
-It comes in four independent parts — use any subset:
+Independent parts — use any subset; `./install.sh` wires them all:
 
 1. **Instructions** (model-facing) — a customizable `template.md` rendered into
    per-tool instruction files. *Advice* the assistant should follow.
-2. **Commands** — slash-command shortcuts (`/ship`, `/save`, `/pr`, `/sync`,
-   `/tidy`, `/improve`) for repeatable workflows.
+2. **Commands** — slash-command shortcuts (`/ship`, `/sync`, `/tidy`,
+   `/improve`, `/audit`) for repeatable workflows.
 3. **Guardrails & observability** (hooks) — auto-format, block edits to
-   generated/sensitive paths, trip on catastrophic shell, and log every tool
-   call to JSONL. *Enforcement* the model can't skip.
+   generated/sensitive paths, trip on catastrophic shell, log every tool call to
+   JSONL, and surface your memory stores at session start. *Enforcement* the
+   model can't skip.
 4. **Validation** — a multi-role review team you run after big changes
    (`/improve`), plus a Stop hook that nudges you to run it.
+5. **Settings** (Claude-only) — a client-enforced `permissions` deny/ask layer
+   that backs up the guard hooks with rules the model genuinely can't bypass.
 
 ## What's here
 
@@ -54,12 +57,15 @@ It comes in four independent parts — use any subset:
 | `customize.sh` | Asks questions (or reads `my-context.env`), fills the template, writes the finalized file(s). Also `--scan-mcp`. |
 | `my-context.env.example` | Copy to `my-context.env` (gitignored) to save your answers. |
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
+| `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
 | `commands/` + `install-commands.sh` | Slash commands → `~/.claude/commands/`. |
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Gemini). |
+| `settings-permissions.snippet.json` + `install-settings.sh` | Claude-only `permissions` deny/ask layer → merged into `~/.claude/settings.json` (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
 | `sync.sh` | Mirror a rendered `AGENTS.md` to `CLAUDE.md` / `GEMINI.md` in this dir. |
 | `sync-global.sh` | Keep the hand-maintained **global** files in sync (`~/.claude/CLAUDE.md` → the others), backing up differences. |
-| `test.sh` | 30 smoke tests: render engine, the `load_env` parser, example reproducibility, and installer smoke tests. |
+| `.github/workflows/ci.yml` | CI: shellcheck every script + run `test.sh` on push / PR. |
+| `test.sh` | Smoke tests: render engine, the `load_env` parser, example reproducibility, and installer/uninstaller smoke tests. |
 
 Rendered output (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), your `my-context.env`,
 `mcp-rules.local`, and `review/` artifacts are **gitignored** — they're personal,
@@ -78,24 +84,33 @@ cp my-context.env.example my-context.env && $EDITOR my-context.env
 # 2. (optional) detect your MCP servers and add per-server usage rules
 ./customize.sh --scan-mcp      # writes mcp-rules.local (gitignored)
 
-# 3. preview, then generate + install the instructions machine-wide
-./customize.sh --print         # see the output first — writes nothing
-./customize.sh --global        # writes ~/.claude/CLAUDE.md, ~/AGENTS.md,
-                               #   ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md
-                               # asks to confirm (each file is backed up first);
-                               #   add --yes to skip the prompt on re-runs
-
-# 4. (optional) install the commands and hooks
-./install-commands.sh          # /ship, /save, ... in Claude Code
-./install-hooks.sh             # guardrails + logging across all tools
+# 3. preview, then install everything in one shot
+./customize.sh --print         # see the instructions first — writes nothing
+./install.sh                   # instructions + commands + hooks + settings
+                               #   asks once to confirm the global render
+                               #   (each file is backed up first); --yes skips it
 ```
 
-Other render targets:
+`./install.sh` orchestrates the focused scripts so you don't have to remember the
+order. Target specific tools and reverse it cleanly:
+
+```bash
+./install.sh --yes             # all tools, no confirm prompt
+./install.sh claude            # just Claude Code (incl. the permissions layer)
+./install.sh codex gemini      # instructions + hooks for Codex / Gemini
+./uninstall.sh                 # strip our hooks/permissions/commands (configs
+                               #   backed up; instruction files left in place)
+```
+
+Prefer to run the pieces yourself, or render without installing:
 
 ```bash
 ./customize.sh                 # interactive: asks questions, then writes
-./customize.sh --print         # render to stdout (writes nothing)
+./customize.sh --global        # render all four instruction files machine-wide
 ./customize.sh --project       # write AGENTS.md + CLAUDE.md + GEMINI.md here
+./install-commands.sh          # /ship, /sync, /audit, ... in Claude Code
+./install-hooks.sh             # guardrails + logging across all tools
+./install-settings.sh          # Claude-only permissions (deny/ask) layer
 ```
 
 All non-interactive modes read your saved `my-context.env`.
@@ -128,11 +143,10 @@ Portable prompt shortcuts. `./install-commands.sh` copies them to
 | Command | Does |
 |---------|------|
 | `/ship` | Stage → commit → push, and on a feature branch open + **merge** the PR (squash, delete branch), then return to default. The all-in-one. |
-| `/save` | Quick checkpoint: commit + push, no PR. |
-| `/pr` | Open a PR with a generated title/body — stops before merge. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/tidy` | Run the project's formatter/linter/tests and fix what's safe. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
+| `/audit` | Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
 
 ## 3. Guardrails & observability (hooks)
 
@@ -149,10 +163,21 @@ dialect (exit-2 for Claude/Codex, a `{"decision":"deny"}` JSON for Gemini).
 | `format-edited` | after edits | Auto-format the edited file with the project's Prettier/ESLint. |
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
 | `improve-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/improve` (once per distinct diff). |
+| `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude only; silent when none exist. |
 
 Read the audit trail with `./audit.sh` (`--stats`, `--follow`, `-n N`). The log
 lives at `~/.ai-logs/tool-calls.jsonl` (`$AI_TOOL_LOG`); set `AI_LOG_RESPONSES=0`
 to drop tool responses.
+
+### Permissions (Claude-only enforcement)
+
+The guard hooks are a best-effort tripwire. `./install-settings.sh` adds the
+**client-enforced** half: a `permissions` block merged into `~/.claude/settings.json`
+whose `deny` rules (mirroring `guard-paths` — `.env*`, lockfiles, `build/ dist/
+node_modules/ .git/`) the model genuinely can't bypass, plus an `ask` gate
+(`sudo` by default). Edit `settings-permissions.snippet.json` to tune it — add
+e.g. `Bash(git push:*)` or `Bash(curl:*)` to `ask` for more friction. Merges are
+idempotent and backed up; `./uninstall.sh` removes exactly these rules.
 
 ## 4. Validation
 
@@ -173,8 +198,7 @@ repo), re-render — your answers live in `my-context.env`, so it's one command:
 
 ```bash
 git pull
-./customize.sh --global --yes  # zero prompts when my-context.env exists
-./install-commands.sh && ./install-hooks.sh   # if the scripts changed
+./install.sh --yes             # re-render + re-install every layer, zero prompts
 ```
 
 ## For teams
