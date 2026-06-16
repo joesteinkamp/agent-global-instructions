@@ -1,9 +1,38 @@
 # Portable AI harness
 
-A tool-agnostic harness for any AI coding assistant — Claude Code, Codex,
-Antigravity/Gemini, Cursor, and anything else that reads a `CLAUDE.md` /
-`AGENTS.md` / `GEMINI.md` style file. Write your preferences once; use them
-everywhere. Nothing is hardcoded to any one person or machine.
+**Write your AI-assistant preferences once; use them in every tool.** Every
+coding assistant — Claude Code, Codex, Antigravity/Gemini, Cursor — reads its
+own `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` instruction file. Maintain them by
+hand and you keep re-teaching each tool your name, your environment, and how you
+like to work — and the files drift out of sync.
+
+- **Without this:** you paste the same preferences into Claude, then Codex, then
+  Gemini; you tweak one later; now three files disagree.
+- **With this:** you edit one template, run one command, and every tool's
+  instruction file is regenerated in sync. Nothing is hardcoded to any one person
+  or machine.
+
+## How it works
+
+Three layers — a shared baseline, your personal answers, and the generated
+output:
+
+```
+template.md      wording + which sections to include    (shared, committed)
+      +
+my-context.env   your answers: name, env, autonomy …    (personal, gitignored)
+      │
+      ▼   ./customize.sh
+rendered files   CLAUDE.md / AGENTS.md / GEMINI.md       (snapshots — generated)
+```
+
+**The rendered files are snapshots — never edit them directly.** Anything you
+change there is overwritten on the next render. To change the output, edit
+`template.md` (wording, which sections) or `my-context.env` (your answers) and
+re-run `./customize.sh`. When you pull updates to this repo, just re-render to
+refresh the snapshots — your `my-context.env` is never touched.
+
+## The four parts
 
 It comes in four independent parts — use any subset:
 
@@ -49,9 +78,12 @@ cp my-context.env.example my-context.env && $EDITOR my-context.env
 # 2. (optional) detect your MCP servers and add per-server usage rules
 ./customize.sh --scan-mcp      # writes mcp-rules.local (gitignored)
 
-# 3. generate + install the instructions machine-wide
-./customize.sh --global        # ~/.claude/CLAUDE.md, ~/AGENTS.md,
-                               # ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md
+# 3. preview, then generate + install the instructions machine-wide
+./customize.sh --print         # see the output first — writes nothing
+./customize.sh --global        # writes ~/.claude/CLAUDE.md, ~/AGENTS.md,
+                               #   ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md
+                               # asks to confirm (each file is backed up first);
+                               #   add --yes to skip the prompt on re-runs
 
 # 4. (optional) install the commands and hooks
 ./install-commands.sh          # /ship, /save, ... in Claude Code
@@ -136,7 +168,7 @@ repo), re-render — your answers live in `my-context.env`, so it's one command:
 
 ```bash
 git pull
-./customize.sh --global        # zero prompts when my-context.env exists
+./customize.sh --global --yes  # zero prompts when my-context.env exists
 ./install-commands.sh && ./install-hooks.sh   # if the scripts changed
 ```
 

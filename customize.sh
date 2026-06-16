@@ -8,7 +8,9 @@
 #   ./customize.sh --project   non-interactive — write AGENTS/CLAUDE/GEMINI.md
 #                              into this directory (uses defaults + my-context.env)
 #   ./customize.sh --global    non-interactive — write the machine-wide files
-#                              (~/.claude, ~/AGENTS.md, ~/.codex, ~/.gemini)
+#                              (~/.claude, ~/AGENTS.md, ~/.codex, ~/.gemini).
+#                              Prompts to confirm; add --yes (or -y) to skip the
+#                              prompt for scripted / zero-prompt re-runs.
 #   ./customize.sh --scan-mcp  detect MCP servers and write mcp-rules.local
 #
 # Defaults are GENERIC on purpose (this is a shareable template). To keep your
@@ -113,6 +115,32 @@ if [ -z "${AIGI_NO_USER_ENV:-}" ]; then
   [ -f "$DIR/my-context.env" ] && load_env "$DIR/my-context.env"
   [ -f "$DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$DIR/mcp-rules.local")"
 fi
+
+# ---- normalize & validate enum/toggle inputs --------------------------------
+# Canonicalize toggles (accept y/Y/yes/YES/true/1/on) and the enums (any case)
+# from ANY source — environment, my-context.env, or interactive answers — so
+# render()'s exact-match comparisons can never silently drop a section on a
+# capital "Y" or a typo'd enum. Unknown enum values warn (instead of silently
+# dropping the block) and fall back to the documented default. Called once for
+# the non-interactive paths below, and again after the interactive prompts.
+normalize_inputs() {
+  local _v
+  for _v in "${INC_VARS[@]}"; do
+    case "${!_v,,}" in y*|true|1|on) printf -v "$_v" y;; *) printf -v "$_v" n;; esac
+  done
+  case "${AUTONOMY,,}" in
+    agg*) AUTONOMY=aggressive;;
+    bal*) AUTONOMY=balanced;;
+    *) echo "customize.sh: unknown AUTONOMY='$AUTONOMY' (expected aggressive/balanced); using aggressive." >&2; AUTONOMY=aggressive;;
+  esac
+  case "${PREVIEW,,}" in
+    tail*) PREVIEW=tailscale;;
+    loc*)  PREVIEW=local;;
+    non*)  PREVIEW=none;;
+    *) echo "customize.sh: unknown PREVIEW='$PREVIEW' (expected tailscale/local/none); using local." >&2; PREVIEW=local;;
+  esac
+}
+normalize_inputs
 
 # ---- MCP detection ----------------------------------------------------------
 # Print the names of MCP servers configured for Claude Code on this machine.
@@ -264,24 +292,34 @@ write_global() {
   render_to "$HOME/.gemini/GEMINI.md" backup && echo "  wrote ~/.gemini/GEMINI.md"
 }
 
+# ---- prompt helpers (used by both the --global confirm and the interactive flow)
+# ask:     free-text with a [default] shown; Enter returns the default.
+# ask_one: a choice; pass the menu to display AND the real default separately,
+#          so Enter returns the default (not the menu string). Reads from /dev/tty,
+#          so with no terminal it returns the default (here "N" => safe abort).
+ask()    { local v; read -r -p "$1 [$2]: " v </dev/tty || true; printf '%s' "${v:-$2}"; }
+ask_one(){ local v; read -r -p "$1 [$3] ($2): " v </dev/tty || true; printf '%s' "${v:-$3}"; }
+
 # ---- non-interactive paths --------------------------------------------------
+# --yes/-y (any position) skips the --global confirmation, for scripted/zero-prompt re-runs.
+ASSUME_YES=""
+for _a in "$@"; do case "$_a" in -y|--yes) ASSUME_YES=1;; esac; done
+
 case "${1:-}" in
   --print)    render; exit 0;;
   --project)  write_project; exit 0;;
   --global)
-    echo "Writing machine-wide instruction files (overwrites them if present):"
+    echo "This OVERWRITES your machine-wide instruction files (each is backed up first):"
     echo "  ~/.claude/CLAUDE.md  ~/AGENTS.md  ~/.codex/AGENTS.md  ~/.gemini/GEMINI.md"
+    if [ -z "$ASSUME_YES" ]; then
+      CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
+      case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted (pass --yes to skip this prompt)."; exit 0;; esac
+    fi
     write_global; exit 0;;
   --scan-mcp) scan_mcp; exit 0;;
 esac
 
 # ---- prompts ----------------------------------------------------------------
-# ask:     free-text with a [default] shown; Enter returns the default.
-# ask_one: a choice; pass the menu to display AND the real default separately,
-#          so Enter returns the default (not the menu string).
-ask()    { local v; read -r -p "$1 [$2]: " v </dev/tty || true; printf '%s' "${v:-$2}"; }
-ask_one(){ local v; read -r -p "$1 [$3] ($2): " v </dev/tty || true; printf '%s' "${v:-$3}"; }
-
 echo "== Customize AI instructions =="
 echo "(press Enter to accept the [default] in brackets)"
 echo ""
@@ -330,6 +368,9 @@ INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y
 INC_PROJECT="$(ask_one 'Include "encourage project-specific instructions" section?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
 INC_DOCS="$(ask_one 'Include "documentation first" section?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
 INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
+
+# Canonicalize the answers just typed (so "Y", "Balanced", "Tailscale" all work).
+normalize_inputs
 
 # ---- output target ----------------------------------------------------------
 echo ""
