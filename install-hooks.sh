@@ -20,7 +20,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 # idempotency filter, so they can't drift. HOOK_RE matches /<our-script>.sh
 # (anchored on the dir slash so it won't match an unrelated user hook that just
 # mentions the bare name; not end-anchored since wired commands end in .sh").
-HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool validate-nudge)
+HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool improve-nudge)
 HOOK_RE="/($(IFS='|'; echo "${HOOK_SCRIPTS[*]}"))\\.sh"
 
 # Clean up any temp file left behind if jq fails or we're interrupted.
@@ -72,7 +72,7 @@ cmd() { printf 'env HOOK_PLATFORM=%s "%s/%s.sh"' "$1" "$2" "$3"; }  # platform, 
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg vn "$(cmd claude "$hd" validate-nudge)" '{
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg vn "$(cmd claude "$hd" improve-nudge)" '{
     PreToolUse: [
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
       {matcher:"Edit|Write|MultiEdit|NotebookEdit", hooks:[{type:"command",command:$gp}]},
@@ -84,14 +84,14 @@ install_claude() {
     ],
     Stop: [ {hooks:[{type:"command",command:$vn}]} ]
   }')"
-  echo "  claude  -> $sf (log, auto-format, guard paths, guard bash, validate-nudge)"
+  echo "  claude  -> $sf (log, auto-format, guard paths, guard bash, improve-nudge)"
 }
 
 install_codex() {
   local hd="$HOME/.codex/hooks" sf="$HOME/.codex/hooks.json"
   copy_scripts "$hd"
   # Codex currently surfaces only the Bash tool to hooks, so wire the shell guard + logging.
-  merge_json "$sf" "$(jq -n --arg gb "$(cmd codex "$hd" guard-bash)" --arg lg "$(cmd codex "$hd" log-tool)" --arg vn "$(cmd codex "$hd" validate-nudge)" '{
+  merge_json "$sf" "$(jq -n --arg gb "$(cmd codex "$hd" guard-bash)" --arg lg "$(cmd codex "$hd" log-tool)" --arg vn "$(cmd codex "$hd" improve-nudge)" '{
     PreToolUse: [
       {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
       {matcher:"Bash", hooks:[{type:"command",command:$gb,timeout:30}]}
@@ -99,7 +99,7 @@ install_codex() {
     PostToolUse: [ {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]} ],
     Stop: [ {hooks:[{type:"command",command:$vn,timeout:30}]} ]
   }')"
-  echo "  codex   -> $sf (log, guard bash, validate-nudge; path-guard/format pending Codex edit-tool hooks)"
+  echo "  codex   -> $sf (log, guard bash, improve-nudge; path-guard/format pending Codex edit-tool hooks)"
 }
 
 install_gemini() {

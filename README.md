@@ -38,7 +38,7 @@ generate them locally. Want to see finished output first? Read
 [`examples/aggressive-tailscale.md`](examples/aggressive-tailscale.md) (aggressive
 autonomy, Tailscale serving, all sections on) or
 [`examples/balanced-local.md`](examples/balanced-local.md) (balanced autonomy,
-local serving, validate + tools off).
+local serving, improve + tools off).
 
 ## Quick start
 
@@ -80,7 +80,7 @@ All non-interactive modes read your saved `my-context.env`.
 - **How you like work done** — autonomy posture (aggressive/balanced); whether
   to encourage agent teams (and which roles); subagents for long work.
 - **Which sections to include** — memory-OS discovery, agent teams,
-  validate-after-larger-changes, tools & MCP servers, output artifacts,
+  improve-after-larger-changes, tools & MCP servers, output artifacts,
   project-specific instructions, docs-first, correction capture.
 
 ## 2. Commands
@@ -111,7 +111,7 @@ dialect (exit-2 for Claude/Codex, a `{"decision":"deny"}` JSON for Gemini).
 | `guard-bash` | before shell | Trip on catastrophic `rm -r` (root/home/parent) and force-pushes. Best-effort tripwire, not a sandbox. |
 | `format-edited` | after edits | Auto-format the edited file with the project's Prettier/ESLint. |
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
-| `validate-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/improve` (once per distinct diff). |
+| `improve-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/improve` (once per distinct diff). |
 
 Read the audit trail with `./audit.sh` (`--stats`, `--follow`, `-n N`). The log
 lives at `~/.ai-logs/tool-calls.jsonl` (`$AI_TOOL_LOG`); set `AI_LOG_RESPONSES=0`
@@ -125,8 +125,8 @@ before calling the work done:
 - **`/improve`** spins up parallel subagents — technical architect, back-end,
   front-end, and a UI/UX lens when UI changed — each returning concrete,
   prioritized fixes with `file:line`, then deduped into one summary.
-- **`validate-nudge`** (Stop hook, Claude + Codex) reminds you to run it when a
-  turn ends with a diff over `VALIDATE_MIN_FILES`/`VALIDATE_MIN_LINES`
+- **`improve-nudge`** (Stop hook, Claude + Codex) reminds you to run it when a
+  turn ends with a diff over `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`
   (default 8 files / 200 lines), firing once per distinct diff.
 
 ## Updating over time

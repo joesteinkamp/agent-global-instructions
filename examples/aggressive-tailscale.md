@@ -37,11 +37,11 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Never assume roles — ask me.** I draw from: front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher.
 - **Use subagents for long, decomposable work;** the main thread coordinates and integrates.
 
-## Validate after larger changes
+## Improve after larger changes
 
 - **After a larger code change (~8+ files or ~200+ lines), run a multi-role review team** to find improvement opportunities before treating the work as done — don't wait for me to ask.
 - **Default panel:** technical architect, back-end engineer, front-end engineer, plus a UI/UX lens when UI changed. Run them in parallel as subagents; each returns concrete, prioritized suggestions (`file:line` + fix). Then dedupe and summarize, top impact first.
-- It's a validation pass — surface opportunities and any real bugs; don't apply changes unless I say so.
+- It's a review pass — surface opportunities and any real bugs; don't apply changes unless I say so.
 
 ## Tools & MCP servers
 

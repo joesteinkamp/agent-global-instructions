@@ -54,13 +54,13 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Use subagents for long, decomposable work;** the main thread coordinates and integrates.
 <!--/SECTION:agent-teams-->
 
-<!--SECTION:validate-->
-## Validate after larger changes
+<!--SECTION:improve-->
+## Improve after larger changes
 
 - **After a larger code change (~8+ files or ~200+ lines), run a multi-role review team** to find improvement opportunities before treating the work as done — don't wait for me to ask.
 - **Default panel:** technical architect, back-end engineer, front-end engineer, plus a UI/UX lens when UI changed. Run them in parallel as subagents; each returns concrete, prioritized suggestions (`file:line` + fix). Then dedupe and summarize, top impact first.
-- It's a validation pass — surface opportunities and any real bugs; don't apply changes unless I say so.
-<!--/SECTION:validate-->
+- It's a review pass — surface opportunities and any real bugs; don't apply changes unless I say so.
+<!--/SECTION:improve-->
 
 <!--SECTION:tools-mcp-->
 ## Tools & MCP servers

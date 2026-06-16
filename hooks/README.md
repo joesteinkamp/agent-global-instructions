@@ -17,7 +17,7 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `guard-bash.sh`  | shell tool (before) | Trips on `rm -r` targeting root/home/parent **as a whole token** (so `rm -rf /tmp/build` and `rm -rf node_modules` pass), and on force-pushes — `--force`, a `-f` flag, or a `+refspec` (allows `--force-with-lease`). |
 | `format-edited.sh` | edit tools (after) | Auto-formats the edited file with the project's Prettier/ESLint. Never blocks. |
 | `log-tool.sh` | every tool (before + after) | **Observability** — appends one JSONL record per tool event to an audit log. Never blocks. |
-| `validate-nudge.sh` | turn end (Stop) | When a turn ends with a **larger** diff (≥ `VALIDATE_MIN_FILES`/`VALIDATE_MIN_LINES`, default 8/200), nudges the agent to run `/improve`. Fires once (loop-guarded). Claude + Codex only — Gemini has no per-turn Stop event. |
+| `improve-nudge.sh` | turn end (Stop) | When a turn ends with a **larger** diff (≥ `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`, default 8/200), nudges the agent to run `/improve`. Fires once (loop-guarded). Claude + Codex only — Gemini has no per-turn Stop event. |
 
 ## Observability
 

@@ -8,7 +8,7 @@
 # while a large uncommitted diff sits there. It nudges again only once the diff
 # materially changes. (stop_hook_active still guards the same-turn continuation.)
 #
-# Thresholds: VALIDATE_MIN_FILES (default 8), VALIDATE_MIN_LINES (default 200).
+# Thresholds: IMPROVE_MIN_FILES (default 8), IMPROVE_MIN_LINES (default 200).
 # State dir: $AI_NUDGE_STATE (default ~/.ai-logs).
 set -u
 
@@ -30,7 +30,7 @@ ins="$(printf '%s' "$stat" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || 
 del="$(printf '%s' "$stat" | grep -oE '[0-9]+ deletion'  | grep -oE '[0-9]+' || true)"; del="${del:-0}"
 lines=$(( ins + del ))
 
-minf="${VALIDATE_MIN_FILES:-8}"; minl="${VALIDATE_MIN_LINES:-200}"
+minf="${IMPROVE_MIN_FILES:-8}"; minl="${IMPROVE_MIN_LINES:-200}"
 if [ "${files:-0}" -lt "$minf" ] && [ "$lines" -lt "$minl" ]; then exit 0; fi
 
 # De-dupe across turns: fingerprint the actual diff content (falls back to
@@ -38,7 +38,7 @@ if [ "${files:-0}" -lt "$minf" ] && [ "$lines" -lt "$minl" ]; then exit 0; fi
 fp="$(git -C "$cwd" diff HEAD 2>/dev/null | cksum | tr -d ' ')-${files}-${lines}"
 state_dir="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; mkdir -p "$state_dir" 2>/dev/null || true
 key="$(printf '%s' "$cwd" | cksum | cut -d' ' -f1)"
-marker="$state_dir/.validate-nudge.$key"
+marker="$state_dir/.improve-nudge.$key"
 [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$fp" ] && exit 0
 printf '%s' "$fp" > "$marker" 2>/dev/null || true
 
