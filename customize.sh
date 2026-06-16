@@ -22,10 +22,14 @@
 # ignore my-context.env / mcp-rules.local (used by the examples and test.sh).
 set -euo pipefail
 
-if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
-  echo "customize.sh needs bash 4+ (found ${BASH_VERSION:-unknown}). On macOS: brew install bash, then run with that bash." >&2
+if [ "${BASH_VERSINFO[0]:-0}" -lt 3 ] \
+   || { [ "${BASH_VERSINFO[0]:-0}" -eq 3 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 2 ]; }; then
+  echo "customize.sh needs bash 3.2+ (found ${BASH_VERSION:-unknown})." >&2
   exit 1
 fi
+
+# Lowercase helper — bash 3.2 (macOS' system bash) lacks the ${var,,} expansion.
+lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE="$DIR/template.md"
@@ -80,15 +84,18 @@ fi
 # A value's closing quote must end its line (the natural shell style); the
 # continuation loop reads further lines only while the quote is still open.
 load_env() {
-  local file="$1" line key val rest k
-  local -A ALLOWED=()
-  for k in "${SUBST_VARS[@]}" "${CTRL_VARS[@]}" "${INC_VARS[@]}"; do ALLOWED[$k]=1; done
+  local file="$1" line key val rest
+  local sq="'" bs='\'   # single chars; used to build the '\'' idiom literally
+  # Allowlist as a space-delimited set (keys are identifiers, never contain
+  # spaces) — bash 3.2 has no associative arrays. Leading/trailing spaces let
+  # the membership test below match whole tokens only.
+  local allowed=" ${SUBST_VARS[*]} ${CTRL_VARS[*]} ${INC_VARS[*]} "
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%$'\r'}"                       # tolerate CRLF (Windows) files
     case "$line" in ''|'#'*) continue;; esac
     [[ "$line" == *=* ]] || continue
     key="${line%%=*}"; key="${key//[[:space:]]/}"
-    [ -n "${ALLOWED[$key]:-}" ] || continue
+    [[ "$allowed" == *" $key "* ]] || continue
     val="${line#*=}"
     case "$val" in
       \"*) val="${val#\"}"
@@ -103,7 +110,10 @@ load_env() {
              val="$val"$'\n'"${rest%$'\r'}"
            done
            val="${val%\'}"
-           val="${val//\'\\\'\'/\'}";;          # POSIX single-quote idiom '\'' -> '
+           # POSIX single-quote idiom '\'' -> ' . Build the 4-char pattern from
+           # single-char vars and quote it in the substitution so the match is
+           # literal — bash 3.2 mishandles backslashes in an inline ${//} pattern.
+           val="${val//"$sq$bs$sq$sq"/$sq}";;
       *)   val="${val#"${val%%[![:space:]]*}"}" # unquoted: trim surrounding whitespace
            val="${val%"${val##*[![:space:]]}"}";;
     esac
@@ -126,14 +136,14 @@ fi
 normalize_inputs() {
   local _v
   for _v in "${INC_VARS[@]}"; do
-    case "${!_v,,}" in y*|true|1|on) printf -v "$_v" y;; *) printf -v "$_v" n;; esac
+    case "$(lc "${!_v}")" in y*|true|1|on) printf -v "$_v" y;; *) printf -v "$_v" n;; esac
   done
-  case "${AUTONOMY,,}" in
+  case "$(lc "$AUTONOMY")" in
     agg*) AUTONOMY=aggressive;;
     bal*) AUTONOMY=balanced;;
     *) echo "customize.sh: unknown AUTONOMY='$AUTONOMY' (expected aggressive/balanced); using aggressive." >&2; AUTONOMY=aggressive;;
   esac
-  case "${PREVIEW,,}" in
+  case "$(lc "$PREVIEW")" in
     tail*) PREVIEW=tailscale;;
     loc*)  PREVIEW=local;;
     non*)  PREVIEW=none;;
