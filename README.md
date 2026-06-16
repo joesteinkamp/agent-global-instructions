@@ -205,8 +205,8 @@ Run `./test.sh` after any change.
   existing file before overwriting (keeping the 5 newest backups).
 - The hooks are a **best-effort safety net, not a security boundary** — they see
   a tool's structured input and match heuristically. See `hooks/README.md`.
-- Needs **bash 4+** (macOS ships 3.2: `brew install bash`) and `jq` for the MCP
-  scanner and the hook installers.
+- Runs on **bash 3.2+**, so macOS' stock `/bin/bash` works — no `brew install
+  bash` needed. `jq` is required for the MCP scanner and the hook installers.
 
 ## License
 
