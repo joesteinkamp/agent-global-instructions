@@ -25,7 +25,7 @@ for a in "$@"; do
   case "$a" in
     --yes|-y) yes_flag="--yes";;
     claude|codex|gemini|antigravity) targets+=("$a");;
-    *) echo "unknown arg: $a (use: --yes | claude | codex | gemini)" >&2; exit 1;;
+    *) echo "unknown arg: $a (use: --yes | claude | codex | gemini | antigravity)" >&2; exit 1;;
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex gemini)
@@ -34,7 +34,7 @@ has_target() { local t; for t in "${targets[@]}"; do [ "$t" = "$1" ] && return 0
 
 echo "== instructions =="
 # Portable core — renders every tool's instruction file from template.md.
-"$DIR/customize.sh" --global $yes_flag
+if [ -n "$yes_flag" ]; then "$DIR/customize.sh" --global --yes; else "$DIR/customize.sh" --global; fi
 
 if has_target claude; then
   echo "== commands =="
