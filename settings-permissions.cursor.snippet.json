@@ -1,0 +1,23 @@
+{
+  "_comment": "Cursor CLI agent permissions (~/.cursor/cli-config.json). deny takes precedence; mirrors settings-permissions.snippet.json. The Cursor GUI agent is allowlist-only (no path deny) — there, the guard hooks (beforeReadFile / afterFileEdit) are the safety net. There is no CLI 'ask' array, so sudo maps to a hard Shell(sudo) deny.",
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Write(**/.env)",
+      "Write(**/.env.*)",
+      "Write(**/build/**)",
+      "Write(**/dist/**)",
+      "Write(**/.next/**)",
+      "Write(**/out/**)",
+      "Write(**/coverage/**)",
+      "Write(**/node_modules/**)",
+      "Write(**/.git/**)",
+      "Write(**/package-lock.json)",
+      "Write(**/pnpm-lock.yaml)",
+      "Write(**/yarn.lock)",
+      "Write(**/bun.lockb)",
+      "Shell(sudo)"
+    ]
+  }
+}

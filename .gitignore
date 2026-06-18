@@ -10,6 +10,9 @@ mcp-rules.local
 # Generated review/audit artifacts — local, never commit
 review/
 
+# Per-tool port research notes (agent scratch) — local, never commit
+ports/
+
 # Rendered, personalized output — generate locally with ./customize.sh
 /AGENTS.md
 /CLAUDE.md

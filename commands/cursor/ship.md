@@ -1,18 +1,20 @@
----
-description: Commit, push, and (on a feature branch) merge the PR/MR — all in one go
-argument-hint: [optional commit message / PR title]
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(glab:*)
----
+<!-- Canonical source: commands/ship.md (Claude dialect). This is the Cursor port.
+     Cursor commands are plain-Markdown prompt templates in .cursor/commands/*.md —
+     NO YAML frontmatter, NO shell injection, NO $ARGUMENTS placeholder. The Claude
+     frontmatter (description/argument-hint/allowed-tools) and the `!`cmd`` context
+     lines are folded into prose below; anything you type after `/ship` is the args. -->
 
-Current state:
-- Branch: !`git branch --show-current`
-- Status: !`git status --short`
-- Diff (staged + unstaged): !`git --no-pager diff HEAD --stat`
-- Remote: !`git remote get-url origin 2>/dev/null`
+# Ship
 
-Ship the current work in one shot. $ARGUMENTS
+Commit, push, and (on a feature branch) merge the PR/MR — all in one go. Anything I type after `/ship` is the commit message / PR title.
 
-First, figure out which forge this repo lives on, from the `origin` remote URL above:
+First gather the current state by running these yourself:
+- Branch: `git branch --show-current`
+- Status: `git status --short`
+- Diff (staged + unstaged): `git --no-pager diff HEAD --stat`
+- Remote: `git remote get-url origin 2>/dev/null`
+
+Figure out which forge this repo lives on, from the `origin` remote URL:
 - **github.com** (or a GitHub Enterprise host) → use the `gh` CLI; the change is a **PR**.
 - **gitlab.com** (or a self-hosted GitLab) → use the `glab` CLI; the change is a **MR** (merge request).
 - If the host is ambiguous, prefer whichever of `gh` / `glab` is installed (`command -v`). If neither is available, do steps 1–4 (commit + push) and stop, telling me to open the PR/MR manually.
@@ -21,7 +23,7 @@ Steps:
 1. If there are no changes and nothing unpushed, say so and stop.
 2. Stage everything (`git add -A`).
 3. Commit with a concise message that follows this repo's existing convention
-   (check `git log --oneline -5`). If I passed text in $ARGUMENTS, use it as the
+   (check `git log --oneline -5`). If I passed text after the command, use it as the
    message/title; otherwise generate one from the diff.
 4. Push, setting upstream if the branch has none.
 5. Figure out the default branch. Prefer a forge-independent lookup so this works

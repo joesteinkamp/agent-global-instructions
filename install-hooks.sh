@@ -9,7 +9,7 @@
 #   ./install-hooks.sh codex gemini
 #
 # Tools: claude (~/.claude/settings.json) · codex (~/.codex/hooks.json) ·
-#        gemini / antigravity (~/.gemini/settings.json)
+#        cursor (~/.cursor/hooks.json) · gemini / antigravity (~/.gemini/settings.json)
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -57,8 +57,12 @@ merge_json() {  # $1 = settings file, $2 = hooks object json
   tmp="$(mktemp)"; TMPFILES+=("$tmp")
   jq --argjson add "$add" --arg pat "$HOOK_RE" '
     .hooks = (.hooks // {})
+    # Drop any of our prior entries so re-runs do not duplicate. Handle BOTH
+    # shapes: Claude/Codex/Gemini nest commands under .hooks[]; Cursor uses a
+    # flat { "command": ... } per entry.
     | .hooks |= with_entries(.value |= map(select(
-        ((.hooks // []) | map(.command) | any(test($pat)))  | not
+        ([ .command ] + ((.hooks // []) | map(.command))
+         | map(select(. != null)) | any(test($pat))) | not
       )))
     | reduce ($add | to_entries[]) as $e (.;
         .hooks[$e.key] = ((.hooks[$e.key] // []) + $e.value))
@@ -91,16 +95,57 @@ install_claude() {
 install_codex() {
   local hd="$HOME/.codex/hooks" sf="$HOME/.codex/hooks.json"
   copy_scripts "$hd"
-  # Codex currently surfaces only the Bash tool to hooks, so wire the shell guard + logging.
-  merge_json "$sf" "$(jq -n --arg gb "$(cmd codex "$hd" guard-bash)" --arg lg "$(cmd codex "$hd" log-tool)" --arg vn "$(cmd codex "$hd" improve-nudge)" '{
+  # Codex now surfaces file edits to hooks via the apply_patch tool (matched as
+  # apply_patch, with Write/Edit aliases), so path-guard + auto-format wire up
+  # alongside the shell guard and logging. guard-paths/format-edited extract the
+  # edited paths from the apply_patch envelope (tool_input.command).
+  merge_json "$sf" "$(jq -n \
+    --arg gp "$(cmd codex "$hd" guard-paths)" \
+    --arg gb "$(cmd codex "$hd" guard-bash)" \
+    --arg fm "$(cmd codex "$hd" format-edited)" \
+    --arg lg "$(cmd codex "$hd" log-tool)" \
+    --arg vn "$(cmd codex "$hd" improve-nudge)" '{
     PreToolUse: [
       {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
+      {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$gp,timeout:30}]},
       {matcher:"Bash", hooks:[{type:"command",command:$gb,timeout:30}]}
     ],
-    PostToolUse: [ {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]} ],
+    PostToolUse: [
+      {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
+      {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$fm,timeout:30}]}
+    ],
     Stop: [ {hooks:[{type:"command",command:$vn,timeout:30}]} ]
   }')"
-  echo "  codex   -> $sf (log, guard bash, improve-nudge; path-guard/format pending Codex edit-tool hooks)"
+  echo "  codex   -> $sf (log, guard paths, guard bash, auto-format, improve-nudge)"
+}
+
+install_cursor() {
+  local hd="$HOME/.cursor/hooks" sf="$HOME/.cursor/hooks.json"
+  copy_scripts "$hd"
+  # Cursor's hooks.json needs a top-level "version": 1 and uses flat
+  # { "command": ... } entries (no per-entry "hooks" array). merge_json only
+  # touches .hooks, so set version separately first (idempotent, no backup —
+  # merge_json backs up before it changes .hooks). Cursor has no blocking
+  # pre-edit event (only afterFileEdit, which can't block), so guard-paths is
+  # wired to beforeReadFile (blocks reading secrets) + afterFileEdit (best-effort
+  # warn); hard write-blocking lives in the native permissions layer.
+  [ -f "$sf" ] || echo '{}' > "$sf"
+  local vtmp; vtmp="$(mktemp)"; TMPFILES+=("$vtmp")
+  jq '.version = 1' "$sf" > "$vtmp" && { cmp -s "$vtmp" "$sf" || mv "$vtmp" "$sf"; }
+  merge_json "$sf" "$(jq -n \
+    --arg gp "$(cmd cursor "$hd" guard-paths)" \
+    --arg gb "$(cmd cursor "$hd" guard-bash)" \
+    --arg fm "$(cmd cursor "$hd" format-edited)" \
+    --arg lg "$(cmd cursor "$hd" log-tool)" \
+    --arg vn "$(cmd cursor "$hd" improve-nudge)" \
+    --arg lm "$(cmd cursor "$hd" load-memory)" '{
+    sessionStart: [ {command:$lm} ],
+    beforeShellExecution: [ {command:$lg}, {command:$gb} ],
+    beforeReadFile: [ {command:$gp} ],
+    afterFileEdit: [ {command:$lg}, {command:$gp}, {command:$fm} ],
+    stop: [ {command:$vn} ]
+  }')"
+  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, improve-nudge; write-block via permissions)"
 }
 
 install_gemini() {
@@ -120,13 +165,14 @@ install_gemini() {
   echo "  gemini  -> $sf (log, auto-format, guard paths, guard bash) — also used by Antigravity"
 }
 
-targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex gemini)
+targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
 for t in "${targets[@]}"; do
   case "$t" in
     claude)             install_claude;;
     codex)              install_codex;;
+    cursor)             install_cursor;;
     gemini|antigravity) install_gemini;;
-    *) echo "  unknown target: $t (use: claude codex gemini)" >&2;;
+    *) echo "  unknown target: $t (use: claude codex cursor gemini)" >&2;;
   esac
 done
 echo "Done. Backups saved next to each settings file."

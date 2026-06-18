@@ -1,0 +1,24 @@
+# Gemini CLI Policy Engine — mirrors settings-permissions.snippet.json's deny/ask
+# intent. Installed to ~/.gemini/policies/gemini-guardrails.toml (every *.toml in
+# that dir is loaded and combined). Client-enforced (a true block), complementing
+# the best-effort guard hooks — which additionally canonicalize ../ and symlinks
+# before matching, something argsPattern's flat regex can't do.
+#
+# decision: allow | deny | ask_user  (ask_user becomes deny when non-interactive)
+# priority: higher wins (User-tier rules get base 4, e.g. 100 -> 4.100)
+# Verify the schema against your Gemini version:
+#   github.com/google-gemini/gemini-cli docs/reference/policy-engine.md
+
+# Deny edits to sensitive / generated paths (file writes + in-place edits).
+[[rule]]
+toolName = ["write_file", "replace"]
+argsPattern = '(^|/)\.env($|\.)|/(build|dist|\.next|out|coverage|node_modules|\.git)/|(^|/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb)($|")'
+decision = "deny"
+priority = 100
+
+# Ask before sudo (becomes a hard deny when headless / non-interactive).
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = "sudo"
+decision = "ask_user"
+priority = 50

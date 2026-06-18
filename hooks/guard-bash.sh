@@ -18,6 +18,7 @@ cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // .tool_input.cmd // .
 block() {  # $1 = reason
   case "$PLATFORM" in
     gemini|antigravity) jq -nc --arg r "$1" '{decision:"deny",reason:$r}'; exit 0;;
+    cursor)             jq -nc --arg r "$1" '{permission:"deny",user_message:$r,agent_message:$r}'; exit 0;;
     *)                  echo "$1" >&2; exit 2;;
   esac
 }
