@@ -38,8 +38,8 @@ Independent parts — use any subset; `./install.sh` wires them all:
 
 1. **Instructions** (model-facing) — a customizable `template.md` rendered into
    per-tool instruction files. *Advice* the assistant should follow.
-2. **Commands** — slash-command shortcuts (`/ship`, `/sync`, `/tidy`,
-   `/improve`, `/audit`) for repeatable workflows.
+2. **Commands** — slash-command shortcuts (`/ship`, `/sync`, `/worktrees`,
+   `/tidy`, `/improve`, `/audit`) for repeatable workflows.
 3. **Guardrails & observability** (hooks) — auto-format, block edits to
    generated/sensitive paths, trip on catastrophic shell, log every tool call to
    JSONL, and surface your memory stores at session start. *Enforcement* the
@@ -64,6 +64,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Gemini). |
 | `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
+| `converge.sh` | Daemon for the `/worktrees` flow: folds parallel agent branches (`ai/*`) into the integration branch as they advance, so one dev server sees every model's work near-live. |
 | `sync.sh` | Mirror a rendered `AGENTS.md` to `CLAUDE.md` / `GEMINI.md` in this dir. |
 | `sync-global.sh` | Keep the hand-maintained **global** files in sync (`~/.claude/CLAUDE.md` → the others), backing up differences. |
 | `.github/workflows/ci.yml` | CI: shellcheck every script + run `test.sh` on push / PR. |
@@ -75,7 +76,7 @@ generate them locally. Want to see finished output first? Read
 [`examples/aggressive-tailscale.md`](examples/aggressive-tailscale.md) (aggressive
 autonomy, Tailscale serving, all sections on) or
 [`examples/balanced-local.md`](examples/balanced-local.md) (balanced autonomy,
-local serving, improve + tools off).
+local serving, improve + tools + worktrees off).
 
 ## Quick start
 
@@ -150,6 +151,7 @@ Cursor `~/.cursor/commands/`, Gemini `~/.gemini/commands/` (`.toml`).
 |---------|------|
 | `/ship` | Stage → commit → push, and on a feature branch open + **merge** the PR/MR (squash, delete branch), then return to default. Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
+| `/worktrees` | One worktree per parallel agent (`ai/<agent>`), converged into a single integration tree a lone dev server watches — several models, near-live. Pairs with `converge.sh`. |
 | `/tidy` | Run the project's formatter/linter/tests and fix what's safe. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/audit` | Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
