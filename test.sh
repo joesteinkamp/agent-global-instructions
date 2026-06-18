@@ -170,6 +170,15 @@ if command -v jq >/dev/null 2>&1; then
     bad "install-commands installs command files"
   fi
 
+  # A renamed command (validate -> improve) is pruned on reinstall so an old
+  # machine doesn't keep /validate alongside /improve.
+  printf 'stale\n' > "$SMOKE/.claude/commands/validate.md"
+  HOME="$SMOKE" bash "$DIR/install-commands.sh" >/dev/null 2>&1
+  [ ! -e "$SMOKE/.claude/commands/validate.md" ] \
+    && [ -f "$SMOKE/.claude/commands/improve.md" ] \
+    && ok "install-commands prunes retired command names" \
+    || bad "install-commands prunes retired command names"
+
   # The permissions snippet is valid JSON with deny rules.
   if jq -e '.permissions.deny | length > 0' "$DIR/settings-permissions.snippet.json" >/dev/null 2>&1; then
     ok "settings-permissions.snippet.json is valid with deny rules"

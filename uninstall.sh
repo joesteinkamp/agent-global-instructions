@@ -68,12 +68,18 @@ strip_permissions() {  # $1 = settings file
 }
 
 remove_commands() {
-  local d="$HOME/.claude/commands" base n=0
+  local d="$HOME/.claude/commands" base n=0 old
   [ -d "$d" ] || return 0
   for f in "$DIR"/commands/*.md; do
     base="$(basename "$f")"
     [ "$base" = "README.md" ] && continue
     if [ -f "$d/$base" ]; then rm -f "$d/$base"; n=$((n+1)); fi
+  done
+  # Also clear command files we've since renamed/dropped (keep in sync with the
+  # RETIRED list in install-commands.sh) so an uninstall leaves nothing behind.
+  local retired="validate.md"
+  for old in $retired; do
+    if [ -f "$d/$old" ]; then rm -f "$d/$old"; n=$((n+1)); fi
   done
   [ "$n" -gt 0 ] && echo "  removed $n command file(s) from $d"
   return 0

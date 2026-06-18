@@ -16,6 +16,19 @@ SRC="$DIR/commands"
 if [ "${1:-}" = "--project" ]; then DEST="$DIR/.claude/commands"; else DEST="$HOME/.claude/commands"; fi
 mkdir -p "$DEST"
 
+# Commands we've renamed or dropped. A plain copy never deletes the old name, so
+# a machine that once had /validate would keep it forever alongside /improve.
+# Prune them on every install so `git pull && ./install-commands.sh` self-heals.
+#   old-name -> new-name (new-name is informational, shown in the message)
+RETIRED="validate.md:improve.md"
+for entry in $RETIRED; do
+  old="${entry%%:*}"; new="${entry#*:}"
+  if [ -f "$DEST/$old" ]; then
+    rm -f "$DEST/$old"
+    echo "  removed retired /${old%.md} (now /${new%.md})"
+  fi
+done
+
 # Back up to a collision-free name (mktemp) and keep only the 5 newest backups.
 backup_file() {  # $1 = file to back up
   cp "$1" "$(mktemp "$1.bak.XXXXXX")"
