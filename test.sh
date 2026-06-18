@@ -170,6 +170,15 @@ if command -v jq >/dev/null 2>&1; then
     bad "install-commands installs command files"
   fi
 
+  # A renamed command (validate -> improve) is pruned on reinstall so an old
+  # machine doesn't keep /validate alongside /improve.
+  printf 'stale\n' > "$SMOKE/.claude/commands/validate.md"
+  HOME="$SMOKE" bash "$DIR/install-commands.sh" >/dev/null 2>&1
+  [ ! -e "$SMOKE/.claude/commands/validate.md" ] \
+    && [ -f "$SMOKE/.claude/commands/improve.md" ] \
+    && ok "install-commands prunes retired command names" \
+    || bad "install-commands prunes retired command names"
+
   # The permissions snippet is valid JSON with deny rules.
   if jq -e '.permissions.deny | length > 0' "$DIR/settings-permissions.snippet.json" >/dev/null 2>&1; then
     ok "settings-permissions.snippet.json is valid with deny rules"
@@ -233,6 +242,102 @@ if command -v jq >/dev/null 2>&1; then
     bad "install.sh orchestrates instructions + commands + hooks + settings"
   fi
   rm -rf "$SMOKE2"
+
+  # ---- multi-tool: codex / cursor / gemini command ports, hooks, settings ----
+  # Every canonical command has a port in each tool dir (a missing port = a
+  # command silently absent in that tool).
+  miss=""
+  for c in "$DIR"/commands/*.md; do
+    [ "$(basename "$c")" = "README.md" ] && continue
+    cn="$(basename "$c" .md)"
+    [ -f "$DIR/commands/codex/$cn.md" ]    || miss="$miss codex/$cn"
+    [ -f "$DIR/commands/cursor/$cn.md" ]   || miss="$miss cursor/$cn"
+    [ -f "$DIR/commands/gemini/$cn.toml" ] || miss="$miss gemini/$cn"
+  done
+  [ -z "$miss" ] && ok "every canonical command has a codex/cursor/gemini port" \
+                 || bad "missing command ports:$miss"
+
+  # Gemini command TOML + the TOML permission snippets parse.
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 -c "import tomllib,glob; [tomllib.load(open(f,'rb')) for f in glob.glob('$DIR/commands/gemini/*.toml')+['$DIR/policies/gemini-guardrails.toml','$DIR/codex-permissions.snippet.toml']]" 2>/dev/null; then
+      ok "gemini command TOML + TOML snippets parse"
+    else
+      bad "gemini command TOML + TOML snippets parse"
+    fi
+  fi
+  jq -e '.permissions.deny | length > 0' "$DIR/settings-permissions.cursor.snippet.json" >/dev/null 2>&1 \
+    && ok "cursor permissions snippet is valid with deny rules" \
+    || bad "cursor permissions snippet is valid with deny rules"
+
+  MT="$(mktemp -d)"
+  HOME="$MT" bash "$DIR/install-commands.sh" >/dev/null 2>&1
+  if [ -f "$MT/.codex/prompts/ship.md" ] && [ -f "$MT/.cursor/commands/ship.md" ] \
+     && [ -f "$MT/.gemini/commands/ship.toml" ]; then
+    ok "install-commands installs codex/cursor/gemini ports"
+  else
+    bad "install-commands installs codex/cursor/gemini ports"
+  fi
+
+  # Cursor hooks: top-level version:1, flat entries, idempotent through merge.
+  HOME="$MT" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
+  c1="$(jq '[.hooks[]|length]|add' "$MT/.cursor/hooks.json" 2>/dev/null)"
+  HOME="$MT" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
+  c2="$(jq '[.hooks[]|length]|add' "$MT/.cursor/hooks.json" 2>/dev/null)"
+  if [ "$(jq '.version' "$MT/.cursor/hooks.json" 2>/dev/null)" = "1" ] \
+     && [ -n "$c1" ] && [ "$c1" = "$c2" ]; then
+    ok "install-hooks cursor sets version:1 and is idempotent"
+  else
+    bad "install-hooks cursor sets version:1 and is idempotent"
+  fi
+
+  # Codex hooks: file edits wired via the apply_patch matcher (path-guard + format).
+  HOME="$MT" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
+  if jq -e '[.hooks.PreToolUse[].matcher]  | any(test("apply_patch"))' "$MT/.codex/hooks.json" >/dev/null 2>&1 \
+     && jq -e '[.hooks.PostToolUse[].matcher] | any(test("apply_patch"))' "$MT/.codex/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks codex wires apply_patch edit hooks"
+  else
+    bad "install-hooks codex wires apply_patch edit hooks"
+  fi
+
+  # Hook dialects: cursor blocks a secret read via {permission:deny}; codex
+  # extracts the path from an apply_patch envelope and blocks the write (exit 2).
+  cur_out="$(printf '{"file_path":".env","cwd":"/tmp"}' | HOOK_PLATFORM=cursor bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
+  printf '%s' "$cur_out" | jq -e '.permission == "deny"' >/dev/null 2>&1 \
+    && ok "guard-paths emits the cursor permission:deny dialect" \
+    || bad "guard-paths emits the cursor permission:deny dialect"
+  printf '%s' '{"tool_input":{"command":"*** Update File: app/.env\n+X=1"},"cwd":"/tmp"}' \
+    | HOOK_PLATFORM=codex bash "$DIR/hooks/guard-paths.sh" >/dev/null 2>&1; rc=$?
+  [ "$rc" -eq 2 ] && ok "guard-paths blocks a codex apply_patch write to .env" \
+                  || bad "guard-paths blocks a codex apply_patch write to .env"
+
+  # Settings: cursor deny merge + codex managed block + gemini policy, idempotent.
+  HOME="$MT" bash "$DIR/install-settings.sh" cursor codex gemini >/dev/null 2>&1
+  HOME="$MT" bash "$DIR/install-settings.sh" cursor codex gemini >/dev/null 2>&1
+  s_ok=1
+  jq -e '.permissions.deny | length > 0' "$MT/.cursor/cli-config.json" >/dev/null 2>&1 || s_ok=0
+  [ "$(grep -c 'agent-global-instructions (codex permissions)' "$MT/.codex/config.toml" 2>/dev/null)" = "2" ] || s_ok=0
+  [ -f "$MT/.gemini/policies/gemini-guardrails.toml" ] || s_ok=0
+  [ "$s_ok" = 1 ] && ok "install-settings wires cursor/codex/gemini permissions (idempotent)" \
+                  || bad "install-settings wires cursor/codex/gemini permissions (idempotent)"
+
+  # Codex duplicate-key guard: never append when the user already set the keys.
+  printf 'approval_policy = "never"\n' > "$MT/.codex/config.toml"
+  HOME="$MT" bash "$DIR/install-settings.sh" codex >/dev/null 2>&1
+  [ "$(grep -c 'approval_policy' "$MT/.codex/config.toml")" = "1" ] \
+    && ok "install-settings respects an existing codex approval_policy" \
+    || bad "install-settings respects an existing codex approval_policy"
+
+  # uninstall reverses commands/hooks/policy for all four tools.
+  HOME="$MT" bash "$DIR/uninstall.sh" >/dev/null 2>&1
+  u_ok=1
+  [ -f "$MT/.codex/prompts/ship.md" ]       && u_ok=0
+  [ -f "$MT/.cursor/commands/ship.md" ]     && u_ok=0
+  [ -f "$MT/.gemini/commands/ship.toml" ]   && u_ok=0
+  jq -e '(.hooks // {}) | length > 0' "$MT/.cursor/hooks.json" >/dev/null 2>&1 && u_ok=0
+  [ -f "$MT/.gemini/policies/gemini-guardrails.toml" ] && u_ok=0
+  [ "$u_ok" = 1 ] && ok "uninstall reverses commands/hooks/settings for all tools" \
+                  || bad "uninstall reverses commands/hooks/settings for all tools"
+  rm -rf "$MT"
 else
   echo "  (skipped — jq not installed)"
 fi

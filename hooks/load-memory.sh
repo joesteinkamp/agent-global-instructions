@@ -6,19 +6,19 @@
 # memory OS, an OpenClaw workspace, or a project-level MEMORY.md / memory/ dir.
 #
 # Only stores that actually exist are mentioned. If none are found, it stays
-# silent. Never blocks (always exits 0). Claude dialect only — other tools have
-# no equivalent SessionStart context-injection, so the installer wires it for
-# Claude alone; here we no-op on anything else.
+# silent. Never blocks (always exits 0). Wired for the tools whose SessionStart
+# can inject context: Claude (hookSpecificOutput.additionalContext) and Cursor
+# (additional_context). Other tools have no equivalent — no-op there.
 set -u
 
 PLATFORM="${HOOK_PLATFORM:-claude}"
 input="$(cat)"
 command -v jq >/dev/null 2>&1 || exit 0
 
-# Only Claude supports SessionStart additionalContext injection today.
-[ "$PLATFORM" = "claude" ] || exit 0
+# Only Claude + Cursor support SessionStart context injection today.
+case "$PLATFORM" in claude|cursor) ;; *) exit 0;; esac
 
-cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"; [ -z "$cwd" ] && cwd="$PWD"
+cwd="$(printf '%s' "$input" | jq -r '.cwd // .workspace_roots[0]? // empty' 2>/dev/null)"; [ -z "$cwd" ] && cwd="$PWD"
 
 found=""
 add() { found="$found
@@ -48,6 +48,9 @@ ctx="Memory stores detected on this machine. Before any personal task, read the 
 $found
 - **Write durable facts back** to the right file (and say where)."
 
-jq -nc --arg c "$ctx" \
-  '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'
+if [ "$PLATFORM" = "cursor" ]; then
+  jq -nc --arg c "$ctx" '{additional_context:$c}'
+else
+  jq -nc --arg c "$ctx" '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'
+fi
 exit 0

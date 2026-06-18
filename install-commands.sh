@@ -1,22 +1,43 @@
 #!/usr/bin/env bash
-# Install the portable command files into Claude Code's command directory so
-# they work as /ship, /sync, /tidy, /improve, /audit everywhere.
+# Install the portable commands into each tool's command/prompt directory so they
+# work as /ship, /sync, /tidy, /improve, /audit everywhere.
 #
-#   ./install-commands.sh            -> ~/.claude/commands/   (global, default)
-#   ./install-commands.sh --project  -> ./.claude/commands/   (this repo only)
+#   ./install-commands.sh                     # all tools, global
+#   ./install-commands.sh --project           # all tools, into ./ (this repo)
+#   ./install-commands.sh claude cursor       # just these tools, global
+#   ./install-commands.sh --project cursor gemini
 #
-# Other tools: Codex and Cursor have their own command/prompt locations — point
-# them at ./commands/*.md or copy the bodies in.
+# Per-tool source + destination:
+#   claude  commands/*.md          -> ~/.claude/commands/   (project: ./.claude/commands/)
+#   codex   commands/codex/*.md    -> ~/.codex/prompts/     (global only; invoke /prompts:<name>)
+#   cursor  commands/cursor/*.md   -> ~/.cursor/commands/   (project: ./.cursor/commands/)
+#   gemini  commands/gemini/*.toml -> ~/.gemini/commands/   (project: ./.gemini/commands/)
+#
+# commands/*.md (top level) is the canonical Claude-dialect source of truth; the
+# commands/<tool>/ files are dialect ports translated from it (different
+# frontmatter, argument tokens, and shell-injection handling per tool).
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$DIR/commands"
 [ -d "$SRC" ] || { echo "No commands/ dir at $SRC" >&2; exit 1; }
 
-if [ "${1:-}" = "--project" ]; then DEST="$DIR/.claude/commands"; else DEST="$HOME/.claude/commands"; fi
-mkdir -p "$DEST"
+PROJECT=0
+targets=()
+for a in "$@"; do
+  case "$a" in
+    --project) PROJECT=1;;
+    claude|codex|cursor|gemini|antigravity) targets+=("$a");;
+    *) echo "unknown arg: $a (use: --project | claude codex cursor gemini)" >&2; exit 1;;
+  esac
+done
+[ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
 
-# Back up to a collision-free name (mktemp) and keep only the 5 newest backups.
+# Command basenames we've renamed/dropped. Pruned on every install (per tool, in
+# that tool's extension) so a rename self-heals across `git pull && install`.
+RETIRED="validate"
+
+# Back up to a collision-free name (mktemp), keeping only the 5 newest backups.
 backup_file() {  # $1 = file to back up
   cp "$1" "$(mktemp "$1.bak.XXXXXX")"
   local n=0 b
@@ -25,20 +46,40 @@ backup_file() {  # $1 = file to back up
   return 0   # prune's last test is usually false; don't let the fn return 1 under set -e
 }
 
-backed_up=0
-for f in "$SRC"/*.md; do
-  base="$(basename "$f")"
-  [ "$base" = "README.md" ] && continue              # docs, not a command
-  dst="$DEST/$base"
-  # If an installed copy exists and differs, back it up before overwriting so a
-  # hand-edited command is never silently lost.
-  if [ -f "$dst" ] && ! cmp -s "$f" "$dst"; then
-    backup_file "$dst"; backed_up=1
-    echo "  backed up your edited $base"
-  fi
-  cp "$f" "$dst"
-  echo "  installed /$(basename "$f" .md)"
+# Copy every <src>/*.<ext> into <dest>, backing up a differing prior copy first,
+# skipping README and pruning retired names.
+install_dir() {  # $1=label  $2=src dir  $3=ext  $4=dest dir
+  local label="$1" src="$2" ext="$3" dest="$4" f base dst n=0 old
+  if [ ! -d "$src" ]; then echo "  $label: no $src (skipped)"; return 0; fi
+  mkdir -p "$dest"
+  for old in $RETIRED; do
+    if [ -f "$dest/$old.$ext" ]; then rm -f "$dest/$old.$ext"; echo "  removed retired /$old"; fi
+  done
+  for f in "$src"/*."$ext"; do
+    [ -e "$f" ] || continue
+    base="$(basename "$f")"
+    [ "$base" = "README.$ext" ] && continue
+    dst="$dest/$base"
+    if [ -f "$dst" ] && ! cmp -s "$f" "$dst"; then backup_file "$dst"; echo "  backed up your edited $base"; fi
+    cp "$f" "$dst"; n=$((n+1))
+  done
+  echo "  $label -> $dest ($n command(s))"
+}
+
+for t in "${targets[@]}"; do
+  case "$t" in
+    claude)
+      if [ "$PROJECT" = 1 ]; then d="$DIR/.claude/commands"; else d="$HOME/.claude/commands"; fi
+      install_dir claude "$SRC" md "$d";;
+    codex)
+      install_dir codex "$SRC/codex" md "$HOME/.codex/prompts"
+      [ "$PROJECT" = 1 ] && echo "  (codex prompts are global; --project has no effect for codex)";;
+    cursor)
+      if [ "$PROJECT" = 1 ]; then d="$DIR/.cursor/commands"; else d="$HOME/.cursor/commands"; fi
+      install_dir cursor "$SRC/cursor" md "$d";;
+    gemini|antigravity)
+      if [ "$PROJECT" = 1 ]; then d="$DIR/.gemini/commands"; else d="$HOME/.gemini/commands"; fi
+      install_dir gemini "$SRC/gemini" toml "$d";;
+  esac
 done
-echo "-> $DEST"
-[ "$backed_up" = 1 ] && echo "(your prior versions were saved as *.bak)"
-echo "Type / in Claude Code to see them."
+echo "Done. Type / in each tool to see the commands (Codex: /prompts:<name>)."

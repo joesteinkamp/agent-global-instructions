@@ -45,5 +45,6 @@ printf '%s' "$fp" > "$marker" 2>/dev/null || true
 reason="Larger change detected (${files} files, ${lines} lines vs HEAD). Before finishing, run the improvement review (/improve) to surface improvement opportunities — or tell me you've intentionally skipped it."
 case "$PLATFORM" in
   claude) jq -nc --arg r "$reason" '{decision:"block",reason:$r}'; exit 0;;
+  cursor) jq -nc --arg r "$reason" '{followup_message:$r}'; exit 0;;
   *)      echo "$reason" >&2; exit 2;;
 esac

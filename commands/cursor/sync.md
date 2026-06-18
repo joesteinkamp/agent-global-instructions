@@ -1,13 +1,15 @@
----
-description: Update the default branch and rebase the current branch on it
-allowed-tools: Bash(git:*)
----
+<!-- Canonical source: commands/sync.md (Claude dialect). This is the Cursor port.
+     Cursor commands are plain-Markdown prompt templates in .cursor/commands/*.md —
+     NO YAML frontmatter, NO shell injection, NO $ARGUMENTS placeholder. The Claude
+     frontmatter and the `!`cmd`` context lines are folded into the prose below. -->
 
-Current state:
-- Branch: !`git branch --show-current`
-- Status: !`git status --short`
+# Sync
 
-Bring my branch up to date with the latest default branch.
+Update the default branch and rebase the current branch on it.
+
+First gather the current state by running these yourself:
+- Branch: `git branch --show-current`
+- Status: `git status --short`
 
 Steps:
 1. `git fetch --all --prune`.

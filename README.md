@@ -46,8 +46,10 @@ Independent parts — use any subset; `./install.sh` wires them all:
    model can't skip.
 4. **Validation** — a multi-role review team you run after big changes
    (`/improve`), plus a Stop hook that nudges you to run it.
-5. **Settings** (Claude-only) — a client-enforced `permissions` deny/ask layer
-   that backs up the guard hooks with rules the model genuinely can't bypass.
+5. **Settings** (per tool) — a client-enforced permissions layer mapped to each
+   tool's native model (Claude & Cursor deny rules, Codex sandbox + approval,
+   Gemini Policy Engine) that backs up the guard hooks with rules the model
+   can't bypass.
 
 ## What's here
 
@@ -58,9 +60,9 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `my-context.env.example` | Copy to `my-context.env` (gitignored) to save your answers. |
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
 | `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
-| `commands/` + `install-commands.sh` | Slash commands → `~/.claude/commands/`. |
-| `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Gemini). |
-| `settings-permissions.snippet.json` + `install-settings.sh` | Claude-only `permissions` deny/ask layer → merged into `~/.claude/settings.json` (idempotent, backed up). |
+| `commands/` + `install-commands.sh` | Canonical commands (`commands/*.md`) + per-tool dialect ports (`commands/{codex,cursor,gemini}/`) → each tool's command dir (`~/.claude/commands`, `~/.codex/prompts`, `~/.cursor/commands`, `~/.gemini/commands`). |
+| `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Gemini). |
+| `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
 | `sync.sh` | Mirror a rendered `AGENTS.md` to `CLAUDE.md` / `GEMINI.md` in this dir. |
 | `sync-global.sh` | Keep the hand-maintained **global** files in sync (`~/.claude/CLAUDE.md` → the others), backing up differences. |
@@ -95,9 +97,9 @@ cp my-context.env.example my-context.env && $EDITOR my-context.env
 order. Target specific tools and reverse it cleanly:
 
 ```bash
-./install.sh --yes             # all tools, no confirm prompt
-./install.sh claude            # just Claude Code (incl. the permissions layer)
-./install.sh codex gemini      # instructions + hooks for Codex / Gemini
+./install.sh --yes             # all tools (claude codex cursor gemini), no prompt
+./install.sh claude            # just Claude Code (all layers)
+./install.sh codex cursor      # instructions + commands + hooks + settings for those
 ./uninstall.sh                 # strip our hooks/permissions/commands (configs
                                #   backed up; instruction files left in place)
 ```
@@ -108,9 +110,9 @@ Prefer to run the pieces yourself, or render without installing:
 ./customize.sh                 # interactive: asks questions, then writes
 ./customize.sh --global        # render all four instruction files machine-wide
 ./customize.sh --project       # write AGENTS.md + CLAUDE.md + GEMINI.md here
-./install-commands.sh          # /ship, /sync, /audit, ... in Claude Code
+./install-commands.sh          # /ship, /sync, /audit, ... in every tool
 ./install-hooks.sh             # guardrails + logging across all tools
-./install-settings.sh          # Claude-only permissions (deny/ask) layer
+./install-settings.sh          # per-tool permissions layer
 ```
 
 All non-interactive modes read your saved `my-context.env`.
@@ -137,12 +139,16 @@ All non-interactive modes read your saved `my-context.env`.
 
 ## 2. Commands
 
-Portable prompt shortcuts. `./install-commands.sh` copies them to
-`~/.claude/commands/`; the bodies are plain enough to reuse in Codex/Cursor.
+Portable prompt shortcuts. `commands/*.md` is the canonical (Claude-dialect)
+source of truth; `commands/{codex,cursor,gemini}/` hold dialect ports translated
+from it (per-tool frontmatter, argument tokens, and shell-injection handling).
+`./install-commands.sh [tool ...]` installs each into the right place — Claude
+`~/.claude/commands/`, Codex `~/.codex/prompts/` (invoked `/prompts:<name>`),
+Cursor `~/.cursor/commands/`, Gemini `~/.gemini/commands/` (`.toml`).
 
 | Command | Does |
 |---------|------|
-| `/ship` | Stage → commit → push, and on a feature branch open + **merge** the PR (squash, delete branch), then return to default. The all-in-one. |
+| `/ship` | Stage → commit → push, and on a feature branch open + **merge** the PR/MR (squash, delete branch), then return to default. Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/tidy` | Run the project's formatter/linter/tests and fix what's safe. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
@@ -150,11 +156,15 @@ Portable prompt shortcuts. `./install-commands.sh` copies them to
 
 ## 3. Guardrails & observability (hooks)
 
-One set of scripts serves **Claude Code, Codex, and Antigravity/Gemini** — a
-`HOOK_PLATFORM` env var (set by the installer) makes each block in the right
-dialect (exit-2 for Claude/Codex, a `{"decision":"deny"}` JSON for Gemini).
-`./install-hooks.sh [claude|codex|gemini]` merges them into each tool's config
-(idempotent, backs up first). Full detail in [`hooks/README.md`](hooks/README.md).
+One set of scripts serves **Claude Code, Codex, Cursor, and Antigravity/Gemini**
+— a `HOOK_PLATFORM` env var (set by the installer) makes each block in the right
+dialect (exit-2 for Claude/Codex, `{"decision":"deny"}` for Gemini,
+`{"permission":"deny"}` for Cursor). `./install-hooks.sh [claude|codex|cursor|gemini]`
+merges them into each tool's config (idempotent, backs up first). Codex now
+surfaces file edits via `apply_patch`, so path-guard + auto-format are wired
+there too; Cursor has no blocking pre-edit event, so its write-protection comes
+from the permissions layer while the hook guards secret *reads*. Full detail in
+[`hooks/README.md`](hooks/README.md).
 
 | Hook | Fires | Does |
 |------|-------|------|
@@ -163,21 +173,32 @@ dialect (exit-2 for Claude/Codex, a `{"decision":"deny"}` JSON for Gemini).
 | `format-edited` | after edits | Auto-format the edited file with the project's Prettier/ESLint. |
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
 | `improve-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/improve` (once per distinct diff). |
-| `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude only; silent when none exist. |
+| `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude + Cursor (the tools with SessionStart context injection); silent when none exist. |
 
 Read the audit trail with `./audit.sh` (`--stats`, `--follow`, `-n N`). The log
 lives at `~/.ai-logs/tool-calls.jsonl` (`$AI_TOOL_LOG`); set `AI_LOG_RESPONSES=0`
 to drop tool responses.
 
-### Permissions (Claude-only enforcement)
+### Permissions (client-enforced, per tool)
 
-The guard hooks are a best-effort tripwire. `./install-settings.sh` adds the
-**client-enforced** half: a `permissions` block merged into `~/.claude/settings.json`
-whose `deny` rules (mirroring `guard-paths` — `.env*`, lockfiles, `build/ dist/
-node_modules/ .git/`) the model genuinely can't bypass, plus an `ask` gate
-(`sudo` by default). Edit `settings-permissions.snippet.json` to tune it — add
-e.g. `Bash(git push:*)` or `Bash(curl:*)` to `ask` for more friction. Merges are
-idempotent and backed up; `./uninstall.sh` removes exactly these rules.
+The guard hooks are a best-effort tripwire. `./install-settings.sh [tool ...]`
+adds the **client-enforced** half, mapped to each tool's native model:
+
+- **Claude** — a `permissions` block in `~/.claude/settings.json` whose `deny`
+  rules (mirroring `guard-paths` — `.env*`, lockfiles, `build/ dist/
+  node_modules/ .git/`) the model can't bypass, plus an `ask` gate (`sudo`).
+  Tune via `settings-permissions.snippet.json`.
+- **Cursor** — the same `deny` set in `~/.cursor/cli-config.json` (the CLI agent;
+  the GUI agent is allowlist-only, so there the read-guard hook is the net).
+  Tune via `settings-permissions.cursor.snippet.json`.
+- **Codex** — `approval_policy = "on-request"` + `sandbox_mode = "workspace-write"`
+  in `~/.codex/config.toml` (a managed, sentinel-delimited block; skipped if you
+  already set those keys). Codex's sandbox is directory-scoped, so fine-grained
+  path-deny stays with the `guard-paths` hook. Tune via `codex-permissions.snippet.toml`.
+- **Gemini** — Policy Engine `deny`/`ask_user` rules dropped at
+  `~/.gemini/policies/gemini-guardrails.toml`, plus `folderTrust` enabled.
+
+Merges are idempotent and backed up; `./uninstall.sh` removes exactly these.
 
 ## 4. Validation
 
@@ -187,8 +208,8 @@ before calling the work done:
 - **`/improve`** spins up parallel subagents — technical architect, back-end,
   front-end, and a UI/UX lens when UI changed — each returning concrete,
   prioritized fixes with `file:line`, then deduped into one summary.
-- **`improve-nudge`** (Stop hook, Claude + Codex) reminds you to run it when a
-  turn ends with a diff over `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`
+- **`improve-nudge`** (Stop hook — Claude, Codex, Cursor) reminds you to run it
+  when a turn ends with a diff over `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`
   (default 8 files / 200 lines), firing once per distinct diff.
 
 ## Updating over time

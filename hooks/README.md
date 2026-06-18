@@ -1,15 +1,16 @@
 # Hooks
 
 Guardrail hooks — shell commands that fire on tool events. One set of scripts
-serves **Claude Code, Codex, and Antigravity/Gemini**; `HOOK_PLATFORM` (set by
-the installer in each wired command) makes them block in the right dialect.
+serves **Claude Code, Codex, Cursor, and Antigravity/Gemini**; `HOOK_PLATFORM`
+(set by the installer in each wired command) makes them block in the right
+dialect.
 
 > **These are best-effort tripwires, not a security boundary.** They see only a
 > tool's structured input (a command string, a file path) and match
 > heuristically — obfuscated, variable-expanded, or unusual inputs can bypass
 > them. Use them as seatbelts against fat-finger mistakes, not a sandbox.
 
-Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude codex gemini`.
+Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude codex cursor gemini`.
 
 | Script | Fires on | Does |
 |--------|----------|------|
@@ -17,8 +18,8 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `guard-bash.sh`  | shell tool (before) | Trips on `rm -r` targeting root/home/parent **as a whole token** (so `rm -rf /tmp/build` and `rm -rf node_modules` pass), and on force-pushes — `--force`, a `-f` flag, or a `+refspec` (allows `--force-with-lease`). |
 | `format-edited.sh` | edit tools (after) | Auto-formats the edited file with the project's Prettier/ESLint. Never blocks. |
 | `log-tool.sh` | every tool (before + after) | **Observability** — appends one JSONL record per tool event to an audit log. Never blocks. |
-| `improve-nudge.sh` | turn end (Stop) | When a turn ends with a **larger** diff (≥ `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`, default 8/200), nudges the agent to run `/improve`. Fires once (loop-guarded). Claude + Codex only — Gemini has no per-turn Stop event. |
-| `load-memory.sh` | session start | Injects a pointer to your **out-of-tool** memory stores (Hermes `~/.hermes/`, OpenClaw `~/.openclaw/workspace/`, project `MEMORY.md`/`memory/`) as `SessionStart` `additionalContext`, so the agent reads them before personal tasks. Lists only stores that exist; silent otherwise. Never blocks. Claude only — others have no equivalent context injection. Complements Claude's native auto-memory (`~/.claude/projects/<project>/memory/`), which it doesn't duplicate. |
+| `improve-nudge.sh` | turn end (Stop) | When a turn ends with a **larger** diff (≥ `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`, default 8/200), nudges the agent to run `/improve`. Fires once (loop-guarded). Claude/Codex (exit-2 or `block`), Cursor (`followup_message`) — Gemini has no per-turn Stop event. |
+| `load-memory.sh` | session start | Injects a pointer to your **out-of-tool** memory stores (Hermes `~/.hermes/`, OpenClaw `~/.openclaw/workspace/`, project `MEMORY.md`/`memory/`) so the agent reads them before personal tasks. Lists only stores that exist; silent otherwise. Never blocks. Claude (`additionalContext`) + Cursor (`additional_context`) — the tools with SessionStart injection. Complements Claude's native auto-memory (`~/.claude/projects/<project>/memory/`), which it doesn't duplicate. |
 
 ## Observability
 
@@ -43,14 +44,23 @@ Logs are gitignored. Rotate/trim the file yourself if it grows large.
 | Tool | Config file | Events | Block dialect |
 |------|-------------|--------|---------------|
 | **Claude Code** | `~/.claude/settings.json` | `SessionStart`, `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse`, `Stop` | exit 2 + stderr |
-| **Codex** | `~/.codex/hooks.json` | `PreToolUse` (`Bash`) | exit 2 + stderr |
+| **Codex** | `~/.codex/hooks.json` | `PreToolUse` (`apply_patch\|Edit\|Write`, `Bash`), `PostToolUse`, `Stop` | exit 2 + stderr |
+| **Cursor** | `~/.cursor/hooks.json` (`version: 1`) | `sessionStart`, `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`, `stop` | stdout `{"permission":"deny"}` |
 | **Antigravity / Gemini** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |
 
 ## Caveats
 
-- **Codex** currently only surfaces the **`Bash`** tool to hooks, so only the
-  shell guard is wired there; path-guard/format will work once Codex exposes its
-  edit tool to hooks.
+- **Codex** surfaces file edits via the **`apply_patch`** tool, whose
+  `tool_input.command` carries the raw patch envelope (no `file_path` field), so
+  `guard-paths`/`format-edited` parse the target paths from the
+  `*** Add/Update/Delete File:` / `*** Move to:` lines. Both shell- and
+  edit-guards are wired.
+- **Cursor** has no blocking *pre-edit* event (only `afterFileEdit`, which can't
+  veto a write), so `guard-paths` is wired to `beforeReadFile` (blocks reading
+  secrets) and `afterFileEdit` (best-effort). Hard write-protection for `.env`,
+  lockfiles, and build dirs comes from the **permissions layer**
+  (`../install-settings.sh cursor`), not the hook. Cursor's `stop` nudge uses
+  `followup_message` (auto-continue), and is local-only (not cloud agents).
 - **Antigravity**'s schema is the Gemini CLI hooks format
   (`settings.json` → `hooks` → `BeforeTool`/`AfterTool`). If your Antigravity
   build reads hooks from a different path (e.g. `.agents/hooks.json`), copy the
