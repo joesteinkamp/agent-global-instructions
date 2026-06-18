@@ -20,6 +20,8 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `log-tool.sh` | every tool (before + after) | **Observability** — appends one JSONL record per tool event to an audit log. Never blocks. |
 | `improve-nudge.sh` | turn end (Stop) | When a turn ends with a **larger** diff (≥ `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`, default 8/200), nudges the agent to run `/improve`. Fires once (loop-guarded). Claude/Codex (exit-2 or `block`), Cursor (`followup_message`) — Gemini has no per-turn Stop event. |
 | `load-memory.sh` | session start | Injects a pointer to your **out-of-tool** memory stores (Hermes `~/.hermes/`, OpenClaw `~/.openclaw/workspace/`, project `MEMORY.md`/`memory/`) so the agent reads them before personal tasks. Lists only stores that exist; silent otherwise. Never blocks. Claude (`additionalContext`) + Cursor (`additional_context`) — the tools with SessionStart injection. Complements Claude's native auto-memory (`~/.claude/projects/<project>/memory/`), which it doesn't duplicate. |
+| `precompact-archive.sh` | before compaction (PreCompact) | Copies the **raw transcript** to `<log-dir>/transcripts/` before Claude compacts (and silently drops detail), and logs a `PreCompact` audit record. The platform forbids context injection here, so it preserves the record on disk rather than curating it. Never blocks. Claude only. |
+| `log-session-end.sh` | session end (SessionEnd) | Appends a `SessionEnd` audit record with the end reason (`clear`/`logout`/`prompt_input_exit`/`resume`/`other`), closing the trail the SessionStart loader opened. Output is ignored by the platform — pure observability. Claude only. |
 
 ## Observability
 
@@ -37,13 +39,21 @@ Read it back with `../audit.sh`:
 ./audit.sh --follow   # live tail while a run is in progress
 ```
 
-Logs are gitignored. Rotate/trim the file yourself if it grows large.
+`precompact-archive.sh` and `log-session-end.sh` write `PreCompact` / `SessionEnd`
+records to the **same** log (so `audit.sh` shows a start-to-finish timeline), and
+PreCompact also drops raw transcript copies in `<log-dir>/transcripts/` so an
+auto-compaction never silently loses the full record. Those transcript copies are
+**unredacted** (unlike the audit log) — written `0600` in a `0700` dir and capped
+to the newest `AI_TRANSCRIPT_KEEP` (default 50).
+
+Logs and transcript archives are gitignored — treat them as sensitive. Rotate/trim
+them yourself if they grow large.
 
 ## Per-tool wiring
 
 | Tool | Config file | Events | Block dialect |
 |------|-------------|--------|---------------|
-| **Claude Code** | `~/.claude/settings.json` | `SessionStart`, `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse`, `Stop` | exit 2 + stderr |
+| **Claude Code** | `~/.claude/settings.json` | `SessionStart`, `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse`, `PreCompact`, `Stop`, `SessionEnd` | exit 2 + stderr |
 | **Codex** | `~/.codex/hooks.json` | `PreToolUse` (`apply_patch\|Edit\|Write`, `Bash`), `PostToolUse`, `Stop` | exit 2 + stderr |
 | **Cursor** | `~/.cursor/hooks.json` (`version: 1`) | `sessionStart`, `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`, `stop` | stdout `{"permission":"deny"}` |
 | **Antigravity / Gemini** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |

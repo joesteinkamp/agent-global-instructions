@@ -11,6 +11,7 @@ Portable slash-command shortcuts. Each top-level `.md` file is the canonical
 | `/worktrees` | Set up one git worktree per parallel agent (`ai/<agent>` branches) and converge them into a single integration tree a lone dev server watches — so several models' changes show up near-live. Pairs with `converge.sh`. |
 | `/tidy` | Run the project's formatter / linter / tests and fix what's safe (no commit). |
 | `/improve` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities. No changes applied. |
+| `/verify` | Prove the change is correct & true to spec: build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (`PRODUCT`/`DESIGN`/`CODE.md`). Writes a served HTML report; no changes applied. |
 | `/audit` | Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores the UI against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
 
 Most take optional arguments, e.g. `/ship fix login redirect` uses that as the
