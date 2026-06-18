@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stop hook — when a turn ends with a LARGER change, nudge the agent to run the
-# improvement review (/improve) before finishing. Claude + Codex only
-# (Gemini has no per-turn Stop event).
+# improvement review before finishing. Claude, Codex, and Cursor (each in its own
+# Stop dialect); Gemini has no per-turn Stop event.
 #
 # Fires at most once per distinct diff: the diff fingerprint of the last nudge
 # is remembered, so it does NOT re-fire every turn (incl. pure conversation)
@@ -42,7 +42,9 @@ marker="$state_dir/.improve-nudge.$key"
 [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$fp" ] && exit 0
 printf '%s' "$fp" > "$marker" 2>/dev/null || true
 
-reason="Larger change detected (${files} files, ${lines} lines vs HEAD). Before finishing, run the improvement review (/improve) to surface improvement opportunities — or tell me you've intentionally skipped it."
+# Codex invokes the ported command as /prompts:improve, not /improve.
+case "$PLATFORM" in codex) nudgecmd="/prompts:improve";; *) nudgecmd="/improve";; esac
+reason="Larger change detected (${files} files, ${lines} lines vs HEAD). Before finishing, run the improvement review (${nudgecmd}) to surface improvement opportunities — or tell me you've intentionally skipped it."
 case "$PLATFORM" in
   claude) jq -nc --arg r "$reason" '{decision:"block",reason:$r}'; exit 0;;
   cursor) jq -nc --arg r "$reason" '{followup_message:$r}'; exit 0;;

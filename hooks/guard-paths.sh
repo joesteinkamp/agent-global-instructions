@@ -10,13 +10,17 @@
 # passes the raw patch envelope in tool_input.command (no path field) — the
 # targets live inside as `*** Add/Update/Delete File:` / `*** Move to:` lines.
 #
+# GUARD_SECRETS_ONLY=1 narrows the match to secret files (.env*) only — used for
+# Cursor's beforeReadFile, where blocking reads of build/deps/lockfiles would
+# break normal work; only secret reads should be denied there.
+#
 # Override the protected list with CLAUDE_PROTECTED_PATHS (colon-separated globs).
 set -u
 
 PLATFORM="${HOOK_PLATFORM:-claude}"
 input="$(cat)"
 command -v jq >/dev/null 2>&1 || exit 0
-cwd="$(printf '%s' "$input" | jq -r '.cwd // empty')"
+cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
 
 block() {  # $1 = reason
   case "$PLATFORM" in
@@ -25,6 +29,9 @@ block() {  # $1 = reason
     *)                  echo "$1" >&2; exit 2;;
   esac
 }
+
+SECRET_GLOBS='*/.env:*/.env.*:.env:.env.*'
+GENERATED_GLOBS='*/build/*:*/dist/*:*/.next/*:*/out/*:*/coverage/*:*/node_modules/*:*/.git/*'
 
 # Canonicalize so relative paths, ".." traversal, and symlinks can't slip past
 # the globs (resolve against cwd, then realpath/readlink -m), and match BOTH the
@@ -40,36 +47,43 @@ check_one() {  # $1 = file path
     abs="$(readlink -m "$abs" 2>/dev/null || printf '%s' "$abs")"
   fi
 
-  local default_globs='*/build/*:*/dist/*:*/.next/*:*/out/*:*/coverage/*:*/node_modules/*:*/.git/*:*/.env:*/.env.*:.env:.env.*'
-  IFS=':' read -ra globs <<< "${CLAUDE_PROTECTED_PATHS:-$default_globs}"
+  if [ "${GUARD_SECRETS_ONLY:-0}" = 1 ]; then
+    IFS=':' read -ra globs <<< "$SECRET_GLOBS"
+  else
+    IFS=':' read -ra globs <<< "${CLAUDE_PROTECTED_PATHS:-$GENERATED_GLOBS:$SECRET_GLOBS}"
+  fi
   for g in "${globs[@]}"; do
     # shellcheck disable=SC2254
     case "$abs" in
-      $g) block "BLOCKED: '$fp' resolves to a protected/generated path (matched '$g'). Don't edit it — it's build output, a dependency, or sensitive. Override via CLAUDE_PROTECTED_PATHS if intentional.";;
+      $g) block "BLOCKED: '$fp' resolves to a protected path (matched '$g') — build output, a dependency, or sensitive. Override via CLAUDE_PROTECTED_PATHS if intentional.";;
     esac
     # shellcheck disable=SC2254
     case "$fp" in
-      $g) block "BLOCKED: '$fp' is a protected/generated path (matched '$g'). Don't edit it — it's build output, a dependency, or sensitive. Override via CLAUDE_PROTECTED_PATHS if intentional.";;
+      $g) block "BLOCKED: '$fp' is a protected path (matched '$g') — build output, a dependency, or sensitive. Override via CLAUDE_PROTECTED_PATHS if intentional.";;
     esac
   done
 
-  case "$(basename "$fp")" in
-    package-lock.json|pnpm-lock.yaml|yarn.lock|bun.lockb)
-      block "BLOCKED: '$fp' is a lockfile — let the package manager update it, don't hand-edit.";;
-  esac
+  if [ "${GUARD_SECRETS_ONLY:-0}" != 1 ]; then
+    case "$(basename "$fp")" in
+      package-lock.json|pnpm-lock.yaml|yarn.lock|bun.lockb)
+        block "BLOCKED: '$fp' is a lockfile — let the package manager update it, don't hand-edit.";;
+    esac
+  fi
   return 0
 }
 
 # Single explicit path (Claude/Codex-Edit/Gemini tool_input, or Cursor top-level).
-fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .file_path // empty')"
+fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .file_path // empty' 2>/dev/null)"
 if [ -n "$fp" ]; then
   check_one "$fp"
 elif [ "$PLATFORM" = "codex" ]; then
   # Codex apply_patch: extract every target path from the patch envelope and
-  # guard each (a single patch can touch several files).
-  cmdtext="$(printf '%s' "$input" | jq -r '.tool_input.command // empty')"
+  # guard each (a single patch can touch several files). Strip a trailing CR
+  # (CRLF patches) and surrounding quotes before matching.
+  cmdtext="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)"
   if [ -n "$cmdtext" ]; then
     while IFS= read -r pf; do
+      pf="${pf%$'\r'}"; pf="${pf#\"}"; pf="${pf%\"}"
       [ -n "$pf" ] && check_one "$pf"
     done < <(printf '%s\n' "$cmdtext" | sed -nE 's/^\*\*\* (Add File|Update File|Delete File|Move to): (.*)$/\2/p')
   fi

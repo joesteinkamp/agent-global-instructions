@@ -220,9 +220,42 @@ if command -v jq >/dev/null 2>&1; then
                      || bad "load-memory stays silent when no store exists"
   rm -rf "$MEMPROJ" "$EMPTYPROJ"
 
+  # install-hooks wired the PreCompact + SessionEnd lifecycle hooks (Claude).
+  if jq -e '.hooks.PreCompact[0].hooks[0].command | test("precompact-archive")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
+     && jq -e '.hooks.SessionEnd[0].hooks[0].command | test("log-session-end")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+    ok "install-hooks wires the PreCompact and SessionEnd hooks"
+  else
+    bad "install-hooks wires the PreCompact and SessionEnd hooks"
+  fi
+
+  # precompact-archive copies the transcript and logs a PreCompact audit record.
+  PCDIR="$(mktemp -d)"; PCLOG="$PCDIR/log/tool-calls.jsonl"; PCTRANS="$PCDIR/t.jsonl"; printf '{"x":1}\n' > "$PCTRANS"
+  printf '{"session_id":"s1","transcript_path":"%s","cwd":"/w","trigger":"auto"}' "$PCTRANS" \
+    | AI_TOOL_LOG="$PCLOG" HOOK_PLATFORM=claude bash "$DIR/hooks/precompact-archive.sh" 2>/dev/null
+  if [ -n "$(ls -1 "$PCDIR/log/transcripts/" 2>/dev/null)" ] \
+     && jq -e 'select(.event=="PreCompact")' "$PCLOG" >/dev/null 2>&1; then
+    ok "precompact-archive saves the transcript and logs a PreCompact record"
+  else
+    bad "precompact-archive saves the transcript and logs a PreCompact record"
+  fi
+  # ...and is graceful when no transcript path is supplied.
+  printf '{"session_id":"s2","cwd":"/w"}' | AI_TOOL_LOG="$PCLOG" HOOK_PLATFORM=claude bash "$DIR/hooks/precompact-archive.sh" 2>/dev/null
+  pc_rc=$?
+  [ "$pc_rc" = 0 ] && ok "precompact-archive exits 0 with no transcript path" \
+                   || bad "precompact-archive exits 0 with no transcript path"
+
+  # log-session-end appends a SessionEnd record carrying the reason.
+  printf '{"session_id":"s1","cwd":"/w","reason":"clear"}' | AI_TOOL_LOG="$PCLOG" HOOK_PLATFORM=claude bash "$DIR/hooks/log-session-end.sh" 2>/dev/null
+  if jq -e 'select(.event=="SessionEnd" and .tool_name=="clear")' "$PCLOG" >/dev/null 2>&1; then
+    ok "log-session-end records a SessionEnd with its reason"
+  else
+    bad "log-session-end records a SessionEnd with its reason"
+  fi
+  rm -rf "$PCDIR"
+
   # uninstall reverses hooks, permissions, and commands cleanly.
   HOME="$SMOKE" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
-  if ! jq -e '(.hooks // {}) | has("SessionStart")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
+  if ! jq -e '(.hooks // {}) | (has("SessionStart") or has("PreCompact") or has("SessionEnd"))' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
      && ! jq -e '(.permissions // {}) | has("deny")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
      && [ ! -f "$SMOKE/.claude/commands/ship.md" ]; then
     ok "uninstall strips hooks, permissions, and command files"
@@ -269,6 +302,30 @@ if command -v jq >/dev/null 2>&1; then
     && ok "cursor permissions snippet is valid with deny rules" \
     || bad "cursor permissions snippet is valid with deny rules"
 
+  # Gemini argsPattern must fire against the JSON-serialized tool args (the form
+  # the Policy Engine matches) — guards the anchor bug where .env / root-relative
+  # build dirs silently never match (leaving only the best-effort hook).
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$DIR/policies/gemini-guardrails.toml" <<'PY' 2>/dev/null
+import sys, re, tomllib
+rules = tomllib.load(open(sys.argv[1], "rb"))["rule"]
+def names(r): return r["toolName"] if isinstance(r["toolName"], list) else [r["toolName"]]
+pat = next(r["argsPattern"] for r in rules if "write_file" in names(r))
+rx = re.compile(pat)
+must = ['{"content":"x","file_path":"/home/u/proj/.env"}',
+        '{"content":"x","file_path":".env.local"}',
+        '{"file_path":"build/app.js"}',
+        '{"file_path":"node_modules/x/i.js"}',
+        '{"file_path":"/p/package-lock.json"}']
+mustnot = ['{"file_path":"src/app.js"}', '{"file_path":"README.md"}']
+assert all(rx.search(s) for s in must), "a protected arg did not match"
+assert not any(rx.search(s) for s in mustnot), "a benign arg matched"
+PY
+    then ok "gemini argsPattern matches JSON-serialized protected args"
+    else bad "gemini argsPattern matches JSON-serialized protected args"
+    fi
+  fi
+
   MT="$(mktemp -d)"
   HOME="$MT" bash "$DIR/install-commands.sh" >/dev/null 2>&1
   if [ -f "$MT/.codex/prompts/ship.md" ] && [ -f "$MT/.cursor/commands/ship.md" ] \
@@ -309,6 +366,36 @@ if command -v jq >/dev/null 2>&1; then
     | HOOK_PLATFORM=codex bash "$DIR/hooks/guard-paths.sh" >/dev/null 2>&1; rc=$?
   [ "$rc" -eq 2 ] && ok "guard-paths blocks a codex apply_patch write to .env" \
                   || bad "guard-paths blocks a codex apply_patch write to .env"
+
+  # Cursor beforeReadFile (GUARD_SECRETS_ONLY): blocks reading .env, but NOT
+  # node_modules/dist — which agents legitimately read (cursor block() exits 0
+  # either way, so distinguish allow vs deny by whether it emitted JSON).
+  so_env="$(printf '%s' '{"file_path":".env","cwd":"/tmp"}' | HOOK_PLATFORM=cursor GUARD_SECRETS_ONLY=1 bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
+  printf '%s' "$so_env" | jq -e '.permission == "deny"' >/dev/null 2>&1 \
+    && ok "secrets-only read mode blocks reading .env" \
+    || bad "secrets-only read mode blocks reading .env"
+  so_nm="$(printf '%s' '{"file_path":"node_modules/react/index.js","cwd":"/tmp"}' | HOOK_PLATFORM=cursor GUARD_SECRETS_ONLY=1 bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
+  [ -z "$so_nm" ] && ok "secrets-only read mode allows reading node_modules" \
+                  || bad "secrets-only read mode allows reading node_modules"
+
+  # Codex permissions block prepends ABOVE any existing [table], so top-level keys
+  # stay top-level instead of being folded into the table (inert + corrupting).
+  if command -v python3 >/dev/null 2>&1; then
+    CT="$(mktemp -d)"; mkdir -p "$CT/.codex"
+    printf '[mcp_servers.foo]\ncommand = "x"\n' > "$CT/.codex/config.toml"
+    HOME="$CT" bash "$DIR/install-settings.sh" codex >/dev/null 2>&1
+    if python3 - "$CT/.codex/config.toml" <<'PY' 2>/dev/null
+import sys, tomllib
+d = tomllib.load(open(sys.argv[1], "rb"))
+assert d.get("approval_policy") == "on-request", "approval_policy not top-level"
+assert d.get("sandbox_mode") == "workspace-write", "sandbox_mode not top-level"
+assert d["mcp_servers"]["foo"]["command"] == "x", "user table corrupted"
+PY
+    then ok "codex permissions prepend keeps top-level keys + user table intact"
+    else bad "codex permissions prepend keeps top-level keys + user table intact"
+    fi
+    rm -rf "$CT"
+  fi
 
   # Settings: cursor deny merge + codex managed block + gemini policy, idempotent.
   HOME="$MT" bash "$DIR/install-settings.sh" cursor codex gemini >/dev/null 2>&1

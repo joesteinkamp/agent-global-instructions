@@ -69,27 +69,30 @@ install_codex_settings() {
   echo "  codex:"
   [ -f "$snip" ] || { echo "    no snippet at $snip" >&2; return 1; }
   mkdir -p "$(dirname "$cf")"; [ -f "$cf" ] || : > "$cf"
-  # TOML forbids duplicate keys (a parse error would break Codex startup). If the
-  # user already sets approval_policy/sandbox_mode OUTSIDE our managed block,
-  # leave theirs untouched and just recommend values.
-  local outside
-  outside="$(awk -v b="$begin" -v e="$end" '$0==b{skip=1} !skip{print} $0==e{skip=0}' "$cf" \
-            | grep -Ec '^[[:space:]]*(approval_policy|sandbox_mode)[[:space:]]*=' || true)"
-  if [ "${outside:-0}" -gt 0 ]; then
-    echo "    config.toml already sets approval_policy/sandbox_mode — leaving yours untouched."
+  # Strip any prior managed block first so we operate on the user's own content.
+  local body; body="$(mktemp)"; TMPFILES+=("$body")
+  awk -v b="$begin" -v e="$end" '$0==b{skip=1} !skip{print} $0==e{skip=0}' "$cf" > "$body"
+  # TOML forbids duplicate keys (a parse error would break Codex startup), and our
+  # keys are TOP-LEVEL. Only treat them as "already set" when they appear before
+  # the first [table] header — an approval_policy under [profiles.x] is a
+  # different key and is no conflict.
+  local toplevel
+  toplevel="$(awk '/^[[:space:]]*\[/{exit} {print}' "$body")"
+  if printf '%s\n' "$toplevel" | grep -Eq '^[[:space:]]*(approval_policy|sandbox_mode)[[:space:]]*='; then
+    echo "    config.toml already sets approval_policy/sandbox_mode at top level — leaving yours untouched."
     echo "    (recommended: approval_policy=\"on-request\", sandbox_mode=\"workspace-write\";"
     echo "     fine-grained path-deny is enforced by the guard-paths hook.)"
     return 0
   fi
+  # PREPEND the block: top-level keys must precede any [table], or TOML would fold
+  # them into the last table (inert guardrail + corrupted user table).
   local tmp; tmp="$(mktemp)"; TMPFILES+=("$tmp")
-  # Strip any prior managed block (idempotent), keep everything else verbatim,
-  # then append a fresh block.
-  awk -v b="$begin" -v e="$end" '$0==b{skip=1} !skip{print} $0==e{skip=0}' "$cf" > "$tmp"
-  { printf '\n'; cat "$snip"; } >> "$tmp"
+  cat "$snip" > "$tmp"
+  if [ -s "$body" ]; then printf '\n' >> "$tmp"; cat "$body" >> "$tmp"; fi
   if cmp -s "$tmp" "$cf"; then
     echo "    $cf (already current, no change)"
   else
-    backup_file "$cf"; mv "$tmp" "$cf"; echo "    permissions block merged -> $cf"
+    backup_file "$cf"; mv "$tmp" "$cf"; echo "    permissions block prepended -> $cf"
   fi
 }
 

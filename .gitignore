@@ -7,13 +7,16 @@ mcp-rules.local
 *.jsonl
 .ai-logs/
 
-# Generated review/audit artifacts — local, never commit
+# Generated review/audit/verify artifacts — local, never commit
 review/
+audits/
+verify/
 
 # Per-tool port research notes (agent scratch) — local, never commit
 ports/
 
-# One-off research/comparison artifact — local, not part of the harness
+# One-off research/comparison artifacts — local, not part of the harness
+codex-vs-claude-code.html
 parallel-worktrees-playbook.html
 
 # Rendered, personalized output — generate locally with ./customize.sh

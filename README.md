@@ -39,13 +39,16 @@ Independent parts — use any subset; `./install.sh` wires them all:
 1. **Instructions** (model-facing) — a customizable `template.md` rendered into
    per-tool instruction files. *Advice* the assistant should follow.
 2. **Commands** — slash-command shortcuts (`/ship`, `/sync`, `/worktrees`,
-   `/tidy`, `/improve`, `/audit`) for repeatable workflows.
+   `/tidy`, `/improve`, `/verify`, `/audit`) for repeatable workflows.
 3. **Guardrails & observability** (hooks) — auto-format, block edits to
    generated/sensitive paths, trip on catastrophic shell, log every tool call to
    JSONL, and surface your memory stores at session start. *Enforcement* the
    model can't skip.
-4. **Validation** — a multi-role review team you run after big changes
-   (`/improve`), plus a Stop hook that nudges you to run it.
+4. **Validation & verification** — two complementary passes: a multi-role review
+   team for *taste* (`/improve`, "could it be better?") and an evidence-based
+   *verification* pass (`/verify`, "is it correct & true to spec?") that runs the
+   change, drives it in a browser, and checks it against your project briefs —
+   each with a Stop hook that nudges you.
 5. **Settings** (per tool) — a client-enforced permissions layer mapped to each
    tool's native model (Claude & Cursor deny rules, Codex sandbox + approval,
    Gemini Policy Engine) that backs up the guard hooks with rules the model
@@ -154,6 +157,7 @@ Cursor `~/.cursor/commands/`, Gemini `~/.gemini/commands/` (`.toml`).
 | `/worktrees` | One worktree per parallel agent (`ai/<agent>`), converged into a single integration tree a lone dev server watches — several models, near-live. Pairs with `converge.sh`. |
 | `/tidy` | Run the project's formatter/linter/tests and fix what's safe. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
+| `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
 | `/audit` | Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
 
 ## 3. Guardrails & observability (hooks)
@@ -175,7 +179,10 @@ from the permissions layer while the hook guards secret *reads*. Full detail in
 | `format-edited` | after edits | Auto-format the edited file with the project's Prettier/ESLint. |
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
 | `improve-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/improve` (once per distinct diff). |
+| `verify-nudge` | turn end | When a turn ends with a UI/route change and no fresh `verify/` report, nudge you to run `/verify` (once per distinct diff; self-silences once verified). |
 | `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude + Cursor (the tools with SessionStart context injection); silent when none exist. |
+| `precompact-archive` | before compaction | Archive the raw transcript to `~/.ai-logs/transcripts/` before Claude compacts and drops detail, plus a `PreCompact` audit record. Claude only; never blocks. |
+| `log-session-end` | session end | Append a `SessionEnd` record (with the end reason) to the audit log, closing the trail. Claude only; observability. |
 
 Read the audit trail with `./audit.sh` (`--stats`, `--follow`, `-n N`). The log
 lives at `~/.ai-logs/tool-calls.jsonl` (`$AI_TOOL_LOG`); set `AI_LOG_RESPONSES=0`
@@ -202,17 +209,35 @@ adds the **client-enforced** half, mapped to each tool's native model:
 
 Merges are idempotent and backed up; `./uninstall.sh` removes exactly these.
 
-## 4. Validation
+## 4. Validation & verification
 
-After a larger change, run a review team to find improvement opportunities
-before calling the work done:
+Two passes, deliberately different. **`/improve` is opinion** — "could this be
+better?" — it reasons about the diff and needs no ground truth. **`/verify` is
+evidence** — "is it correct & true to spec?" — it runs the change, drives it, and
+diffs it against the design and the briefs, and it can *fail*. They compose: verify
+proves it's right, improve asks whether it's good (verify first — no point polishing
+a change that doesn't render).
 
 - **`/improve`** spins up parallel subagents — technical architect, back-end,
   front-end, and a UI/UX lens when UI changed — each returning concrete,
   prioritized fixes with `file:line`, then deduped into one summary.
-- **`improve-nudge`** (Stop hook — Claude, Codex, Cursor) reminds you to run it
-  when a turn ends with a diff over `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`
+- **`/verify`** runs a lens stack, each emitting **PASS / FAIL / N/A** with
+  evidence: ① builds & runs (reuses `/tidy` detection); ② renders in a headless
+  browser (Playwright) — responsive screenshots (mobile/tablet/desktop), console
+  & network gates, axe-core a11y; ③ visual regression vs the last run or the
+  default branch; ④ matches the design (Figma via MCP, or `DESIGN.md` +
+  `DESIGN.json` tokens); ⑤ conforms to the briefs (`PRODUCT.md`/`DESIGN.md`/
+  `CODE.md` + guardrails — pairs with the [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack));
+  ⑥ does what it claimed (re-runs the PR/task acceptance criteria). It writes a
+  self-contained `verify/<slug>-<date>/report.html` and serves it over your preview
+  method — verdict + link inline, findings in the artifact.
+- **`improve-nudge`** (Stop hook — Claude, Codex, Cursor) reminds you to run the
+  review when a turn ends with a diff over `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`
   (default 8 files / 200 lines), firing once per distinct diff.
+- **`verify-nudge`** (Stop hook — Claude, Codex, Cursor) reminds you to verify
+  when a turn ends with a UI/route change (override the match with `VERIFY_UI_RE`)
+  and no `verify/` report newer than the change exists. Fires once per distinct
+  diff and self-silences once you've verified.
 
 ## Updating over time
 

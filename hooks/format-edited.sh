@@ -31,14 +31,15 @@ format_one() {  # $1 = file path
   return 0
 }
 
-fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .file_path // empty')"
+fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .file_path // empty' 2>/dev/null)"
 if [ -n "$fp" ]; then
   format_one "$fp"
 elif [ "$PLATFORM" = "codex" ]; then
   # Codex apply_patch: format every file the patch adds/updates/moves (not deletes).
-  cmdtext="$(printf '%s' "$input" | jq -r '.tool_input.command // empty')"
+  cmdtext="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)"
   if [ -n "$cmdtext" ]; then
     while IFS= read -r pf; do
+      pf="${pf%$'\r'}"; pf="${pf#\"}"; pf="${pf%\"}"
       [ -n "$pf" ] && format_one "$pf"
     done < <(printf '%s\n' "$cmdtext" | sed -nE 's/^\*\*\* (Add File|Update File|Move to): (.*)$/\2/p')
   fi
