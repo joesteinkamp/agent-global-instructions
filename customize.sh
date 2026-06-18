@@ -41,7 +41,7 @@ TEMPLATE="$DIR/template.md"
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST TS_IP)  # {{VAR}} <-> $VAR
 CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                             # control render, not substituted
-INC_VARS=(INC_MEMORY INC_TEAMS INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS)
+INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
 TMPFILES=()
@@ -70,7 +70,7 @@ mktmp() {
 : "${AUTONOMY:=aggressive}"    # aggressive | balanced
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
-: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
+: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
 : "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"
 
 # Where the user's memory / notes actually live. MEM_KIND drives which bullets
@@ -249,6 +249,7 @@ render() {
   [ "$INC_MEMORY" = "y" ]        && keep="${keep}memory-os:"
   [ "$AUTONOMY" = "aggressive" ] && keep="${keep}autonomy-aggressive:" || keep="${keep}autonomy-balanced:"
   [ "$INC_TEAMS" = "y" ]         && keep="${keep}agent-teams:"
+  [ "$INC_WORKTREES" = "y" ]     && keep="${keep}parallel-worktrees:"
   [ "$INC_IMPROVE" = "y" ]      && keep="${keep}improve:"
   [ "$INC_TOOLS" = "y" ]         && keep="${keep}tools-mcp:"
   [ "$INC_ARTIFACTS" = "y" ]     && keep="${keep}artifacts:"
@@ -402,6 +403,8 @@ INC_TEAMS="$(ask_one 'Include "agent teams & subagents" section?' "y/n" "$INC_TE
 if [ "$INC_TEAMS" = "y" ]; then
   TEAM_ROLES="$(ask 'Roles you draw from (comma-separated)' "$TEAM_ROLES")"
 fi
+
+INC_WORKTREES="$(ask_one 'Include "parallel AI models on one repo" (worktrees) section?' "y/n" "$INC_WORKTREES")"; INC_WORKTREES="${INC_WORKTREES:0:1}"
 
 INC_IMPROVE="$(ask_one 'Include "improve after larger changes" section?' "y/n" "$INC_IMPROVE")"; INC_IMPROVE="${INC_IMPROVE:0:1}"
 INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n" "$INC_TOOLS")"; INC_TOOLS="${INC_TOOLS:0:1}"

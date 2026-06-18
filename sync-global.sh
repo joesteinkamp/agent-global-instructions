@@ -30,6 +30,7 @@ backup_file() {  # $1 = file to back up
   local n=0 b
   while IFS= read -r b; do n=$((n+1)); [ "$n" -gt 5 ] && rm -f -- "$b"; done \
     < <(ls -1t -- "$1".bak.* 2>/dev/null)
+  return 0   # the trailing `read` fails at EOF; don't let that abort the caller under `set -e`
 }
 
 changed=0

@@ -8,6 +8,7 @@ Portable slash-command shortcuts. Each top-level `.md` file is the canonical
 |---------|--------------|
 | `/ship` | Stage → commit → push, and on a feature branch open + **merge** the PR/MR (squash, delete branch), then return to default. Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
+| `/worktrees` | Set up one git worktree per parallel agent (`ai/<agent>` branches) and converge them into a single integration tree a lone dev server watches — so several models' changes show up near-live. Pairs with `converge.sh`. |
 | `/tidy` | Run the project's formatter / linter / tests and fix what's safe (no commit). |
 | `/improve` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities. No changes applied. |
 | `/audit` | Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores the UI against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |

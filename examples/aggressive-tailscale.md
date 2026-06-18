@@ -39,6 +39,13 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Never assume roles — ask me.** I draw from: front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher.
 - **Use subagents for long, decomposable work;** the main thread coordinates and integrates.
 
+## Parallel AI models on one repo
+
+- I often run several AI assistants on the same repo at once. Default to **git worktrees** — one sibling dir per agent (`../<repo>-<agent>` on branch `ai/<agent>`) so no two agents share a working tree. Keep the primary checkout as the **integration** tree.
+- **One dev server, in the integration tree only** — bound `0.0.0.0`, served the way I preview web work. Never start a server per worktree.
+- **Converge continuously:** fold each `ai/*` branch into `integration` as it advances (a short-interval auto-merge loop); hot-reload then surfaces every agent's changes near-live. Liveness tracks commit cadence — commit WIP often. On a merge conflict, stop and surface it; never auto-resolve.
+- **Scope agents to disjoint areas** (feature / dir / route) so merges stay clean, and give one owner the lockfiles / migrations / generated files. When supported, a dedicated **integrator agent** can run the loop and resolve conflicts.
+
 ## Improve after larger changes
 
 - **After a larger code change (~8+ files or ~200+ lines), run a multi-role review team** to find improvement opportunities before treating the work as done — don't wait for me to ask.

@@ -40,6 +40,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 
 
+
 ## Output artifacts
 
 - **Default to a single self-contained HTML file** for comparison, exploration, tuning, or research — mockups, parameter editors, research synthesis, PR explainers, dashboards.
