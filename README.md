@@ -63,7 +63,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `my-context.env.example` | Copy to `my-context.env` (gitignored) to save your answers. |
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
 | `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
-| `commands/` + `install-commands.sh` | Canonical commands (`commands/*.md`) + per-tool dialect ports (`commands/{codex,cursor,gemini}/`) → each tool's command dir (`~/.claude/commands`, `~/.codex/prompts`, `~/.cursor/commands`, `~/.gemini/commands`). |
+| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, gitignored snapshots) → `install-commands.sh` installs each into its command dir (`~/.claude/commands`, `~/.codex/prompts`, `~/.cursor/commands`, `~/.gemini/commands`). |
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Gemini). |
 | `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
@@ -139,16 +139,22 @@ All non-interactive modes read your saved `my-context.env`.
   `MEM_KIND` + `MEM_PATH` / `MEM_TOOL` (or override the bullets via `MEM_BLOCK`).
 - **Which sections to include** — memory-OS discovery, agent teams,
   improve-after-larger-changes, tools & MCP servers, output artifacts,
-  project-specific instructions, docs-first, correction capture.
+  project-specific instructions, docs-first, correction capture, change log
+  (propose an entry + get approval at session end).
 
 ## 2. Commands
 
-Portable prompt shortcuts. `commands/*.md` is the canonical (Claude-dialect)
-source of truth; `commands/{codex,cursor,gemini}/` hold dialect ports translated
-from it (per-tool frontmatter, argument tokens, and shell-injection handling).
-`./install-commands.sh [tool ...]` installs each into the right place — Claude
-`~/.claude/commands/`, Codex `~/.codex/prompts/` (invoked `/prompts:<name>`),
-Cursor `~/.cursor/commands/`, Gemini `~/.gemini/commands/` (`.toml`).
+Portable prompt shortcuts. `commands/*.md` is the **single source of truth**
+(Claude dialect). `./render-commands.sh` translates each into the other tools'
+dialects under `commands/{codex,cursor,gemini}/` — per-tool frontmatter, argument
+tokens (`$ARGUMENTS` → `{{args}}` for Gemini), and shell-injection (`` !`cmd` `` →
+`!{cmd}` for Gemini, → "run `cmd`" for Codex/Cursor). Those ports are **generated
+snapshots** — never hand-edit them; `./install-commands.sh` re-renders on every
+run, so hand-edits never reach your tools. `./install-commands.sh [tool ...]` re-renders, then installs
+each into the right place — Claude `~/.claude/commands/`, Codex `~/.codex/prompts/`
+(invoked `/prompts:<name>`), Cursor `~/.cursor/commands/`, Gemini
+`~/.gemini/commands/` (`.toml`). Add a command once as `commands/<name>.md` and
+all four tools pick it up.
 
 | Command | Does |
 |---------|------|
@@ -180,6 +186,7 @@ from the permissions layer while the hook guards secret *reads*. Full detail in
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
 | `improve-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/improve` (once per distinct diff). |
 | `verify-nudge` | turn end | When a turn ends with a UI/route change and no fresh `verify/` report, nudge you to run `/verify` (once per distinct diff; self-silences once verified). |
+| `changelog-nudge` | turn end | When a session ends with changes, remind you to **propose a Change Log entry and approve it before it's written** (never auto-writes). Once per distinct diff. Pairs with the `changelog` instruction section. |
 | `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude + Cursor (the tools with SessionStart context injection); silent when none exist. |
 | `precompact-archive` | before compaction | Archive the raw transcript to `~/.ai-logs/transcripts/` before Claude compacts and drops detail, plus a `PreCompact` audit record. Claude only; never blocks. |
 | `log-session-end` | session end | Append a `SessionEnd` record (with the end reason) to the audit log, closing the trail. Claude only; observability. |

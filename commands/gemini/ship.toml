@@ -1,9 +1,7 @@
-# Canonical source: commands/ship.md (Claude-dialect). This is the Gemini CLI port.
-# Install to ~/.gemini/commands/ship.toml -> invoked as /ship
-# Translation: $ARGUMENTS -> {{args}};  !`cmd` -> !{cmd} (shell injection, runs with confirmation).
+# GENERATED from commands/ship.md by render-commands.sh — do not edit.
 description = "Commit, push, and (on a feature branch) merge the PR/MR — all in one go"
 
-prompt = """
+prompt = '''
 Current state:
 - Branch: !{git branch --show-current}
 - Status: !{git status --short}
@@ -36,4 +34,4 @@ Steps:
 6. If the merge is blocked (failing checks, conflicts, branch protection), stop
    and report exactly what blocked it — do not force anything.
 7. Report what happened: commit hash, push, PR/MR URL, merge result.
-"""
+'''

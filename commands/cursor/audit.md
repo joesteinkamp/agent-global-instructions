@@ -1,26 +1,21 @@
-<!-- Canonical source: commands/audit.md (Claude dialect). This is the Cursor port.
-     Cursor commands are plain-Markdown prompt templates in .cursor/commands/*.md —
-     NO YAML frontmatter, NO shell injection, NO $ARGUMENTS placeholder. The Claude
-     frontmatter is folded into prose; anything I type after `/audit` is the args
-     (screenshot path(s) or design, + optional focus).
-     NOTE: the canonical command runs the Claude `ux-audit` *skill*. Cursor has its
-     own Skills system (.cursor/skills/), so install ux-audit as a Cursor skill or
-     run its steps directly. -->
-
+<!-- GENERATED from commands/audit.md by render-commands.sh — do not edit. -->
 # Audit
 
-Run a UX/design audit. Anything I type after `/audit` is the target — screenshot path(s) or design, plus an optional focus.
+UX/design audit of a screen — runs the ux-audit skill and serves the report
 
-1. Resolve the target screenshot(s) from what I typed — explicit file path(s), a
+> Cursor has no argument placeholder — type your input after `/audit` and it is appended to this prompt; treat any `$ARGUMENTS` below as that input.
+
+Run a UX/design audit. $ARGUMENTS
+
+1. Resolve the target screenshot(s) from $ARGUMENTS — explicit file path(s), a
    directory, or the most recent screenshot if none were given.
 2. Run the **`ux-audit`** skill on them
-   (repo: github.com/joesteinkamp/ux-audit-skill). In Cursor, install it as a
-   skill under `.cursor/skills/ux-audit/` (or `~/.cursor/skills/ux-audit/`) and
-   invoke it; if Cursor skills aren't available, follow the skill's steps directly
-   from its SKILL.md. It scores the UI against 15 UX heuristic frameworks. Answer
-   its intake (design goal, target persona, platform, artifact stage) from what I
-   typed and surrounding context; ask me only what genuinely can't be inferred. If
-   the skill isn't installed, tell me how to add it and stop.
+   (repo: github.com/joesteinkamp/ux-audit-skill — install with
+   `ln -s <repo> ~/.claude/skills/ux-audit`). It scores the UI against 15 UX
+   heuristic frameworks. Answer its intake (design goal, target persona,
+   platform, artifact stage) from $ARGUMENTS and surrounding context; ask me
+   only what genuinely can't be inferred. If the skill isn't installed, tell me
+   how to add it and stop.
 3. It writes `audits/<slug>-<date>/` — `findings.json`, `summary.md`,
    `annotated/*.png`, and a self-contained `report.html`.
 4. Serve the report per my environment's preview method: if headless, start a

@@ -14,8 +14,8 @@
 #   gemini  commands/gemini/*.toml -> ~/.gemini/commands/   (project: ./.gemini/commands/)
 #
 # commands/*.md (top level) is the canonical Claude-dialect source of truth; the
-# commands/<tool>/ files are dialect ports translated from it (different
-# frontmatter, argument tokens, and shell-injection handling per tool).
+# commands/<tool>/ files are GENERATED from it by render-commands.sh (run here
+# automatically) — never hand-edit them, edit the canonical file and re-render.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -32,6 +32,11 @@ for a in "$@"; do
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+
+# Regenerate the per-tool ports from the canonical commands/*.md first, so what
+# gets installed always reflects the current canonical (hand-edits to a generated
+# port are overwritten here — edit commands/<name>.md instead).
+[ -x "$DIR/render-commands.sh" ] && "$DIR/render-commands.sh" >/dev/null
 
 # Command basenames we've renamed/dropped. Pruned on every install (per tool, in
 # that tool's extension) so a rename self-heals across `git pull && install`.

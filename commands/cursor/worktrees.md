@@ -1,20 +1,19 @@
-<!-- Canonical source: commands/worktrees.md (Claude dialect). This is the Cursor port.
-     Cursor commands are plain-Markdown prompt templates in .cursor/commands/*.md —
-     NO YAML frontmatter, NO shell injection, NO $ARGUMENTS placeholder. The Claude
-     frontmatter (description/argument-hint/allowed-tools) and the `!`cmd`` context
-     lines are folded into prose below; anything you type after `/worktrees` is the args. -->
-
+<!-- GENERATED from commands/worktrees.md by render-commands.sh — do not edit. -->
 # Worktrees
+
+Set up parallel-agent git worktrees and converge them into one live dev tree
+
+> Cursor has no argument placeholder — type your input after `/worktrees` and it is appended to this prompt; treat any `$ARGUMENTS` below as that input.
+
+Current state:
+- Repo root: run `git rev-parse --show-toplevel 2>/dev/null`
+- Current branch: run `git branch --show-current`
+- Existing worktrees: run `git worktree list`
 
 Set up isolated worktrees so several AI agents can work this repo in parallel,
 then converge their branches into a single **integration** tree that one dev
-server watches — so I see everyone's changes near-live. Anything I type after
-`/worktrees` is the agent names (default: `claude codex gemini`).
-
-First gather the current state by running these yourself:
-- Repo root: `git rev-parse --show-toplevel`
-- Current branch: `git branch --show-current`
-- Existing worktrees: `git worktree list`
+server watches — so I see everyone's changes near-live. $ARGUMENTS are the agent
+names (default: `claude codex gemini`).
 
 Steps:
 1. **Pick the integration tree.** The current checkout is it. If I'm on a

@@ -1,21 +1,18 @@
-<!-- Codex port. Canonical source: commands/worktrees.md (Claude dialect).
-     Install location: ~/.codex/prompts/worktrees.md  ->  invoke as /prompts:worktrees
-     Codex prompts have no !`cmd` shell-injection, so the "current state" block is
-     rewritten as a first step telling the agent to gather it. Args: $ARGUMENTS. -->
 ---
+# GENERATED from commands/worktrees.md by render-commands.sh — do not edit. Invoke as /prompts:worktrees
 description: Set up parallel-agent git worktrees and converge them into one live dev tree
-argument-hint: AGENTS=<agent names, e.g. "claude codex gemini">
+argument-hint: [agent names, e.g. "claude codex gemini"]
 ---
+
+Current state:
+- Repo root: run `git rev-parse --show-toplevel 2>/dev/null`
+- Current branch: run `git branch --show-current`
+- Existing worktrees: run `git worktree list`
 
 Set up isolated worktrees so several AI agents can work this repo in parallel,
 then converge their branches into a single **integration** tree that one dev
 server watches — so I see everyone's changes near-live. $ARGUMENTS are the agent
 names (default: `claude codex gemini`).
-
-First, gather the current state yourself by running:
-- `git rev-parse --show-toplevel`
-- `git branch --show-current`
-- `git worktree list`
 
 Steps:
 1. **Pick the integration tree.** The current checkout is it. If I'm on a

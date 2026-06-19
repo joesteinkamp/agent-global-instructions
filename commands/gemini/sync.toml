@@ -1,9 +1,7 @@
-# Canonical source: commands/sync.md (Claude-dialect). This is the Gemini CLI port.
-# Install to ~/.gemini/commands/sync.toml -> invoked as /sync
-# Translation: $ARGUMENTS -> {{args}};  !`cmd` -> !{cmd} (shell injection, runs with confirmation).
+# GENERATED from commands/sync.md by render-commands.sh — do not edit.
 description = "Update the default branch and rebase the current branch on it"
 
-prompt = """
+prompt = '''
 Current state:
 - Branch: !{git branch --show-current}
 - Status: !{git status --short}
@@ -22,4 +20,4 @@ Steps:
 5. If you stashed, pop it back.
 6. If there are rebase conflicts, stop and report them — don't guess resolutions.
 7. Report what changed (commits pulled in, current position).
-"""
+'''

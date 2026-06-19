@@ -1,16 +1,13 @@
-<!-- Codex port. Canonical source: commands/sync.md (Claude dialect).
-     Install location: ~/.codex/prompts/sync.md  ->  invoke as /prompts:sync
-     Codex prompts have no !`cmd` shell-injection, so the "current state" block is
-     rewritten as a first step telling the agent to gather it. -->
 ---
+# GENERATED from commands/sync.md by render-commands.sh — do not edit. Invoke as /prompts:sync
 description: Update the default branch and rebase the current branch on it
 ---
 
-Bring my branch up to date with the latest default branch.
+Current state:
+- Branch: run `git branch --show-current`
+- Status: run `git status --short`
 
-First, gather the current state yourself by running:
-- `git branch --show-current`
-- `git status --short`
+Bring my branch up to date with the latest default branch.
 
 Steps:
 1. `git fetch --all --prune`.

@@ -1,15 +1,13 @@
-<!-- Canonical source: commands/sync.md (Claude dialect). This is the Cursor port.
-     Cursor commands are plain-Markdown prompt templates in .cursor/commands/*.md —
-     NO YAML frontmatter, NO shell injection, NO $ARGUMENTS placeholder. The Claude
-     frontmatter and the `!`cmd`` context lines are folded into the prose below. -->
-
+<!-- GENERATED from commands/sync.md by render-commands.sh — do not edit. -->
 # Sync
 
-Update the default branch and rebase the current branch on it.
+Update the default branch and rebase the current branch on it
 
-First gather the current state by running these yourself:
-- Branch: `git branch --show-current`
-- Status: `git status --short`
+Current state:
+- Branch: run `git branch --show-current`
+- Status: run `git status --short`
+
+Bring my branch up to date with the latest default branch.
 
 Steps:
 1. `git fetch --all --prune`.

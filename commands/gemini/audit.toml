@@ -1,23 +1,18 @@
-# Canonical source: commands/audit.md (Claude-dialect). This is the Gemini CLI port.
-# Install to ~/.gemini/commands/audit.toml -> invoked as /audit
-# Translation: $ARGUMENTS -> {{args}};  !`cmd` -> !{cmd} (none needed here).
-# Note: the canonical command runs Claude's `ux-audit` Skill. Gemini CLI has no
-# Skill tool; the prompt below asks the model to run the ux-audit workflow
-# directly (or via an equivalent extension/MCP if installed). The 15-heuristic
-# scoring + report-serving instructions are preserved verbatim.
-description = "UX/design audit of a screen — runs the ux-audit workflow and serves the report"
+# GENERATED from commands/audit.md by render-commands.sh — do not edit.
+description = "UX/design audit of a screen — runs the ux-audit skill and serves the report"
 
-prompt = """
+prompt = '''
 Run a UX/design audit. {{args}}
 
 1. Resolve the target screenshot(s) from {{args}} — explicit file path(s), a
    directory, or the most recent screenshot if none were given.
-2. Run the **ux-audit** workflow on them
-   (repo: github.com/joesteinkamp/ux-audit-skill). It scores the UI against 15 UX
+2. Run the **`ux-audit`** skill on them
+   (repo: github.com/joesteinkamp/ux-audit-skill — install with
+   `ln -s <repo> ~/.claude/skills/ux-audit`). It scores the UI against 15 UX
    heuristic frameworks. Answer its intake (design goal, target persona,
    platform, artifact stage) from {{args}} and surrounding context; ask me
-   only what genuinely can't be inferred. If the workflow/tooling isn't available,
-   tell me how to add it and stop.
+   only what genuinely can't be inferred. If the skill isn't installed, tell me
+   how to add it and stop.
 3. It writes `audits/<slug>-<date>/` — `findings.json`, `summary.md`,
    `annotated/*.png`, and a self-contained `report.html`.
 4. Serve the report per my environment's preview method: if headless, start a
@@ -26,4 +21,4 @@ Run a UX/design audit. {{args}}
    it running.
 5. Summarize the top severity-ranked findings inline, then link the full report
    for the annotated detail.
-"""
+'''

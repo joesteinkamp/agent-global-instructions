@@ -1,23 +1,18 @@
-<!-- Canonical source: commands/improve.md (Claude dialect). This is the Cursor port.
-     Cursor commands are plain-Markdown prompt templates in .cursor/commands/*.md —
-     NO YAML frontmatter, NO shell injection, NO $ARGUMENTS placeholder. The Claude
-     frontmatter and the `!`cmd`` context lines are folded into prose below; anything
-     I type after `/improve` is the optional focus (e.g. "perf" or a path). -->
-
+<!-- GENERATED from commands/improve.md by render-commands.sh — do not edit. -->
 # Improve
 
-Run a multi-role review team on recent changes to find improvement opportunities. Anything I type after `/improve` is an optional focus.
+Run a multi-role review team on recent changes to find improvement opportunities
 
-First gather the change context by running these yourself:
-- Changed files: `git --no-pager diff --stat HEAD 2>/dev/null`
-- Untracked: `git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
-- Recent commits: `git --no-pager log --oneline -5 2>/dev/null`
+> Cursor has no argument placeholder — type your input after `/improve` and it is appended to this prompt; treat any `$ARGUMENTS` below as that input.
 
-Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean).
+Changed files: run `git --no-pager diff --stat HEAD 2>/dev/null`
+Untracked: run `git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
+Recent commits: run `git --no-pager log --oneline -5 2>/dev/null`
+
+Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). $ARGUMENTS
 
 1. Scope the changes and decide whether they touch UI.
-2. Spin up the review team **in parallel** — one subagent per lens (use Cursor
-   background/subagents if available; otherwise review each lens sequentially yourself):
+2. Spin up the review team **in parallel** — one subagent per lens (Task/Agent tool):
    - **Technical architect** — structure, coupling, boundaries, risk, missing abstractions.
    - **Back-end engineer** — correctness, data handling, error paths, performance.
    - **Front-end engineer** — component design, state, accessibility, UX edge cases.

@@ -17,19 +17,24 @@ Portable slash-command shortcuts. Each top-level `.md` file is the canonical
 Most take optional arguments, e.g. `/ship fix login redirect` uses that as the
 commit message / PR title.
 
-**Format & ports:** the top-level `.md` files are Claude Code command files —
-frontmatter (`description`, `argument-hint`, `allowed-tools`) plus a prompt body
-that embeds shell output with `` !`cmd` `` and arguments with `$ARGUMENTS`. They
-are the **source of truth**. The subdirectories hold dialect ports translated
-from them, installed to each tool's own location:
+**Format:** the top-level `.md` files are Claude Code command files — frontmatter
+(`description`, `argument-hint`, `allowed-tools`) plus a prompt body that embeds
+shell output with `` !`cmd` `` and arguments with `$ARGUMENTS`. They are the
+**single source of truth** — edit here only.
+
+**Ports are generated, never hand-edited.** `../render-commands.sh` translates the
+canonical files into each tool's dialect under `codex/`, `cursor/`, `gemini/`
+(generated snapshots; `../install-commands.sh` re-renders on every install, so a
+hand-edit to a port never reaches your tools):
 
 - `codex/*.md` → `~/.codex/prompts/` (invoke `/prompts:<name>`); keeps
-  `$ARGUMENTS`, drops `allowed-tools`, rewrites `` !`cmd` `` into a "run these
-  yourself" step (Codex prompts have no shell injection).
-- `cursor/*.md` → `~/.cursor/commands/`; plain Markdown (no frontmatter), the
-  `` !`cmd` `` lines become explicit instructions.
-- `gemini/*.toml` → `~/.gemini/commands/`; TOML with `prompt`/`description`,
+  `$ARGUMENTS`, drops `allowed-tools`, rewrites `` !`cmd` `` → `` run `cmd` ``
+  (Codex prompts have no shell injection).
+- `cursor/*.md` → `~/.cursor/commands/`; plain Markdown (no frontmatter); same
+  `` !`cmd` `` → `` run `cmd` `` rewrite, with a note about `$ARGUMENTS`.
+- `gemini/*.toml` → `~/.gemini/commands/`; TOML `prompt`/`description`,
   `$ARGUMENTS` → `{{args}}`, `` !`cmd` `` → `!{cmd}` shell injection.
 
-Keep ports in sync with the canonical file when you edit a command;
-`../test.sh` asserts every canonical command has a port in each tool dir.
+Add a command once as `<name>.md` and all four tools pick it up. `../test.sh`
+checks render is idempotent, applies the dialect transforms, and yields a port
+for every canonical command.
