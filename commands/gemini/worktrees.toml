@@ -1,7 +1,4 @@
-# Canonical source: commands/worktrees.md (Claude-dialect). This is the Gemini CLI port.
-# Install to ~/.gemini/commands/worktrees.toml -> invoked as /worktrees
-# Translation: $ARGUMENTS -> {{args}};  !`cmd` -> !{cmd} (shell injection, runs with confirmation).
-# Uses a TOML literal string ('''…''') so the embedded shell snippet needs no escaping.
+# GENERATED from commands/worktrees.md by render-commands.sh — do not edit.
 description = "Set up parallel-agent git worktrees and converge them into one live dev tree"
 
 prompt = '''

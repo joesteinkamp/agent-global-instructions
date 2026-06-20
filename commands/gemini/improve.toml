@@ -1,12 +1,7 @@
-# Canonical source: commands/improve.md (Claude-dialect). This is the Gemini CLI port.
-# Install to ~/.gemini/commands/improve.toml -> invoked as /improve
-# Translation: $ARGUMENTS -> {{args}};  !`cmd` -> !{cmd} (shell injection, runs with confirmation).
-# Note: the Claude version uses the Task tool to fan out subagents. On Gemini CLI,
-# run the lenses with subagents if available, otherwise perform each review pass
-# sequentially yourself — the prompt is written tool-neutrally below.
+# GENERATED from commands/improve.md by render-commands.sh — do not edit.
 description = "Run a multi-role review team on recent changes to find improvement opportunities"
 
-prompt = """
+prompt = '''
 Changed files: !{git --no-pager diff --stat HEAD 2>/dev/null}
 Untracked: !{git --no-pager status --porcelain 2>/dev/null | grep '^??' || true}
 Recent commits: !{git --no-pager log --oneline -5 2>/dev/null}
@@ -14,8 +9,7 @@ Recent commits: !{git --no-pager log --oneline -5 2>/dev/null}
 Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). {{args}}
 
 1. Scope the changes and decide whether they touch UI.
-2. Run the review team — one pass per lens (use subagents in parallel if your
-   environment supports them; otherwise do each pass yourself):
+2. Spin up the review team **in parallel** — one subagent per lens (Task/Agent tool):
    - **Technical architect** — structure, coupling, boundaries, risk, missing abstractions.
    - **Back-end engineer** — correctness, data handling, error paths, performance.
    - **Front-end engineer** — component design, state, accessibility, UX edge cases.
@@ -24,4 +18,4 @@ Run a **multi-role improvement review** on the recent changes (working tree vs H
 3. Collect findings, **dedupe**, group by theme, sort by impact.
 4. Present a tight summary: top opportunities first (where + why + suggested fix). Call out any real bugs separately.
 5. This is a review pass — **don't apply changes unless I ask.**
-"""
+'''

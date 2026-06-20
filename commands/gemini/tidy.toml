@@ -1,9 +1,7 @@
-# Canonical source: commands/tidy.md (Claude-dialect). This is the Gemini CLI port.
-# Install to ~/.gemini/commands/tidy.toml -> invoked as /tidy
-# Translation: $ARGUMENTS -> {{args}} (none used here);  !`cmd` -> !{cmd} (none used here).
+# GENERATED from commands/tidy.md by render-commands.sh — do not edit.
 description = "Run the project's formatter, linter, and tests; fix what's safe"
 
-prompt = """
+prompt = '''
 Tidy up the code in this project.
 
 Steps:
@@ -16,4 +14,4 @@ Steps:
 4. Do NOT commit — leave the changes staged-or-unstaged for me to review (use
    `/ship` after).
 5. Report: what you ran, what you fixed, and anything still failing.
-"""
+'''

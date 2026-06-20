@@ -1,11 +1,9 @@
-<!-- Canonical source: commands/tidy.md (Claude dialect). This is the Cursor port.
-     Cursor commands are plain-Markdown prompt templates in .cursor/commands/*.md —
-     NO YAML frontmatter, NO shell injection, NO $ARGUMENTS placeholder. The Claude
-     frontmatter (description/allowed-tools) is folded into the prose below. -->
-
+<!-- GENERATED from commands/tidy.md by render-commands.sh — do not edit. -->
 # Tidy
 
-Run the project's formatter, linter, and tests; fix what's safe.
+Run the project's formatter, linter, and tests; fix what's safe
+
+Tidy up the code in this project.
 
 Steps:
 1. Detect the project's tooling — check `package.json` scripts, and for configs
