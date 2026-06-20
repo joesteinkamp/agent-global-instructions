@@ -41,7 +41,7 @@ TEMPLATE="$DIR/template.md"
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST TS_IP)  # {{VAR}} <-> $VAR
 CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                             # control render, not substituted
-INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS)
+INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
 TMPFILES=()
@@ -71,7 +71,7 @@ mktmp() {
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
 : "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
-: "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"
+: "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
 
 # Where the user's memory / notes actually live. MEM_KIND drives which bullets
 # the memory-os section renders ({{MEMORY_PATHS}}); MEM_PATH / MEM_TOOL fill in
@@ -260,6 +260,7 @@ render() {
   [ "$INC_PROJECT" = "y" ]       && keep="${keep}project-instructions:"
   [ "$INC_DOCS" = "y" ]          && keep="${keep}docs-first:"
   [ "$INC_CORRECTIONS" = "y" ]   && keep="${keep}corrections:"
+  [ "$INC_CHANGELOG" = "y" ]     && keep="${keep}changelog:"
 
   # Pass values via the environment (ENVIRON[] does NO escape processing) using
   # `env`, so nothing leaks into the calling shell. SUBST_VARS drives both the
@@ -340,6 +341,12 @@ write_global() {
   render_to "$HOME/AGENTS.md"         backup && echo "  wrote ~/AGENTS.md"
   render_to "$HOME/.codex/AGENTS.md"  backup && echo "  wrote ~/.codex/AGENTS.md"
   render_to "$HOME/.gemini/GEMINI.md" backup && echo "  wrote ~/.gemini/GEMINI.md"
+  # Seed a Change Log into the global instruction folder so AI-made changes have a
+  # machine-wide place to be logged. Seed-only: never overwrite an existing global
+  # CHANGELOG.md, so accumulated entries survive re-installs.
+  if [ -f "$DIR/CHANGELOG.md" ] && [ ! -f "$HOME/.claude/CHANGELOG.md" ]; then
+    cp "$DIR/CHANGELOG.md" "$HOME/.claude/CHANGELOG.md" && echo "  seeded ~/.claude/CHANGELOG.md"
+  fi
 }
 
 # ---- prompt helpers (used by both the --global confirm and the interactive flow)
@@ -434,6 +441,7 @@ INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y
 INC_PROJECT="$(ask_one 'Include "encourage project-specific instructions" section?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
 INC_DOCS="$(ask_one 'Include "documentation first" section?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
 INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
+INC_CHANGELOG="$(ask_one 'Include "change log" section (propose entry + approval at session end)?' "y/n" "$INC_CHANGELOG")"; INC_CHANGELOG="${INC_CHANGELOG:0:1}"
 
 # Canonicalize the answers just typed (so "Y", "Balanced", "Tailscale" all work).
 normalize_inputs

@@ -21,14 +21,18 @@ subagents (Task) and integrate; otherwise run them in order.
    prettier/eslint/ruff/go/Makefile…). Run build → typecheck → tests, then boot the app and confirm it
    comes up clean. If it doesn't build, stop here and report — nothing downstream is meaningful.
 2. **Renders in a real browser.** For any UI/route change, serve it the way I preview web work (bind
-   `0.0.0.0`, never `127.0.0.1`; verify 200) and drive the changed route(s) headless with Playwright.
+   `0.0.0.0`, never `127.0.0.1`; verify 200) and drive the changed route(s) headless with Playwright
+   (install it if absent; if it can't be installed here, mark this lens N/A — don't fake it).
    - Capture **console + network**; treat any uncaught error or 4xx/5xx as a FAIL.
    - **Responsive matrix** — screenshot each touched route at mobile (390px), tablet (768px), and desktop
      (1280px); lay them out as a contact sheet in the report.
-   - Run an **axe-core a11y** pass and a contrast check in the same session.
-3. **Visual regression.** Diff this run's screenshots against a baseline — the prior `verify/` run, or the
-   same routes built from the default branch. Surface any unintended visual change (per-route, per
-   breakpoint) with a before/after. If there's no baseline yet, save these as the baseline and mark N/A.
+   - Run an **axe-core a11y** pass and a contrast check in the same session (skip if axe can't be loaded).
+3. **Visual regression.** Diff this run's screenshots **pixel-by-pixel** (Playwright `toHaveScreenshot`,
+   `pixelmatch`, or ImageMagick `compare`) against a baseline — the prior `verify/` run, or the same routes
+   built from the default branch. Surface any unintended visual change (per-route, per breakpoint) with a
+   before/after and the diff image. If there's no baseline yet, save these as the baseline and mark N/A.
+   (The baseline is machine-local — `verify/` is gitignored — so cross-machine, the default-branch rebuild
+   is the real reference.)
 4. **Matches the design.** Compare the screenshots to the reference — Figma node (via MCP) or
    `DESIGN.md` + `DESIGN.json` tokens (color, type, spacing, radius, motion). Report drift as
    expected-vs-actual, not vibes.
@@ -38,7 +42,7 @@ subagents (Task) and integrate; otherwise run them in order.
 6. **Does what it claimed.** Re-run the acceptance criteria from the task / PR / issue against the running
    app. Flag any “verified” step that wasn't actually exercised — the honesty gate.
 
-**Output is an artifact.** Write `verify/<slug>-<date>/` — `report.html` (self-contained: pass/fail table,
+**Output is an artifact.** Write `verify/<slug>-YYYY-MM-DD/` — `report.html` (self-contained: pass/fail table,
 the responsive contact sheet, visual-regression before/afters, design diffs, console logs) plus the raw
 `screenshots/`. Serve the report per my preview method (headless → static server on `0.0.0.0`, verify 200,
 hand me the Tailscale URL; keep it running). Inline, give me only the **verdict + the link** — don't dump

@@ -28,7 +28,7 @@ command -v git >/dev/null 2>&1 || exit 0
 git -C "$cwd" rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
 # Changed (vs HEAD) + untracked files, filtered to UI/route-ish paths.
-ui_re="${VERIFY_UI_RE:-\.(tsx?|jsx?|vue|svelte|astro|css|s[ac]ss|less|html?|mdx?)\$|(^|/)(components?|pages|routes|views|layouts|app|ui|styles?)/}"
+ui_re="${VERIFY_UI_RE:-\.(tsx?|jsx?|vue|svelte|astro|css|s[ac]ss|less|html?|mdx)\$|(^|/)(components?|pages|routes|views|layouts|app|ui|styles?)/}"
 changed="$( { git -C "$cwd" diff --name-only HEAD 2>/dev/null; \
               git -C "$cwd" ls-files --others --exclude-standard 2>/dev/null; } | sort -u )"
 ui_files="$(printf '%s\n' "$changed" | grep -Ei "$ui_re" || true)"
