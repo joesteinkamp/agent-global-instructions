@@ -20,7 +20,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 # idempotency filter, so they can't drift. HOOK_RE matches /<our-script>.sh
 # (anchored on the dir slash so it won't match an unrelated user hook that just
 # mentions the bare name; not end-anchored since wired commands end in .sh").
-HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool improve-nudge verify-nudge load-memory precompact-archive log-session-end)
+HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool improve-nudge verify-nudge changelog-nudge load-memory precompact-archive log-session-end)
 HOOK_RE="/($(IFS='|'; echo "${HOOK_SCRIPTS[*]}"))\\.sh"
 
 # Clean up any temp file left behind if jq fails or we're interrupted.
@@ -76,7 +76,7 @@ cmd() { printf 'env HOOK_PLATFORM=%s "%s/%s.sh"' "$1" "$2" "$3"; }  # platform, 
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg vn "$(cmd claude "$hd" improve-nudge)" --arg vfn "$(cmd claude "$hd" verify-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" '{
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg vn "$(cmd claude "$hd" improve-nudge)" --arg vfn "$(cmd claude "$hd" verify-nudge)" --arg cn "$(cmd claude "$hd" changelog-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" '{
     SessionStart: [ {matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$lm}]} ],
     PreToolUse: [
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
@@ -88,10 +88,10 @@ install_claude() {
       {matcher:"Edit|Write|MultiEdit", hooks:[{type:"command",command:$fm}]}
     ],
     PreCompact: [ {matcher:"manual|auto", hooks:[{type:"command",command:$pc}]} ],
-    Stop: [ {hooks:[{type:"command",command:$vn},{type:"command",command:$vfn}]} ],
+    Stop: [ {hooks:[{type:"command",command:$vfn},{type:"command",command:$vn},{type:"command",command:$cn}]} ],
     SessionEnd: [ {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se}]} ]
   }')"
-  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, improve-nudge, verify-nudge, precompact-archive, session-end)"
+  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, improve-nudge, verify-nudge, changelog-nudge, precompact-archive, session-end)"
 }
 
 install_codex() {
@@ -107,7 +107,8 @@ install_codex() {
     --arg fm "$(cmd codex "$hd" format-edited)" \
     --arg lg "$(cmd codex "$hd" log-tool)" \
     --arg vn "$(cmd codex "$hd" improve-nudge)" \
-    --arg vfn "$(cmd codex "$hd" verify-nudge)" '{
+    --arg vfn "$(cmd codex "$hd" verify-nudge)" \
+    --arg cn "$(cmd codex "$hd" changelog-nudge)" '{
     PreToolUse: [
       {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
       {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$gp,timeout:30}]},
@@ -117,9 +118,9 @@ install_codex() {
       {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
       {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$fm,timeout:30}]}
     ],
-    Stop: [ {hooks:[{type:"command",command:$vn,timeout:30},{type:"command",command:$vfn,timeout:30}]} ]
+    Stop: [ {hooks:[{type:"command",command:$vfn,timeout:30},{type:"command",command:$vn,timeout:30},{type:"command",command:$cn,timeout:30}]} ]
   }')"
-  echo "  codex   -> $sf (log, guard paths, guard bash, auto-format, improve-nudge, verify-nudge)"
+  echo "  codex   -> $sf (log, guard paths, guard bash, auto-format, improve-nudge, verify-nudge, changelog-nudge)"
 }
 
 install_cursor() {
@@ -147,14 +148,15 @@ install_cursor() {
     --arg lg "$(cmd cursor "$hd" log-tool)" \
     --arg vn "$(cmd cursor "$hd" improve-nudge)" \
     --arg vfn "$(cmd cursor "$hd" verify-nudge)" \
+    --arg cn "$(cmd cursor "$hd" changelog-nudge)" \
     --arg lm "$(cmd cursor "$hd" load-memory)" '{
     sessionStart: [ {command:$lm} ],
     beforeShellExecution: [ {command:$lg}, {command:$gb} ],
     beforeReadFile: [ {command:$gpr} ],
     afterFileEdit: [ {command:$lg}, {command:$gp}, {command:$fm} ],
-    stop: [ {command:$vn}, {command:$vfn} ]
+    stop: [ {command:$vfn}, {command:$vn}, {command:$cn} ]
   }')"
-  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, improve-nudge, verify-nudge; write-block via permissions)"
+  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, improve-nudge, verify-nudge, changelog-nudge; write-block via permissions)"
 }
 
 install_gemini() {

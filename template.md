@@ -118,3 +118,9 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 - Capture the correction so it doesn't recur: propose the exact instruction wording, ask whether it's global or project-level, and/or whether to save a memory.
 <!--/SECTION:corrections-->
+<!--SECTION:changelog-->
+## Change Log
+
+- **Keep a Change Log of AI-made changes.** Whenever you (or any AI model — Claude, Codex, …) change the codebase, track what changed and why toward a changelog entry.
+- **At the end of a session, propose the entry and ask before writing it.** Surface a draft Change Log entry and let me approve or edit it — **never write or commit the changelog without my explicit approval.** This is a confirmation gate; it overrides "finish the task."
+<!--/SECTION:changelog-->

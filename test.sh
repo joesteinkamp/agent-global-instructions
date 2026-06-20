@@ -253,6 +253,60 @@ if command -v jq >/dev/null 2>&1; then
   fi
   rm -rf "$PCDIR"
 
+  # install-hooks wires the changelog-nudge Stop hook.
+  if jq -e '[.hooks.Stop[].hooks[].command] | any(test("changelog-nudge"))' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+    ok "install-hooks wires the changelog-nudge Stop hook"
+  else
+    bad "install-hooks wires the changelog-nudge Stop hook"
+  fi
+
+  # changelog-nudge prompts for an entry once per diff, then stays quiet (state
+  # dir kept OUTSIDE the work tree so it doesn't perturb the diff fingerprint).
+  CG="$(mktemp -d)"; CST="$(mktemp -d)"
+  ( cd "$CG" && git init -q && git config user.email t@t && git config user.name t \
+      && echo a > f && git add -A && git commit -qm init && echo b >> f ) >/dev/null 2>&1
+  cg1="$(printf '{"cwd":"%s","stop_hook_active":false}' "$CG" | AI_NUDGE_STATE="$CST" HOOK_PLATFORM=claude bash "$DIR/hooks/changelog-nudge.sh" 2>/dev/null)"
+  cg2="$(printf '{"cwd":"%s","stop_hook_active":false}' "$CG" | AI_NUDGE_STATE="$CST" HOOK_PLATFORM=claude bash "$DIR/hooks/changelog-nudge.sh" 2>/dev/null)"
+  if printf '%s' "$cg1" | jq -e '.decision=="block" and (.reason|test("Change Log"))' >/dev/null 2>&1 && [ -z "$cg2" ]; then
+    ok "changelog-nudge prompts for an entry once per diff, then stays quiet"
+  else
+    bad "changelog-nudge prompts for an entry once per diff, then stays quiet"
+  fi
+  rm -rf "$CG" "$CST"
+
+  # Stop hooks wire verify-nudge BEFORE improve-nudge (verify-first ordering).
+  if jq -e '.hooks.Stop[0].hooks[0].command | test("verify-nudge")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
+     && jq -e '.hooks.Stop[0].hooks[1].command | test("improve-nudge")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+    ok "install-hooks wires verify-nudge before improve-nudge on Stop"
+  else
+    bad "install-hooks wires verify-nudge before improve-nudge on Stop"
+  fi
+
+  # verify-nudge: fires on an unverified UI change; quiet once verified or for non-UI diffs.
+  if command -v git >/dev/null 2>&1; then
+    VN="$(mktemp -d)"
+    ( cd "$VN" && git init -q && git config user.email t@t.t && git config user.name t \
+      && echo base > README.md && git add -A && git commit -qm init ) >/dev/null 2>&1
+    mkdir -p "$VN/src/components"; echo ".x{}" > "$VN/src/components/Button.css"
+    vn_ui="$(printf '{"cwd":"%s"}' "$VN" | AI_NUDGE_STATE="$VN/s1" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
+    printf '%s' "$vn_ui" | jq -e '.decision=="block"' >/dev/null 2>&1 \
+      && ok "verify-nudge fires on an unverified UI change" \
+      || bad "verify-nudge fires on an unverified UI change"
+    # A verify report newer than the change silences it.
+    mkdir -p "$VN/verify/run"; touch "$VN/verify/run/report.html"
+    vn_fresh="$(printf '{"cwd":"%s"}' "$VN" | AI_NUDGE_STATE="$VN/s2" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
+    [ -z "$vn_fresh" ] && ok "verify-nudge stays quiet once a fresh verify report exists" \
+                       || bad "verify-nudge stays quiet once a fresh verify report exists"
+    # A non-UI-only diff does not fire (README/docs no longer match the UI gate).
+    VN2="$(mktemp -d)"
+    ( cd "$VN2" && git init -q && git config user.email t@t.t && git config user.name t \
+      && echo base > notes.txt && git add -A && git commit -qm init && echo more >> notes.txt ) >/dev/null 2>&1
+    vn_none="$(printf '{"cwd":"%s"}' "$VN2" | AI_NUDGE_STATE="$VN2/s" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
+    [ -z "$vn_none" ] && ok "verify-nudge stays quiet for a non-UI change" \
+                      || bad "verify-nudge stays quiet for a non-UI change"
+    rm -rf "$VN" "$VN2"
+  fi
+
   # uninstall reverses hooks, permissions, and commands cleanly.
   HOME="$SMOKE" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
   if ! jq -e '(.hooks // {}) | (has("SessionStart") or has("PreCompact") or has("SessionEnd"))' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
@@ -269,12 +323,51 @@ if command -v jq >/dev/null 2>&1; then
   if HOME="$SMOKE2" bash "$DIR/install.sh" --yes claude >/dev/null 2>&1 </dev/null \
      && jq -e '.permissions.deny and .hooks.SessionStart' "$SMOKE2/.claude/settings.json" >/dev/null 2>&1 \
      && [ -f "$SMOKE2/.claude/commands/ship.md" ] \
-     && [ -f "$SMOKE2/.claude/CLAUDE.md" ]; then
-    ok "install.sh orchestrates instructions + commands + hooks + settings"
+     && [ -f "$SMOKE2/.claude/CLAUDE.md" ] \
+     && [ -f "$SMOKE2/.claude/CHANGELOG.md" ]; then
+    ok "install.sh orchestrates instructions + commands + hooks + settings + changelog"
   else
-    bad "install.sh orchestrates instructions + commands + hooks + settings"
+    bad "install.sh orchestrates instructions + commands + hooks + settings + changelog"
   fi
   rm -rf "$SMOKE2"
+
+  # ---- render-commands: ports are generated from the canonical commands ----
+  bash "$DIR/render-commands.sh" >/dev/null 2>&1 \
+    && ok "render-commands.sh runs" || bad "render-commands.sh runs"
+  # Idempotent: a second render produces byte-identical output (snapshot model).
+  RC1="$(mktemp -d)"; cp -r "$DIR/commands/gemini" "$RC1/g" 2>/dev/null
+  bash "$DIR/render-commands.sh" >/dev/null 2>&1
+  diff -rq "$DIR/commands/gemini" "$RC1/g" >/dev/null 2>&1 \
+    && ok "render-commands is idempotent" || bad "render-commands is idempotent"
+  rm -rf "$RC1"
+  # Faithful dialect transforms — ship-specific positives plus invariants across
+  # ALL ports (so a regression on sync/tidy/verify/... is caught, not just ship).
+  ft=1
+  grep -q '\$ARGUMENTS'     "$DIR/commands/codex/ship.md"    || ft=0   # codex keeps $ARGUMENTS
+  grep -q 'run `git branch' "$DIR/commands/codex/ship.md"    || ft=0   # !`cmd` -> run `cmd`
+  grep -q '{{args}}'        "$DIR/commands/gemini/ship.toml"  || ft=0   # gemini $ARGUMENTS -> {{args}}
+  grep -q '!{git branch'    "$DIR/commands/gemini/ship.toml"  || ft=0   # gemini !`cmd` -> !{cmd}
+  head -1 "$DIR/commands/cursor/ship.md" | grep -q '^<!--'    || ft=0   # cursor: no frontmatter
+  for cf in "$DIR"/commands/codex/*.md; do
+    grep -q '^allowed-tools' "$cf" && ft=0                              # allowed-tools dropped everywhere
+    grep -qF '!`' "$cf" && ft=0                                          # no leftover !`cmd` injection
+    grep -q '^# GENERATED' "$cf" || ft=0                                 # marker is in frontmatter, not body
+  done
+  for gf in "$DIR"/commands/gemini/*.toml; do
+    grep -q '\$ARGUMENTS' "$gf" && ft=0                                  # every $ARGUMENTS -> {{args}}
+    grep -qF '!`' "$gf" && ft=0
+  done
+  # The cursor argument note appears IFF the canonical command uses $ARGUMENTS.
+  for md in "$DIR"/commands/*.md; do
+    b="$(basename "$md")"; [ "$b" = "README.md" ] && continue
+    if grep -q '\$ARGUMENTS' "$md"; then
+      grep -q 'no argument placeholder' "$DIR/commands/cursor/$b" || ft=0
+    else
+      grep -q 'no argument placeholder' "$DIR/commands/cursor/$b" && ft=0
+    fi
+  done
+  [ "$ft" = 1 ] && ok "render-commands applies the per-tool dialect transforms (all ports)" \
+                || bad "render-commands applies the per-tool dialect transforms (all ports)"
 
   # ---- multi-tool: codex / cursor / gemini command ports, hooks, settings ----
   # Every canonical command has a port in each tool dir (a missing port = a
