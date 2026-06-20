@@ -20,3 +20,8 @@ only after human approval (see the `changelog` instruction section and the
 ### Changed
 - `install-hooks.sh` wires the new Stop/PreCompact/SessionEnd hooks; `customize.sh`,
   `my-context.env.example`, and the examples updated for the new section.
+- `/verify` lenses sharpened: lens 2 marks Playwright/axe **N/A** when they can't
+  be installed instead of faking a result; lens 3 names a concrete pixel-diff tool
+  (`toHaveScreenshot`/`pixelmatch`/ImageMagick `compare`); the report slug is
+  pinned to `YYYY-MM-DD`. The `verify-nudge` hook no longer trips on doc-only
+  (`.md`) edits. Per-tool ports regenerated from the canonical command.
