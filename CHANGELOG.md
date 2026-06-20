@@ -25,3 +25,5 @@ only after human approval (see the `changelog` instruction section and the
   (`toHaveScreenshot`/`pixelmatch`/ImageMagick `compare`); the report slug is
   pinned to `YYYY-MM-DD`. The `verify-nudge` hook no longer trips on doc-only
   (`.md`) edits. Per-tool ports regenerated from the canonical command.
+- `customize.sh --global` seeds `CHANGELOG.md` into `~/.claude/` (seed-only —
+  never overwrites an existing global changelog, so entries accumulate).
