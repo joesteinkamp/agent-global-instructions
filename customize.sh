@@ -20,8 +20,8 @@
 # ignore my-context.env / mcp-rules.local (used by the examples and test.sh).
 set -euo pipefail
 
-if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
-  echo "customize.sh needs bash 4+ (found ${BASH_VERSION:-unknown}). On macOS: brew install bash, then run with that bash." >&2
+if [ "${BASH_VERSINFO[0]:-0}" -lt 3 ] || { [ "${BASH_VERSINFO[0]:-0}" -eq 3 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 2 ]; }; then
+  echo "customize.sh needs bash 3.2+ (found ${BASH_VERSION:-unknown})." >&2
   exit 1
 fi
 
@@ -78,15 +78,20 @@ fi
 # A value's closing quote must end its line (the natural shell style); the
 # continuation loop reads further lines only while the quote is still open.
 load_env() {
-  local file="$1" line key val rest k
-  local -A ALLOWED=()
-  for k in "${SUBST_VARS[@]}" "${CTRL_VARS[@]}" "${INC_VARS[@]}"; do ALLOWED[$k]=1; done
+  local file="$1" line key val rest
+  # POSIX single-quote idiom '\'' and its replacement ', built into vars so the
+  # //-substitution below takes both operands literally. bash 3.2 (macOS) keeps
+  # backslashes in an inline pattern/replacement, so inline forms misbehave.
+  local sq_idiom sq_repl; printf -v sq_idiom "%s" "'\\''"; printf -v sq_repl "%s" "'"
+  # Space-delimited allowlist (bash 3.2 has no associative arrays). Keys are
+  # plain identifiers, so a padded substring test is exact and safe.
+  local ALLOWED=" ${SUBST_VARS[*]} ${CTRL_VARS[*]} ${INC_VARS[*]} "
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%$'\r'}"                       # tolerate CRLF (Windows) files
     case "$line" in ''|'#'*) continue;; esac
     [[ "$line" == *=* ]] || continue
     key="${line%%=*}"; key="${key//[[:space:]]/}"
-    [ -n "${ALLOWED[$key]:-}" ] || continue
+    [[ "$ALLOWED" == *" $key "* ]] || continue
     val="${line#*=}"
     case "$val" in
       \"*) val="${val#\"}"
@@ -101,7 +106,7 @@ load_env() {
              val="$val"$'\n'"${rest%$'\r'}"
            done
            val="${val%\'}"
-           val="${val//\'\\\'\'/\'}";;          # POSIX single-quote idiom '\'' -> '
+           val="${val//"$sq_idiom"/$sq_repl}";;   # POSIX '\'' -> '
       *)   val="${val#"${val%%[![:space:]]*}"}" # unquoted: trim surrounding whitespace
            val="${val%"${val##*[![:space:]]}"}";;
     esac
