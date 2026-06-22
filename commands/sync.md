@@ -1,6 +1,6 @@
 ---
 description: Update the default branch and rebase the current branch on it
-allowed-tools: Bash(git:*), Bash(gh:*)
+allowed-tools: Bash(git:*)
 ---
 
 Current state:
@@ -11,8 +11,9 @@ Bring my branch up to date with the latest default branch.
 
 Steps:
 1. `git fetch --all --prune`.
-2. Find the default branch (`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`,
-   fall back to `origin/HEAD`).
+2. Find the default branch with a forge-independent lookup so this works on any
+   provider: `git symbolic-ref --short refs/remotes/origin/HEAD` (strip the
+   `origin/` prefix), falling back to `git remote show origin` ("HEAD branch").
 3. If the working tree is dirty, stash first (note that you did), so the rebase
    is clean.
 4. If I'm ON the default branch: `git pull --rebase`.

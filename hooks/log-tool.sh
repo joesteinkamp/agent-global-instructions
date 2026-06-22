@@ -41,12 +41,15 @@ jq -c --arg tool "$platform" --arg ts "$ts" --arg logresp "$log_resp" '
   {
     ts: $ts,
     tool: $tool,
-    session: (.session_id // .sessionId // null),
+    session: (.session_id // .sessionId // .conversation_id // null),
     cwd: (.cwd // null),
     event: (.hook_event_name // .hookEventName // null),
     tool_name: (.tool_name // .toolName // null),
     tool_use_id: (.tool_use_id // .toolUseId // null),
-    input: ((.tool_input // .toolInput) | if . == null then null else tojson end),
+    input: ((.tool_input // .toolInput //
+             (if (.command != null or .file_path != null)
+              then {command: .command, file_path: .file_path} else null end))
+            | if . == null then null else tojson end),
     response: (if $logresp == "0" then null else ((.tool_response // .toolResponse) | if . == null then null else tojson end) end)
   }
   | .input    |= (if . == null then null else (.[0:2000] | redact) end)

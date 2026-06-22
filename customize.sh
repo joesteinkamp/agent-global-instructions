@@ -8,7 +8,9 @@
 #   ./customize.sh --project   non-interactive — write AGENTS/CLAUDE/GEMINI.md
 #                              into this directory (uses defaults + my-context.env)
 #   ./customize.sh --global    non-interactive — write the machine-wide files
-#                              (~/.claude, ~/AGENTS.md, ~/.codex, ~/.gemini)
+#                              (~/.claude, ~/AGENTS.md, ~/.codex, ~/.gemini).
+#                              Prompts to confirm; add --yes (or -y) to skip the
+#                              prompt for scripted / zero-prompt re-runs.
 #   ./customize.sh --scan-mcp  detect MCP servers and write mcp-rules.local
 #
 # Defaults are GENERIC on purpose (this is a shareable template). To keep your
@@ -20,10 +22,14 @@
 # ignore my-context.env / mcp-rules.local (used by the examples and test.sh).
 set -euo pipefail
 
-if [ "${BASH_VERSINFO[0]:-0}" -lt 3 ] || { [ "${BASH_VERSINFO[0]:-0}" -eq 3 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 2 ]; }; then
+if [ "${BASH_VERSINFO[0]:-0}" -lt 3 ] \
+   || { [ "${BASH_VERSINFO[0]:-0}" -eq 3 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 2 ]; }; then
   echo "customize.sh needs bash 3.2+ (found ${BASH_VERSION:-unknown})." >&2
   exit 1
 fi
+
+# Lowercase helper — bash 3.2 (macOS' system bash) lacks the ${var,,} expansion.
+lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE="$DIR/template.md"
@@ -34,8 +40,8 @@ TEMPLATE="$DIR/template.md"
 # values handed to awk and the substitution loop, and all three lists drive the
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST TS_IP)  # {{VAR}} <-> $VAR
-CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK)                                                        # control render, not substituted
-INC_VARS=(INC_MEMORY INC_TEAMS INC_VALIDATE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS)
+CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                             # control render, not substituted
+INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
 TMPFILES=()
@@ -64,13 +70,15 @@ mktmp() {
 : "${AUTONOMY:=aggressive}"    # aggressive | balanced
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
-: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_VALIDATE:=y}"; : "${INC_TOOLS:=y}"
-: "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"
+: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
+: "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
 
-if [ -z "${MEM_BLOCK:-}" ]; then
-  MEM_BLOCK='  - A dedicated memory store on this machine — e.g. an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.
-  - Any `MEMORY.md` / `memory/` directory, or `AGENTS.md` / `CLAUDE.md`, shipped by the project or tool you'\''re running under.'
-fi
+# Where the user's memory / notes actually live. MEM_KIND drives which bullets
+# the memory-os section renders ({{MEMORY_PATHS}}); MEM_PATH / MEM_TOOL fill in
+# the specifics. Default stays GENERIC so the shared template names no one store.
+: "${MEM_KIND:=generic}"        # generic | local | mcp | both
+: "${MEM_PATH:=}"               # local store path (e.g. ~/.hermes/) when local/both
+: "${MEM_TOOL:=}"               # notes app via MCP (e.g. Notion, Obsidian) when mcp/both
 
 # ---- safe loader: parse KEY=VALUE (NO sourcing => no code execution) ---------
 # Only allow-listed keys are honored; values may be single/double quoted and may
@@ -79,19 +87,17 @@ fi
 # continuation loop reads further lines only while the quote is still open.
 load_env() {
   local file="$1" line key val rest
-  # POSIX single-quote idiom '\'' and its replacement ', built into vars so the
-  # //-substitution below takes both operands literally. bash 3.2 (macOS) keeps
-  # backslashes in an inline pattern/replacement, so inline forms misbehave.
-  local sq_idiom sq_repl; printf -v sq_idiom "%s" "'\\''"; printf -v sq_repl "%s" "'"
-  # Space-delimited allowlist (bash 3.2 has no associative arrays). Keys are
-  # plain identifiers, so a padded substring test is exact and safe.
-  local ALLOWED=" ${SUBST_VARS[*]} ${CTRL_VARS[*]} ${INC_VARS[*]} "
+  local sq="'" bs='\'   # single chars; used to build the '\'' idiom literally
+  # Allowlist as a space-delimited set (keys are identifiers, never contain
+  # spaces) — bash 3.2 has no associative arrays. Leading/trailing spaces let
+  # the membership test below match whole tokens only.
+  local allowed=" ${SUBST_VARS[*]} ${CTRL_VARS[*]} ${INC_VARS[*]} "
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%$'\r'}"                       # tolerate CRLF (Windows) files
     case "$line" in ''|'#'*) continue;; esac
     [[ "$line" == *=* ]] || continue
     key="${line%%=*}"; key="${key//[[:space:]]/}"
-    [[ "$ALLOWED" == *" $key "* ]] || continue
+    [[ "$allowed" == *" $key "* ]] || continue
     val="${line#*=}"
     case "$val" in
       \"*) val="${val#\"}"
@@ -106,7 +112,10 @@ load_env() {
              val="$val"$'\n'"${rest%$'\r'}"
            done
            val="${val%\'}"
-           val="${val//"$sq_idiom"/$sq_repl}";;   # POSIX '\'' -> '
+           # POSIX single-quote idiom '\'' -> ' . Build the 4-char pattern from
+           # single-char vars and quote it in the substitution so the match is
+           # literal — bash 3.2 mishandles backslashes in an inline ${//} pattern.
+           val="${val//"$sq$bs$sq$sq"/$sq}";;
       *)   val="${val#"${val%%[![:space:]]*}"}" # unquoted: trim surrounding whitespace
            val="${val%"${val##*[![:space:]]}"}";;
     esac
@@ -118,6 +127,69 @@ if [ -z "${AIGI_NO_USER_ENV:-}" ]; then
   [ -f "$DIR/my-context.env" ] && load_env "$DIR/my-context.env"
   [ -f "$DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$DIR/mcp-rules.local")"
 fi
+
+# Record whether MEM_BLOCK was supplied verbatim (env or my-context.env) BEFORE
+# we ever build one — build_mem_block honors that as a power-user escape hatch.
+MEM_BLOCK_EXPLICIT=""; [ -n "${MEM_BLOCK:-}" ] && MEM_BLOCK_EXPLICIT=1
+
+# Build the {{MEMORY_PATHS}} bullets from MEM_KIND/MEM_PATH/MEM_TOOL. Re-runnable:
+# it only short-circuits on an explicit MEM_BLOCK, so calling it after the
+# interactive prompts rebuilds from the freshly chosen backend.
+build_mem_block() {
+  [ -n "$MEM_BLOCK_EXPLICIT" ] && return 0
+  local proj='  - Any `MEMORY.md` / `memory/` directory, or `AGENTS.md` / `CLAUDE.md`, shipped by the project or tool you'\''re running under.'
+  local localb mcpb
+  if [ -n "$MEM_PATH" ]; then
+    localb="  - A local memory store at \`$MEM_PATH\` — read its identity/values files, curated user facts, and any per-agent memory directories before anything personal."
+  else
+    localb='  - A local memory store on this machine — an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.'
+  fi
+  if [ -n "$MEM_TOOL" ]; then
+    mcpb="  - My notes live in **$MEM_TOOL** — reach it through its MCP server and search there for relevant context before asking me."
+  else
+    mcpb='  - My notes live in a connected notes app — reach it through its MCP server and search there before asking me.'
+  fi
+  case "$MEM_KIND" in
+    local) MEM_BLOCK="$localb"$'\n'"$proj";;
+    mcp)   MEM_BLOCK="$mcpb"$'\n'"$proj";;
+    both)  MEM_BLOCK="$localb"$'\n'"$mcpb"$'\n'"$proj";;
+    *)     MEM_BLOCK='  - A dedicated memory store on this machine — e.g. an agent "memory OS" with identity/values files, curated user facts, and per-agent memory directories.'$'\n'"$proj";;
+  esac
+}
+
+# ---- normalize & validate enum/toggle inputs --------------------------------
+# Canonicalize toggles (accept y/Y/yes/YES/true/1/on) and the enums (any case)
+# from ANY source — environment, my-context.env, or interactive answers — so
+# render()'s exact-match comparisons can never silently drop a section on a
+# capital "Y" or a typo'd enum. Unknown enum values warn (instead of silently
+# dropping the block) and fall back to the documented default. Called once for
+# the non-interactive paths below, and again after the interactive prompts.
+normalize_inputs() {
+  local _v
+  for _v in "${INC_VARS[@]}"; do
+    case "$(lc "${!_v}")" in y*|true|1|on) printf -v "$_v" y;; *) printf -v "$_v" n;; esac
+  done
+  case "$(lc "$AUTONOMY")" in
+    agg*) AUTONOMY=aggressive;;
+    bal*) AUTONOMY=balanced;;
+    *) echo "customize.sh: unknown AUTONOMY='$AUTONOMY' (expected aggressive/balanced); using aggressive." >&2; AUTONOMY=aggressive;;
+  esac
+  case "$(lc "$PREVIEW")" in
+    tail*) PREVIEW=tailscale;;
+    loc*)  PREVIEW=local;;
+    non*)  PREVIEW=none;;
+    *) echo "customize.sh: unknown PREVIEW='$PREVIEW' (expected tailscale/local/none); using local." >&2; PREVIEW=local;;
+  esac
+  case "$(lc "$MEM_KIND")" in
+    loc*)        MEM_KIND=local;;
+    both)        MEM_KIND=both;;
+    mcp|note*|notion*|obsid*) MEM_KIND=mcp;;
+    gen*|'')     MEM_KIND=generic;;
+    *) echo "customize.sh: unknown MEM_KIND='$MEM_KIND' (expected generic/local/mcp/both); using generic." >&2; MEM_KIND=generic;;
+  esac
+  build_mem_block
+}
+normalize_inputs
 
 # ---- MCP detection ----------------------------------------------------------
 # Print the names of MCP servers configured for Claude Code on this machine.
@@ -177,7 +249,8 @@ render() {
   [ "$INC_MEMORY" = "y" ]        && keep="${keep}memory-os:"
   [ "$AUTONOMY" = "aggressive" ] && keep="${keep}autonomy-aggressive:" || keep="${keep}autonomy-balanced:"
   [ "$INC_TEAMS" = "y" ]         && keep="${keep}agent-teams:"
-  [ "$INC_VALIDATE" = "y" ]      && keep="${keep}validate:"
+  [ "$INC_WORKTREES" = "y" ]     && keep="${keep}parallel-worktrees:"
+  [ "$INC_IMPROVE" = "y" ]      && keep="${keep}improve:"
   [ "$INC_TOOLS" = "y" ]         && keep="${keep}tools-mcp:"
   [ "$INC_ARTIFACTS" = "y" ]     && keep="${keep}artifacts:"
   case "$PREVIEW" in
@@ -187,6 +260,7 @@ render() {
   [ "$INC_PROJECT" = "y" ]       && keep="${keep}project-instructions:"
   [ "$INC_DOCS" = "y" ]          && keep="${keep}docs-first:"
   [ "$INC_CORRECTIONS" = "y" ]   && keep="${keep}corrections:"
+  [ "$INC_CHANGELOG" = "y" ]     && keep="${keep}changelog:"
 
   # Pass values via the environment (ENVIRON[] does NO escape processing) using
   # `env`, so nothing leaks into the calling shell. SUBST_VARS drives both the
@@ -267,26 +341,42 @@ write_global() {
   render_to "$HOME/AGENTS.md"         backup && echo "  wrote ~/AGENTS.md"
   render_to "$HOME/.codex/AGENTS.md"  backup && echo "  wrote ~/.codex/AGENTS.md"
   render_to "$HOME/.gemini/GEMINI.md" backup && echo "  wrote ~/.gemini/GEMINI.md"
+  # Seed a Change Log into the global instruction folder so AI-made changes have a
+  # machine-wide place to be logged. Seed-only: never overwrite an existing global
+  # CHANGELOG.md, so accumulated entries survive re-installs.
+  if [ -f "$DIR/CHANGELOG.md" ] && [ ! -f "$HOME/.claude/CHANGELOG.md" ]; then
+    cp "$DIR/CHANGELOG.md" "$HOME/.claude/CHANGELOG.md" && echo "  seeded ~/.claude/CHANGELOG.md"
+  fi
 }
 
+# ---- prompt helpers (used by both the --global confirm and the interactive flow)
+# ask:     free-text with a [default] shown; Enter returns the default.
+# ask_one: a choice; pass the menu to display AND the real default separately,
+#          so Enter returns the default (not the menu string). Reads from /dev/tty,
+#          so with no terminal it returns the default (here "N" => safe abort).
+ask()    { local v; read -r -p "$1 [$2]: " v </dev/tty || true; printf '%s' "${v:-$2}"; }
+ask_one(){ local v; read -r -p "$1 [$3] ($2): " v </dev/tty || true; printf '%s' "${v:-$3}"; }
+
 # ---- non-interactive paths --------------------------------------------------
+# --yes/-y (any position) skips the --global confirmation, for scripted/zero-prompt re-runs.
+ASSUME_YES=""
+for _a in "$@"; do case "$_a" in -y|--yes) ASSUME_YES=1;; esac; done
+
 case "${1:-}" in
   --print)    render; exit 0;;
   --project)  write_project; exit 0;;
   --global)
-    echo "Writing machine-wide instruction files (overwrites them if present):"
+    echo "This OVERWRITES your machine-wide instruction files (each is backed up first):"
     echo "  ~/.claude/CLAUDE.md  ~/AGENTS.md  ~/.codex/AGENTS.md  ~/.gemini/GEMINI.md"
+    if [ -z "$ASSUME_YES" ]; then
+      CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
+      case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted (pass --yes to skip this prompt)."; exit 0;; esac
+    fi
     write_global; exit 0;;
   --scan-mcp) scan_mcp; exit 0;;
 esac
 
 # ---- prompts ----------------------------------------------------------------
-# ask:     free-text with a [default] shown; Enter returns the default.
-# ask_one: a choice; pass the menu to display AND the real default separately,
-#          so Enter returns the default (not the menu string).
-ask()    { local v; read -r -p "$1 [$2]: " v </dev/tty || true; printf '%s' "${v:-$2}"; }
-ask_one(){ local v; read -r -p "$1 [$3] ($2): " v </dev/tty || true; printf '%s' "${v:-$3}"; }
-
 echo "== Customize AI instructions =="
 echo "(press Enter to accept the [default] in brackets)"
 echo ""
@@ -321,7 +411,9 @@ if [ "$INC_TEAMS" = "y" ]; then
   TEAM_ROLES="$(ask 'Roles you draw from (comma-separated)' "$TEAM_ROLES")"
 fi
 
-INC_VALIDATE="$(ask_one 'Include "validate after larger changes" section?' "y/n" "$INC_VALIDATE")"; INC_VALIDATE="${INC_VALIDATE:0:1}"
+INC_WORKTREES="$(ask_one 'Include "parallel AI models on one repo" (worktrees) section?' "y/n" "$INC_WORKTREES")"; INC_WORKTREES="${INC_WORKTREES:0:1}"
+
+INC_IMPROVE="$(ask_one 'Include "improve after larger changes" section?' "y/n" "$INC_IMPROVE")"; INC_IMPROVE="${INC_IMPROVE:0:1}"
 INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n" "$INC_TOOLS")"; INC_TOOLS="${INC_TOOLS:0:1}"
 if [ "$INC_TOOLS" = "y" ]; then
   DO_SCAN="$(ask_one 'Scan this machine'\''s MCP servers and add usage rules?' "y/n" "n")"
@@ -331,10 +423,28 @@ fi
 echo ""
 echo "-- Optional sections --"
 INC_MEMORY="$(ask_one 'Include "look for a memory OS" section?' "y/n" "$INC_MEMORY")";       INC_MEMORY="${INC_MEMORY:0:1}"
+if [ "$INC_MEMORY" = "y" ]; then
+  echo "  Where does your memory / notes live? This tailors what the agent looks for."
+  echo "    1) Local files or a memory OS on this machine (e.g. Hermes at ~/.hermes)"
+  echo "    2) A notes app via its MCP server (e.g. Notion, Obsidian)"
+  echo "    3) Both a local store and a notes app"
+  echo "    4) Generic — don't name a specific store"
+  case "$(ask_one 'Memory backend' "1/2/3/4" "4")" in
+    1) MEM_KIND=local; MEM_PATH="$(ask 'Path to your local memory store' "${MEM_PATH:-~/.hermes/}")";;
+    2) MEM_KIND=mcp;   MEM_TOOL="$(ask 'Notes app name (as exposed by its MCP server)' "${MEM_TOOL:-Notion}")";;
+    3) MEM_KIND=both;  MEM_PATH="$(ask 'Path to your local memory store' "${MEM_PATH:-~/.hermes/}")"
+                       MEM_TOOL="$(ask 'Notes app name (as exposed by its MCP server)' "${MEM_TOOL:-Notion}")";;
+    *) MEM_KIND=generic;;
+  esac
+fi
 INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y/n" "$INC_ARTIFACTS")"; INC_ARTIFACTS="${INC_ARTIFACTS:0:1}"
 INC_PROJECT="$(ask_one 'Include "encourage project-specific instructions" section?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
 INC_DOCS="$(ask_one 'Include "documentation first" section?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
 INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
+INC_CHANGELOG="$(ask_one 'Include "change log" section (propose entry + approval at session end)?' "y/n" "$INC_CHANGELOG")"; INC_CHANGELOG="${INC_CHANGELOG:0:1}"
+
+# Canonicalize the answers just typed (so "Y", "Balanced", "Tailscale" all work).
+normalize_inputs
 
 # ---- output target ----------------------------------------------------------
 echo ""

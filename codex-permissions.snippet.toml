@@ -1,0 +1,14 @@
+# >>> agent-global-instructions (codex permissions) >>>
+# Mirrors the deny/ask intent of settings-permissions.snippet.json using Codex's
+# stable, widely-supported keys. Codex's sandbox is directory-scoped rather than
+# per-glob, so the fine-grained path denies (.env, lockfiles, build/ dist/ out/
+# coverage/ node_modules/ .git/) are enforced by the guard-paths hook instead;
+# this block is the coarse native backstop:
+#   - workspace-write keeps edits inside the workspace (no stray writes elsewhere),
+#   - on-request pauses for approval before escaping the sandbox or running risky
+#     commands (the closest native analog to Claude's `ask` on sudo).
+# Verify these keys against your Codex version (`codex --help`,
+# developers.openai.com/codex) — newer builds may expose a richer permissions model.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+# <<< agent-global-instructions (codex permissions) <<<

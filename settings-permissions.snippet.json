@@ -1,0 +1,36 @@
+{
+  "_comment": "Claude-only. install-settings.sh unions the rules below into ~/.claude/settings.json; uninstall.sh subtracts exactly these. This is the CLIENT-ENFORCED layer that complements the best-effort guard hooks: deny mirrors guard-paths.sh (no prompt — the edit/read is simply refused), ask adds a confirmation gate. Patterns are glob-style (* within a segment, ** across dirs). Want more friction? Add e.g. \"Bash(git push:*)\", \"Bash(curl:*)\", \"Bash(rm:*)\" to ask — they're left out by default to avoid prompting on everyday commands the guard hooks already cover.",
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Write(**/.env)",
+      "Write(**/.env.*)",
+      "Edit(**/build/**)",
+      "Write(**/build/**)",
+      "Edit(**/dist/**)",
+      "Write(**/dist/**)",
+      "Edit(**/.next/**)",
+      "Write(**/.next/**)",
+      "Edit(**/out/**)",
+      "Write(**/out/**)",
+      "Edit(**/coverage/**)",
+      "Write(**/coverage/**)",
+      "Edit(**/node_modules/**)",
+      "Write(**/node_modules/**)",
+      "Edit(**/.git/**)",
+      "Write(**/.git/**)",
+      "Edit(**/package-lock.json)",
+      "Edit(**/pnpm-lock.yaml)",
+      "Edit(**/yarn.lock)",
+      "Edit(**/bun.lockb)"
+    ],
+    "ask": [
+      "Bash(sudo:*)"
+    ]
+  }
+}

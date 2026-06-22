@@ -13,5 +13,5 @@ Steps:
 3. Auto-fix what's safe (formatting, lint autofixes, obvious mistakes). Leave
    anything ambiguous or behavior-changing for me — list those instead.
 4. Do NOT commit — leave the changes staged-or-unstaged for me to review (use
-   `/ship` or `/save` after).
+   `/ship` after).
 5. Report: what you ran, what you fixed, and anything still failing.
