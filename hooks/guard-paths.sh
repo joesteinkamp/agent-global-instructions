@@ -33,25 +33,21 @@ block() {  # $1 = reason
 SECRET_GLOBS='*/.env:*/.env.*:.env:.env.*'
 GENERATED_GLOBS='*/build/*:*/dist/*:*/.next/*:*/out/*:*/coverage/*:*/node_modules/*:*/.git/*'
 
-# Canonicalize so relative paths, ".." traversal, and symlinks can't slip past
-# the globs (resolve against cwd, then realpath/readlink -m), and match BOTH the
-# original and resolved path against the protected globs + lockfile names.
-check_one() {  # $1 = file path
-  local fp="$1" abs g globs
-  [ -z "$fp" ] && return 0
-  abs="$fp"
-  case "$fp" in /*) ;; *) [ -n "$cwd" ] && abs="$cwd/$fp";; esac
-  if command -v realpath >/dev/null 2>&1; then
-    abs="$(realpath -m "$abs" 2>/dev/null || printf '%s' "$abs")"
-  elif command -v readlink >/dev/null 2>&1; then
-    abs="$(readlink -m "$abs" 2>/dev/null || printf '%s' "$abs")"
-  fi
+# Committed sample files (`.env.example`, `.env.template`, …) are meant to be
+# edited and shipped, so they're exempt from the SECRET globs — without this,
+# `*/.env.*` blocks editing the very file you give teammates.
+is_template() {  # $1 = path
+  case "$(basename "$1")" in
+    *.example|*.sample|*.template|*.dist) return 0;;
+  esac
+  return 1
+}
 
-  if [ "${GUARD_SECRETS_ONLY:-0}" = 1 ]; then
-    IFS=':' read -ra globs <<< "$SECRET_GLOBS"
-  else
-    IFS=':' read -ra globs <<< "${CLAUDE_PROTECTED_PATHS:-$GENERATED_GLOBS:$SECRET_GLOBS}"
-  fi
+# Match $abs and $fp (both visible via bash dynamic scope) against a colon-
+# separated glob set; block (which exits) on the first hit.
+match_and_block() {  # $1 = colon-separated globs
+  local g globs
+  IFS=':' read -ra globs <<< "$1"
   for g in "${globs[@]}"; do
     # shellcheck disable=SC2254
     case "$abs" in
@@ -62,18 +58,44 @@ check_one() {  # $1 = file path
       $g) block "BLOCKED: '$fp' is a protected path (matched '$g') — build output, a dependency, or sensitive. Override via CLAUDE_PROTECTED_PATHS if intentional.";;
     esac
   done
+}
 
-  if [ "${GUARD_SECRETS_ONLY:-0}" != 1 ]; then
-    case "$(basename "$fp")" in
-      package-lock.json|pnpm-lock.yaml|yarn.lock|bun.lockb)
-        block "BLOCKED: '$fp' is a lockfile — let the package manager update it, don't hand-edit.";;
-    esac
+# Canonicalize so relative paths, ".." traversal, and symlinks can't slip past
+# the globs (resolve against cwd, then realpath/readlink -m), and match BOTH the
+# original and resolved path against the protected globs + lockfile names.
+check_one() {  # $1 = file path
+  local fp="$1" abs
+  [ -z "$fp" ] && return 0
+  abs="$fp"
+  case "$fp" in /*) ;; *) [ -n "$cwd" ] && abs="$cwd/$fp";; esac
+  if command -v realpath >/dev/null 2>&1; then
+    abs="$(realpath -m "$abs" 2>/dev/null || printf '%s' "$abs")"
+  elif command -v readlink >/dev/null 2>&1; then
+    abs="$(readlink -m "$abs" 2>/dev/null || printf '%s' "$abs")"
   fi
+
+  if [ "${GUARD_SECRETS_ONLY:-0}" = 1 ]; then
+    is_template "$fp" && return 0     # never block reading a committed sample
+    match_and_block "$SECRET_GLOBS"
+    return 0
+  fi
+
+  if [ -n "${CLAUDE_PROTECTED_PATHS:-}" ]; then
+    match_and_block "$CLAUDE_PROTECTED_PATHS"   # explicit override: exactly as set
+  else
+    match_and_block "$GENERATED_GLOBS"
+    is_template "$fp" || match_and_block "$SECRET_GLOBS"
+  fi
+
+  case "$(basename "$fp")" in
+    package-lock.json|pnpm-lock.yaml|yarn.lock|bun.lockb)
+      block "BLOCKED: '$fp' is a lockfile — let the package manager update it, don't hand-edit.";;
+  esac
   return 0
 }
 
 # Single explicit path (Claude/Codex-Edit/Gemini tool_input, or Cursor top-level).
-fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .file_path // empty' 2>/dev/null)"
+fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .tool_input.notebook_path // .file_path // empty' 2>/dev/null)"
 if [ -n "$fp" ]; then
   check_one "$fp"
 elif [ "$PLATFORM" = "codex" ]; then

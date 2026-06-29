@@ -35,8 +35,13 @@ done
 
 # Regenerate the per-tool ports from the canonical commands/*.md first, so what
 # gets installed always reflects the current canonical (hand-edits to a generated
-# port are overwritten here — edit commands/<name>.md instead).
-[ -x "$DIR/render-commands.sh" ] && "$DIR/render-commands.sh" >/dev/null
+# port are overwritten here — edit commands/<name>.md instead). Abort on failure
+# rather than installing from a half-rendered port dir (a swallowed render error
+# is how codex/cursor/gemini once silently got zero commands).
+if [ -x "$DIR/render-commands.sh" ]; then
+  "$DIR/render-commands.sh" >/dev/null \
+    || { echo "render-commands.sh failed — aborting before install (ports may be stale)" >&2; exit 1; }
+fi
 
 # Command basenames we've renamed/dropped. Pruned on every install (per tool, in
 # that tool's extension) so a rename self-heals across `git pull && install`.

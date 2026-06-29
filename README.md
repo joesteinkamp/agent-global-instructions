@@ -63,7 +63,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `my-context.env.example` | Copy to `my-context.env` (gitignored) to save your answers. |
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
 | `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
-| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, gitignored snapshots) → `install-commands.sh` installs each into its command dir (`~/.claude/commands`, `~/.codex/prompts`, `~/.cursor/commands`, `~/.gemini/commands`). |
+| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, committed snapshots so port diffs show up in review) → `install-commands.sh` installs each into its command dir (`~/.claude/commands`, `~/.codex/prompts`, `~/.cursor/commands`, `~/.gemini/commands`). |
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Gemini). |
 | `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
@@ -75,8 +75,8 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `test.sh` | Smoke tests: render engine, the `load_env` parser, example reproducibility, and installer/uninstaller smoke tests. |
 
 Rendered output (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), your `my-context.env`,
-`mcp-rules.local`, and `review/` artifacts are **gitignored** — they're personal,
-generate them locally. Want to see finished output first? Read
+`mcp-rules.local`, and the `verify/` + `audits/` artifacts are **gitignored** —
+they're personal, generate them locally. Want to see finished output first? Read
 [`examples/aggressive-tailscale.md`](examples/aggressive-tailscale.md) (aggressive
 autonomy, Tailscale serving, all sections on) or
 [`examples/balanced-local.md`](examples/balanced-local.md) (balanced autonomy,
@@ -291,7 +291,7 @@ Run `./test.sh` after any change.
 - The hooks are a **best-effort safety net, not a security boundary** — they see
   a tool's structured input and match heuristically. See `hooks/README.md`.
 - Runs on **bash 3.2+**, so macOS' stock `/bin/bash` works — no `brew install
-  bash` needed. `jq` is required for the MCP scanner and the hook installers.
+  bash` needed. `jq` is required for the hook and settings installers.
 
 ## License
 

@@ -27,20 +27,43 @@ block() {  # $1 = reason
 # Trip only when an `rm` with a recursive flag targets a catastrophic path as a
 # WHOLE token (root, root-glob, home, or parent) — so deeper paths like
 # /tmp/build or ./dist are allowed. `rm` may be an absolute path (/bin/rm).
-if [[ "$cmd" =~ (^|[^[:alnum:]_])rm[[:space:]] ]] \
-   && { [[ "$cmd" =~ [[:space:]]-[[:alnum:]]*[rR][[:alnum:]]* ]] || [[ "$cmd" == *--recursive* ]]; } \
-   && [[ "$cmd" =~ (^|[[:space:]])[\"\']?(/|/\*|~|~/|\$HOME|\$HOME/|\.\.)[\"\']?([[:space:]]|\;|\&|\||$) ]]; then
-  block "BLOCKED: 'rm -r' targeting a root/home/parent path: '$cmd'. Delete a specific subdirectory instead (or use 'trash'). [best-effort guard]"
-fi
+#
+# Match per COMMAND SEGMENT, not across the whole string: a benign `rm -rf dist`
+# chained with an unrelated `&& cd /` must not be read as `rm … /`. Split on the
+# shell operators (;, &&, ||, |, &) via bash replacement (portable; GNU/BSD sed
+# disagree on \n), then only a segment whose first word is `rm` is eligible.
+# `rm` need not be the segment's first word — `sudo rm`, `/usr/bin/rm`, `time rm`,
+# `FOO=bar rm` are all catastrophic. Match `rm` as a whole token preceded by start,
+# whitespace, or a path prefix (so `confirm`/`xrm` don't trip).
+seg_is_catastrophic_rm() {  # $1 = one segment
+  local seg="$1"
+  [[ "$seg" =~ (^|[[:space:]])([^[:space:]]*/)?rm([[:space:]]|$) ]] || return 1
+  { [[ "$seg" =~ [[:space:]]-[[:alnum:]]*[rR][[:alnum:]]* ]] || [[ "$seg" == *--recursive* ]]; } || return 1
+  [[ "$seg" =~ (^|[[:space:]])[\"\']?(/|/\*|~|~/|\$HOME|\$HOME/|\.\.)[\"\']?([[:space:]]|$) ]]
+}
 
-# --- force push --------------------------------------------------------------
 # Allow the safe --force-with-lease; trip on --force, a -f flag, or a +refspec.
-if [[ "$cmd" == *push* ]] && [[ "$cmd" != *--force-with-lease* ]]; then
-  if [[ "$cmd" == *--force* ]] \
-     || [[ "$cmd" =~ [[:space:]]-[[:alnum:]]*f[[:alnum:]]*([[:space:]]|$) ]] \
-     || [[ "$cmd" =~ push[[:space:]]([^[:space:]]+[[:space:]]+)*\+[^[:space:]] ]]; then
-    block "BLOCKED: force push detected: '$cmd'. Avoid force-pushing; use --force-with-lease if you must. [best-effort guard]"
-  fi
-fi
+# Evaluated PER SEGMENT (like rm) so a chained `tar -xf …` after a normal push
+# isn't misread as a force-push. --force-with-lease excuses only the bare
+# `--force` spelling — a `+refspec`/`-f` still forces regardless of the lease.
+seg_is_force_push() {  # $1 = one segment
+  local seg="$1"
+  [[ "$seg" == *push* ]] || return 1
+  { [[ "$seg" == *--force* ]] && [[ "$seg" != *--force-with-lease* ]]; } && return 0
+  [[ "$seg" =~ (^|[[:space:]])-[[:alnum:]]*f[[:alnum:]]*([[:space:]]|$) ]] && return 0
+  [[ "$seg" =~ push[[:space:]]([^[:space:]]+[[:space:]]+)*\+[^[:space:]] ]] && return 0
+  return 1
+}
+
+_segs="$cmd"
+_segs="${_segs//&&/$'\n'}"; _segs="${_segs//||/$'\n'}"
+_segs="${_segs//|/$'\n'}";  _segs="${_segs//;/$'\n'}"; _segs="${_segs//&/$'\n'}"
+while IFS= read -r _seg; do
+  [ -n "$_seg" ] || continue
+  seg_is_catastrophic_rm "$_seg" \
+    && block "BLOCKED: 'rm -r' targeting a root/home/parent path: '$cmd'. Delete a specific subdirectory instead (or use 'trash'). [best-effort guard]"
+  seg_is_force_push "$_seg" \
+    && block "BLOCKED: force push detected: '$cmd'. Avoid force-pushing; use --force-with-lease if you must. [best-effort guard]"
+done <<< "$_segs"
 
 exit 0

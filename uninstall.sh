@@ -2,9 +2,11 @@
 # Reverse what install.sh added — strip exactly our entries from each tool's
 # config, never touching hand-added rules or your instruction files.
 #
-#   ./uninstall.sh                # all tools
+#   ./uninstall.sh                # all tools (global)
 #   ./uninstall.sh claude         # just Claude Code
 #   ./uninstall.sh codex cursor
+#   ./uninstall.sh --project      # remove only the in-repo (./.claude, …) command
+#                                 #   files an `install-commands.sh --project` wrote
 #
 # Removes, per tool: our hook entries (matched by hook-script name), the
 # permissions we added (Claude/Cursor JSON rules subtracted; Codex managed TOML
@@ -38,7 +40,7 @@ backup_file() {  # $1 = file to back up, keep 5 newest
 edit_json() {  # $1 = file, $2 = jq program, $3.. = extra jq args
   local f="$1" prog="$2"; shift 2
   [ -f "$f" ] || return 0
-  local tmp; tmp="$(mktemp)"; TMPFILES+=("$tmp")
+  local tmp; tmp="$(mktemp "$(dirname "$f")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")  # same-dir: atomic mv + valid BSD template
   jq "$@" "$prog" "$f" > "$tmp" || { echo "  edit failed for $f (left unchanged)" >&2; return 0; }
   if cmp -s "$tmp" "$f"; then rm -f "$tmp"; return 0; fi
   backup_file "$f"; mv "$tmp" "$f"; echo "  cleaned $f"
@@ -79,7 +81,7 @@ strip_codex_block() {  # $1 = config.toml
   local begin="# >>> agent-global-instructions (codex permissions) >>>"
   local end="# <<< agent-global-instructions (codex permissions) <<<"
   grep -qF "$begin" "$f" || return 0
-  local tmp; tmp="$(mktemp)"; TMPFILES+=("$tmp")
+  local tmp; tmp="$(mktemp "$(dirname "$f")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
   awk -v b="$begin" -v e="$end" '$0==b{skip=1} !skip{print} $0==e{skip=0}' "$f" > "$tmp"
   if cmp -s "$tmp" "$f"; then rm -f "$tmp"; return 0; fi
   backup_file "$f"; mv "$tmp" "$f"; echo "  cleaned $f (removed codex permissions block)"
@@ -106,7 +108,44 @@ remove_commands_dir() {  # $1 = dest dir  $2 = src dir  $3 = ext
   return 0
 }
 
-targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+# Cursor stores a top-level "version":1 beside .hooks; once our hooks are stripped
+# and no user hooks remain, drop it too (and delete an emptied file) so uninstall
+# fully reverses install rather than leaving {"version":1} behind.
+cursor_hooks_cleanup() {  # $1 = hooks.json
+  local f="$1"
+  [ -f "$f" ] || return 0
+  edit_json "$f" 'if ((.hooks // {}) | length) == 0 then del(.version) else . end'
+  if [ -f "$f" ] && [ "$(jq -c . "$f" 2>/dev/null)" = '{}' ]; then rm -f "$f"; echo "  removed empty $f"; fi
+}
+
+PROJECT=0
+targets=()
+for a in "$@"; do
+  case "$a" in
+    --project) PROJECT=1;;
+    claude|codex|cursor|gemini|antigravity) targets+=("$a");;
+    *) echo "  unknown arg: $a (use: --project | claude codex cursor gemini)" >&2; exit 1;;
+  esac
+done
+[ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+
+# --project: mirror `install-commands.sh --project` — strip ONLY the in-repo
+# command files; global hooks/permissions aren't installed per-project, so leave
+# them alone.
+if [ "$PROJECT" = 1 ]; then
+  for t in "${targets[@]}"; do
+    case "$t" in
+      claude)             remove_commands_dir "$DIR/.claude/commands"  "$DIR/commands"        md;;
+      codex)              echo "  codex prompts are global; --project has no effect for codex";;
+      cursor)             remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md;;
+      gemini|antigravity) remove_commands_dir "$DIR/.gemini/commands"  "$DIR/commands/gemini" toml;;
+      *) echo "  unknown target: $t (use: claude codex cursor gemini)" >&2;;
+    esac
+  done
+  echo "Done. Removed in-repo (--project) command files only."
+  exit 0
+fi
+
 for t in "${targets[@]}"; do
   case "$t" in
     claude)
@@ -122,6 +161,7 @@ for t in "${targets[@]}"; do
     cursor)
       remove_commands_dir "$HOME/.cursor/commands" "$DIR/commands/cursor" md
       strip_hooks "$HOME/.cursor/hooks.json"
+      cursor_hooks_cleanup "$HOME/.cursor/hooks.json"
       strip_permissions_json "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json"
       ;;
     gemini|antigravity)

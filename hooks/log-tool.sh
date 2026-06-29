@@ -28,16 +28,27 @@ ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 platform="${HOOK_PLATFORM:-claude}"
 log_resp="${AI_LOG_RESPONSES:-1}"
 
-# Read the hook payload from stdin and write a compact, truncated, redacted record.
-jq -c --arg tool "$platform" --arg ts "$ts" --arg logresp "$log_resp" '
+# Read the hook payload from stdin and build a compact, truncated, redacted record.
+out="$(jq -c --arg tool "$platform" --arg ts "$ts" --arg logresp "$log_resp" '
   # mask common secret shapes in a string (best-effort)
   def redact:
-    gsub("(?i)bearer\\s+[A-Za-z0-9._\\-]+"; "bearer ***")
-    | gsub("(?i)(?<k>authorization|api[_-]?key|secret|password|passwd|token|access[_-]?key)(?<s>\"?\\s*[:=]\\s*\"?)[^\\s\"'"'"',;]+"; "\(.k)\(.s)***")
+    # PEM first — before the key/value rule below, whose value match would
+    # otherwise stop at the space in "BEGIN PRIVATE KEY" and chop the marker,
+    # leaving the base64 body exposed.
+    gsub("-----BEGIN[A-Z ]*PRIVATE KEY-----[\\s\\S]*?-----END[A-Z ]*PRIVATE KEY-----"; "-----BEGIN PRIVATE KEY----- *** -----END PRIVATE KEY-----")
+    | gsub("(?i)bearer\\s+[A-Za-z0-9._\\-]+"; "bearer ***")
+    # `basic` + a base64-ish blob of 16+ chars — long enough that ordinary prose
+    # (basic authentication, basic configuration) stays unmasked.
+    | gsub("(?i)basic\\s+[A-Za-z0-9+/=]{16,}={0,2}"; "basic ***")
+    | gsub("(?i)(?<k>authorization|api[_-]?key|secret|password|passwd|token|access[_-]?key|client[_-]?secret|refresh[_-]?token|private[_-]?key)(?<s>\"?\\s*[:=]\\s*\"?)[^\\s\"'"'"',;]+"; "\(.k)\(.s)***")
     | gsub("(?i)(?<sch>postgres|postgresql|mysql|mongodb|redis|amqp)://[^:@/\\s]+:[^@/\\s]+@"; "\(.sch)://***:***@")
     | gsub("AKIA[0-9A-Z]{16}"; "AKIA****************")
+    | gsub("AIza[0-9A-Za-z_\\-]{20,}"; "AIza***")
     | gsub("(?<p>gh[pousr]_)[A-Za-z0-9]{20,}"; "\(.p)***")
-    | gsub("sk-[A-Za-z0-9]{20,}"; "sk-***");
+    | gsub("github_pat_[A-Za-z0-9_]{20,}"; "github_pat_***")
+    | gsub("xox[baprs]-[A-Za-z0-9-]{10,}"; "xox-***")
+    | gsub("sk-[A-Za-z0-9]{20,}"; "sk-***")
+    | gsub("sk_(live|test)_[A-Za-z0-9]{10,}"; "sk_***");
   {
     ts: $ts,
     tool: $tool,
@@ -54,6 +65,17 @@ jq -c --arg tool "$platform" --arg ts "$ts" --arg logresp "$log_resp" '
   }
   | .input    |= (if . == null then null else (.[0:2000] | redact) end)
   | .response |= (if . == null then null else (.[0:2000] | redact) end)
-' >> "$LOG" 2>/dev/null
+' 2>/dev/null)"
+[ -n "$out" ] || exit 0
+
+# Append under an exclusive lock so parallel agents (the normal mode here) can't
+# interleave two records into one corrupt line. flock is on Linux and most
+# distros; stock macOS lacks it, so fall back to a plain append (best-effort,
+# in keeping with the rest of this log).
+if command -v flock >/dev/null 2>&1; then
+  { flock 9 2>/dev/null; printf '%s\n' "$out" >&9; } 9>>"$LOG" 2>/dev/null
+else
+  printf '%s\n' "$out" >> "$LOG" 2>/dev/null
+fi
 
 exit 0

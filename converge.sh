@@ -21,7 +21,14 @@ here="$(git branch --show-current)"
   || { echo "converge: integration tree is on a detached HEAD — check out an integration branch first" >&2; exit 1; }
 
 INTERVAL="${CONVERGE_INTERVAL:-3}"
-discover() { git for-each-ref --format='%(refname:short)' 'refs/heads/ai/*'; }
+# Auto-discover local ai/* branches; with CONVERGE_REMOTE=1 also fold remote-only
+# ai/* (refs/remotes/*/ai/*) so a teammate's pushed branch converges without
+# needing a local tracking branch first.
+discover() {
+  git for-each-ref --format='%(refname:short)' 'refs/heads/ai/*'
+  [ "${CONVERGE_REMOTE:-0}" = "1" ] && git for-each-ref --format='%(refname:short)' 'refs/remotes/*/ai/*'
+  return 0
+}
 
 # Explicit branch args win; otherwise (or for a literal 'ai/*') auto-discover.
 PINNED=1

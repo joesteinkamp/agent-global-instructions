@@ -39,7 +39,7 @@ TEMPLATE="$DIR/template.md"
 # Adding a template {{VAR}} is a one-line change here: SUBST_VARS drives both the
 # values handed to awk and the substitution loop, and all three lists drive the
 # load_env allowlist — nothing to keep in sync by hand.
-SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST TS_IP)  # {{VAR}} <-> $VAR
+SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST)  # {{VAR}} <-> $VAR
 CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                             # control render, not substituted
 INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
@@ -66,7 +66,6 @@ mktmp() {
 : "${ENVIRONMENT:=}"            # optional; if empty, the Environment line is omitted
 : "${PREVIEW:=local}"          # tailscale | local | none
 : "${TS_HOST:=your-host.ts.net}"
-: "${TS_IP:=}"
 : "${AUTONOMY:=aggressive}"    # aggressive | balanced
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
@@ -316,8 +315,14 @@ render() {
 # leaves no temp behind. Pass a second arg to back up an existing dest first.
 render_to() {  # $1 = destination path, $2 = "backup" to save dest.bak.XXXXXX if it exists
   local dest="$1" tmp; tmp="$(mktmp "$(dirname "$dest")")" || return 1
+  # mktmp's own TMPFILES+= ran in a command-substitution subshell and was lost, so
+  # register the temp here (the real shell) — otherwise the cleanup trap never
+  # sees it and a signal mid-render leaks a hidden .aigi.XXXXXX in the dest dir.
+  TMPFILES+=("$tmp")
   if ! render > "$tmp"; then rm -f "$tmp"; echo "Render failed; $dest left unchanged." >&2; return 1; fi
-  if [ "${2:-}" = "backup" ] && [ -f "$dest" ] && ! cmp -s "$tmp" "$dest"; then
+  # Identical content — don't churn the inode/mtime (and skip the backup below).
+  if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then rm -f "$tmp"; return 0; fi
+  if [ "${2:-}" = "backup" ] && [ -f "$dest" ]; then
     cp "$dest" "$(mktemp "$dest.bak.XXXXXX")" && echo "  backed up existing $dest"
     local n=0 b
     while IFS= read -r b; do n=$((n+1)); if [ "$n" -gt 5 ]; then rm -f -- "$b"; fi; done \
@@ -398,7 +403,6 @@ PREVIEW="$(ask_one 'Preview method' "tailscale/local/none" "$PREVIEW")"
 case "$PREVIEW" in tail*) PREVIEW="tailscale";; non*) PREVIEW="none";; *) PREVIEW="local";; esac
 if [ "$PREVIEW" = "tailscale" ]; then
   TS_HOST="$(ask 'Tailscale MagicDNS hostname' "$TS_HOST")"
-  TS_IP="$(ask 'Tailscale IP' "$TS_IP")"
 fi
 
 echo ""
