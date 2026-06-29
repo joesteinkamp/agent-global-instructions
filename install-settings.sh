@@ -23,6 +23,9 @@ trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
 
 # Back up a file to a collision-free name, keeping only the 5 newest backups.
 backup_file() {  # $1 = file to back up
+  # Skip a file we just seeded empty this run (nothing to preserve) so first
+  # installs don't litter a *.bak of `{}` / an empty config.toml.
+  case "$(tr -d ' \n\t' < "$1" 2>/dev/null)" in ''|'{}'|'{"version":1}') return 0;; esac
   cp "$1" "$(mktemp "$1.bak.XXXXXX")"
   local n=0 b
   while IFS= read -r b; do n=$((n+1)); if [ "$n" -gt 5 ]; then rm -f -- "$b"; fi; done \
@@ -38,7 +41,7 @@ merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label
   mkdir -p "$(dirname "$sf")"
   [ -f "$sf" ] || echo '{}' > "$sf"
   perms="$(jq '.permissions' "$snippet")"
-  tmp="$(mktemp)"; TMPFILES+=("$tmp")
+  tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")  # same-dir: atomic mv + valid BSD template
   jq --argjson add "$perms" '
     .permissions = (.permissions // {})
     | reduce ($add | to_entries[]) as $e (.;
@@ -70,8 +73,12 @@ install_codex_settings() {
   [ -f "$snip" ] || { echo "    no snippet at $snip" >&2; return 1; }
   mkdir -p "$(dirname "$cf")"; [ -f "$cf" ] || : > "$cf"
   # Strip any prior managed block first so we operate on the user's own content.
-  local body; body="$(mktemp)"; TMPFILES+=("$body")
-  awk -v b="$begin" -v e="$end" '$0==b{skip=1} !skip{print} $0==e{skip=0}' "$cf" > "$body"
+  # Also drop any leading blank lines the previous block-separator left behind, so
+  # a re-run reproduces a byte-identical file instead of growing one blank line
+  # (and a fresh backup) every time.
+  local body; body="$(mktemp "$(dirname "$cf")/.aigi.XXXXXX")"; TMPFILES+=("$body")
+  awk -v b="$begin" -v e="$end" '$0==b{skip=1} !skip{print} $0==e{skip=0}' "$cf" \
+    | awk 'NF||p{print; p=1}' > "$body"
   # TOML forbids duplicate keys (a parse error would break Codex startup), and our
   # keys are TOP-LEVEL. Only treat them as "already set" when they appear before
   # the first [table] header — an approval_policy under [profiles.x] is a
@@ -86,7 +93,7 @@ install_codex_settings() {
   fi
   # PREPEND the block: top-level keys must precede any [table], or TOML would fold
   # them into the last table (inert guardrail + corrupted user table).
-  local tmp; tmp="$(mktemp)"; TMPFILES+=("$tmp")
+  local tmp; tmp="$(mktemp "$(dirname "$cf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
   cat "$snip" > "$tmp"
   if [ -s "$body" ]; then printf '\n' >> "$tmp"; cat "$body" >> "$tmp"; fi
   if cmp -s "$tmp" "$cf"; then
@@ -111,7 +118,7 @@ install_gemini_settings() {
   # Enable folder trust so a project's .gemini/settings.json is honored only when
   # the folder is trusted (user-level policies above still apply regardless).
   [ -f "$sf" ] || echo '{}' > "$sf"
-  local tmp; tmp="$(mktemp)"; TMPFILES+=("$tmp")
+  local tmp; tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
   jq '.security = (.security // {})
       | .security.folderTrust = (.security.folderTrust // {})
       | .security.folderTrust.enabled = true' "$sf" > "$tmp" \
@@ -120,12 +127,14 @@ install_gemini_settings() {
 }
 
 targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+# Guard each install so one tool's merge failure doesn't abort the rest under
+# `set -e` (the merge_* helpers return 1 on bad jq / missing snippet).
 for t in "${targets[@]}"; do
   case "$t" in
-    claude)             install_claude_settings;;
-    codex)              install_codex_settings;;
-    cursor)             install_cursor_settings;;
-    gemini|antigravity) install_gemini_settings;;
+    claude)             install_claude_settings || echo "  claude: skipped (error above)" >&2;;
+    codex)              install_codex_settings  || echo "  codex: skipped (error above)" >&2;;
+    cursor)             install_cursor_settings || echo "  cursor: skipped (error above)" >&2;;
+    gemini|antigravity) install_gemini_settings || echo "  gemini: skipped (error above)" >&2;;
     *) echo "  unknown target: $t (use: claude codex cursor gemini)" >&2;;
   esac
 done

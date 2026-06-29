@@ -29,6 +29,9 @@ trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
 
 # Back up a file to a collision-free name, keeping only the 5 newest backups.
 backup_file() {  # $1 = file to back up — uses the same .bak. suffix as the other scripts
+  # Skip a file we just seeded empty this run (nothing to preserve) so first
+  # installs don't litter a *.bak of `{}` / `{"version":1}`.
+  case "$(tr -d ' \n\t' < "$1" 2>/dev/null)" in ''|'{}'|'{"version":1}') return 0;; esac
   cp "$1" "$(mktemp "$1.bak.XXXXXX")"
   local n=0 b
   while IFS= read -r b; do n=$((n+1)); if [ "$n" -gt 5 ]; then rm -f -- "$b"; fi; done \
@@ -54,7 +57,7 @@ copy_scripts() {  # $1 = hooks dir
 merge_json() {  # $1 = settings file, $2 = hooks object json
   local f="$1" add="$2" tmp
   [ -f "$f" ] || echo '{}' > "$f"
-  tmp="$(mktemp)"; TMPFILES+=("$tmp")
+  tmp="$(mktemp "$(dirname "$f")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")  # same-dir: atomic mv + valid BSD template
   jq --argjson add "$add" --arg pat "$HOOK_RE" '
     .hooks = (.hooks // {})
     # Drop any of our prior entries so re-runs do not duplicate. Handle BOTH
@@ -134,7 +137,7 @@ install_cursor() {
   # wired to beforeReadFile (blocks reading secrets) + afterFileEdit (best-effort
   # warn); hard write-blocking lives in the native permissions layer.
   [ -f "$sf" ] || echo '{}' > "$sf"
-  local vtmp; vtmp="$(mktemp)"; TMPFILES+=("$vtmp")
+  local vtmp; vtmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"; TMPFILES+=("$vtmp")
   jq '.version = 1' "$sf" > "$vtmp" && { cmp -s "$vtmp" "$sf" || mv "$vtmp" "$sf"; }
   # beforeReadFile uses GUARD_SECRETS_ONLY so it blocks reading .env* only — not
   # build/deps/lockfiles, which agents legitimately read. Hard write-protection
@@ -177,12 +180,14 @@ install_gemini() {
 }
 
 targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+# Guard each install so a single tool's merge failure (bad jq, missing file)
+# doesn't abort the whole run under `set -e` — the others still install.
 for t in "${targets[@]}"; do
   case "$t" in
-    claude)             install_claude;;
-    codex)              install_codex;;
-    cursor)             install_cursor;;
-    gemini|antigravity) install_gemini;;
+    claude)             install_claude  || echo "  claude: skipped (error above)" >&2;;
+    codex)              install_codex   || echo "  codex: skipped (error above)" >&2;;
+    cursor)             install_cursor  || echo "  cursor: skipped (error above)" >&2;;
+    gemini|antigravity) install_gemini  || echo "  gemini: skipped (error above)" >&2;;
     *) echo "  unknown target: $t (use: claude codex cursor gemini)" >&2;;
   esac
 done

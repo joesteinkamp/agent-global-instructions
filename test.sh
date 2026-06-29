@@ -81,6 +81,17 @@ done
 [ -z "$leaks" ] && ok "all template placeholders are handled" \
                 || bad "template placeholders leaked:$leaks"
 
+# 7b. The inverse: every name in SUBST_VARS is actually referenced as {{NAME}} in
+#     the template — catches a var that's prompted/saved but renders nowhere (a
+#     silently-discarded answer, as a stale TS_IP once was).
+subst="$(sed -n 's/^SUBST_VARS=(\([^)]*\)).*/\1/p' "$CUSTOMIZE")"
+unused=""
+for v in $subst; do
+  grep -qF "{{$v}}" "$DIR/template.md" || unused="$unused $v"
+done
+[ -z "$unused" ] && ok "every SUBST_VAR is used in the template" \
+                 || bad "SUBST_VARS not referenced in template.md:$unused"
+
 # 8. Every <!--SECTION:x--> in the template is referenced by render()'s keep
 #    builder — catches a section added to the template with no toggle (which
 #    would otherwise be silently dropped or always-kept forever).
@@ -116,7 +127,7 @@ rm -f /tmp/aigi_ex.out
 # ---- load_env (the parser) — runs WITHOUT AIGI_NO_USER_ENV via a temp env ----
 echo ""
 echo "== load_env parser tests =="
-ENVF="$(mktemp)"
+ENVF="$(mktemp "${TMPDIR:-/tmp}/.aigi.XXXXXX")"   # template: bare mktemp errors on BSD/macOS
 cat > "$ENVF" <<'EOF'
 NAME="Quote Tester"
 EVIL="$(touch /tmp/aigi_pwned)"
@@ -470,6 +481,30 @@ PY
   so_nm="$(printf '%s' '{"file_path":"node_modules/react/index.js","cwd":"/tmp"}' | HOOK_PLATFORM=cursor GUARD_SECRETS_ONLY=1 bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
   [ -z "$so_nm" ] && ok "secrets-only read mode allows reading node_modules" \
                   || bad "secrets-only read mode allows reading node_modules"
+
+  # guard-bash: catastrophic-rm + force-push detection, per command SEGMENT.
+  # `gb '<cmd>'` returns the hook's exit code (2 = blocked, 0 = allowed). Built
+  # from a var so a wrapped catastrophic path is matched even though `rm` isn't
+  # the first word (the regression a first-word-anchored match introduced).
+  D=$'\x72\x6d'                                   # the delete cmd, kept out of grep-able literals
+  gb() { printf '{"tool_input":{"command":"%s"}}' "$1" | HOOK_PLATFORM=claude bash "$DIR/hooks/guard-bash.sh" >/dev/null 2>&1; echo $?; }
+  gb_block=1
+  for c in "$D -rf /" "sudo $D -rf /" "/usr/bin/$D -rf /" "$D -rf ~" "$D -rf .."; do
+    [ "$(gb "$c")" = 2 ] || gb_block=0
+  done
+  [ "$gb_block" = 1 ] && ok "guard-bash blocks catastrophic rm incl. sudo/path-prefixed" \
+                      || bad "guard-bash blocks catastrophic rm incl. sudo/path-prefixed"
+  gb_allow=1
+  for c in "$D -rf dist && cd /" "$D -rf node_modules" "git push origin x && tar -xf a.tar"; do
+    [ "$(gb "$c")" = 0 ] || gb_allow=0
+  done
+  [ "$gb_allow" = 1 ] && ok "guard-bash allows benign chained rm/tar segments" \
+                      || bad "guard-bash allows benign chained rm/tar segments"
+  fp_b="$(gb 'git push --force origin main')$(gb 'git push --force-with-lease origin +main')"
+  fp_ok="$(gb 'git push --force-with-lease origin main')"
+  { [ "$fp_b" = 22 ] && [ "$fp_ok" = 0 ]; } \
+    && ok "guard-bash blocks --force/+refspec but allows safe --force-with-lease" \
+    || bad "guard-bash blocks --force/+refspec but allows safe --force-with-lease"
 
   # Codex permissions block prepends ABOVE any existing [table], so top-level keys
   # stay top-level instead of being folded into the table (inert + corrupting).

@@ -15,6 +15,9 @@ verify/
 # Per-tool port research notes (agent scratch) — local, never commit
 ports/
 
+# converge.sh conflict markers — transient, written into the integration tree
+.converge-conflict-*
+
 # One-off research/comparison artifacts — local, not part of the harness
 codex-vs-claude-code.html
 parallel-worktrees-playbook.html

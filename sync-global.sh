@@ -42,7 +42,10 @@ for t in "${TARGETS[@]}"; do
   fi
   mkdir -p "$(dirname "$t")"
   [ -f "$t" ] && { backup_file "$t"; echo "  backed up your prior $t"; }
-  cp "$SRC" "$t"
+  # Write via a same-dir temp + atomic rename so an interrupted copy can't leave a
+  # truncated global instruction file in place.
+  tmp="$(mktemp "$(dirname "$t")/.aigi.XXXXXX")"
+  cp "$SRC" "$tmp" && mv "$tmp" "$t" || { rm -f "$tmp"; echo "  failed to write $t (left unchanged)" >&2; continue; }
   echo "  -> $t"
   changed=1
 done
