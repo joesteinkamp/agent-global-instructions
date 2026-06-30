@@ -9,7 +9,11 @@
 #   ./install-hooks.sh codex gemini
 #
 # Tools: claude (~/.claude/settings.json) · codex (~/.codex/hooks.json) ·
-#        cursor (~/.cursor/hooks.json) · gemini / antigravity (~/.gemini/settings.json)
+#        cursor (~/.cursor/hooks.json) · gemini (~/.gemini/settings.json)
+# NOTE: `antigravity` is accepted as an alias but installs to the GEMINI CLI's
+#   ~/.gemini/settings.json. Antigravity (CLI) uses a separate config tree
+#   (~/.gemini/antigravity-cli/) and does NOT read that file, so it is not yet
+#   actually wired — see hooks/README.md "Caveats".
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -176,7 +180,7 @@ install_gemini() {
       {matcher:"write_file|replace", hooks:[{type:"command",command:$fm}]}
     ]
   }')"
-  echo "  gemini  -> $sf (log, auto-format, guard paths, guard bash) — also used by Antigravity"
+  echo "  gemini  -> $sf (log, auto-format, guard paths, guard bash) — Gemini CLI only; Antigravity uses ~/.gemini/antigravity-cli/ (not yet wired)"
 }
 
 targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)

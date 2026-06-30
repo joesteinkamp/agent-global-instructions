@@ -1,7 +1,7 @@
 # Portable AI harness
 
 **Write your AI-assistant preferences once; use them in every tool.** Every
-coding assistant — Claude Code, Codex, Antigravity/Gemini, Cursor — reads its
+coding assistant — Claude Code, Codex, Gemini, Cursor — reads its
 own `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` instruction file. Maintain them by
 hand and you keep re-teaching each tool your name, your environment, and how you
 like to work — and the files drift out of sync.
@@ -169,7 +169,7 @@ all four tools pick it up.
 
 ## 3. Guardrails & observability (hooks)
 
-One set of scripts serves **Claude Code, Codex, Cursor, and Antigravity/Gemini**
+One set of scripts serves **Claude Code, Codex, Cursor, and Gemini (CLI)**
 — a `HOOK_PLATFORM` env var (set by the installer) makes each block in the right
 dialect (exit-2 for Claude/Codex, `{"decision":"deny"}` for Gemini,
 `{"permission":"deny"}` for Cursor). `./install-hooks.sh [claude|codex|cursor|gemini]`
