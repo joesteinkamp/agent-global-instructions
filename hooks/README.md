@@ -57,7 +57,7 @@ them yourself if they grow large.
 | **Claude Code** | `~/.claude/settings.json` | `SessionStart`, `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse`, `PreCompact`, `Stop`, `SessionEnd` | exit 2 + stderr |
 | **Codex** | `~/.codex/hooks.json` | `PreToolUse` (`apply_patch\|Edit\|Write`, `Bash`), `PostToolUse`, `Stop` | exit 2 + stderr |
 | **Cursor** | `~/.cursor/hooks.json` (`version: 1`) | `sessionStart`, `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`, `stop` | stdout `{"permission":"deny"}` |
-| **Antigravity / Gemini** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |
+| **Gemini CLI** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |
 
 ## Caveats
 
@@ -72,10 +72,17 @@ them yourself if they grow large.
   lockfiles, and build dirs comes from the **permissions layer**
   (`../install-settings.sh cursor`), not the hook. Cursor's `stop` nudge uses
   `followup_message` (auto-continue), and is local-only (not cloud agents).
-- **Antigravity**'s schema is the Gemini CLI hooks format
-  (`settings.json` → `hooks` → `BeforeTool`/`AfterTool`). If your Antigravity
-  build reads hooks from a different path (e.g. `.agents/hooks.json`), copy the
-  same `hooks` block there.
+- **Antigravity is NOT the Gemini CLI** — despite the shared `~/.gemini/` prefix,
+  they're separate tools with separate config. The `gemini`/`antigravity` install
+  target writes to the **Gemini CLI**'s `~/.gemini/settings.json`. Antigravity
+  (CLI) keeps its own config under **`~/.gemini/antigravity-cli/`**
+  (`settings.json` with `colorScheme`/`model`/`trustedWorkspaces` and, per its
+  docs, a native `permissions.allow/deny` + `toolPermission` model) and does
+  **not** read the Gemini CLI's `settings.json` hooks. So `antigravity` is
+  currently just an alias for the Gemini-CLI target; Antigravity itself is **not
+  yet wired**. Proper support would drive its native permission model (or a
+  confirmed Antigravity hooks file) rather than the Gemini CLI hooks block —
+  tracked as a follow-up once the schema is verified from official docs.
 - `guard-bash.sh` anchors on the target operand, so targeted deletes
   (`rm -rf /tmp/build`) and most quoted/argument mentions of a dangerous string
   pass, while split/long flags and `/bin/rm` are caught. A bare catastrophic

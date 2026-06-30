@@ -9,6 +9,17 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
+### Docs
+- Corrected the Antigravity claim: the `gemini`/`antigravity` install target
+  writes to the **Gemini CLI**'s `~/.gemini/settings.json`, which **Antigravity
+  does not read** — Antigravity (CLI) keeps its own config under
+  `~/.gemini/antigravity-cli/` (verified on a real install: no `hooks` key; a
+  native `permissions.allow/deny` + `toolPermission` model). `antigravity` is
+  therefore currently just an alias for the Gemini-CLI target and is **not yet
+  actually wired**; README, `hooks/README.md`, and `install-hooks.sh` now say so.
+  Real Antigravity support (its native permission model or a confirmed hooks
+  file) is a tracked follow-up.
+
 ### Fixed
 - Commands now install on Codex/Cursor/Gemini on macOS. `render-commands.sh`
   deleted the committed ports *before* regenerating, and the bare `mktemp` in
