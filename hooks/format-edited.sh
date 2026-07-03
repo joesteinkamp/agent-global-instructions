@@ -31,7 +31,7 @@ format_one() {  # $1 = file path
   return 0
 }
 
-fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .tool_input.notebook_path // .file_path // empty' 2>/dev/null)"
+fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .tool_input.notebook_path // .file_path // .toolCall.args.TargetFile // empty' 2>/dev/null)"
 if [ -n "$fp" ]; then
   format_one "$fp"
 elif [ "$PLATFORM" = "codex" ]; then

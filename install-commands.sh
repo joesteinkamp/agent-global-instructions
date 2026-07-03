@@ -87,9 +87,11 @@ for t in "${targets[@]}"; do
     cursor)
       if [ "$PROJECT" = 1 ]; then d="$DIR/.cursor/commands"; else d="$HOME/.cursor/commands"; fi
       install_dir cursor "$SRC/cursor" md "$d";;
-    gemini|antigravity)
+    gemini)
       if [ "$PROJECT" = 1 ]; then d="$DIR/.gemini/commands"; else d="$HOME/.gemini/commands"; fi
       install_dir gemini "$SRC/gemini" toml "$d";;
+    antigravity)
+      echo "  antigravity: command install not supported here (Antigravity CLI is a separate tool); skipped — its hooks are wired by install-hooks.sh";;
   esac
 done
 echo "Done. Type / in each tool to see the commands (Codex: /prompts:<name>)."

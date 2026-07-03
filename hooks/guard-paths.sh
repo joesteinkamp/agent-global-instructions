@@ -24,7 +24,8 @@ cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
 
 block() {  # $1 = reason
   case "$PLATFORM" in
-    gemini|antigravity) jq -nc --arg r "$1" '{decision:"deny",reason:$r}'; exit 0;;
+    gemini)             jq -nc --arg r "$1" '{decision:"deny",reason:$r}'; exit 0;;
+    antigravity)        jq -nc --arg r "$1" '{allow_tool:false,deny_reason:$r}'; exit 0;;  # exit 0: non-zero = hook failure, not a block
     cursor)             jq -nc --arg r "$1" '{permission:"deny",user_message:$r,agent_message:$r}'; exit 0;;
     *)                  echo "$1" >&2; exit 2;;
   esac
@@ -95,7 +96,7 @@ check_one() {  # $1 = file path
 }
 
 # Single explicit path (Claude/Codex-Edit/Gemini tool_input, or Cursor top-level).
-fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .tool_input.notebook_path // .file_path // empty' 2>/dev/null)"
+fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .tool_input.notebook_path // .file_path // .toolCall.args.TargetFile // empty' 2>/dev/null)"
 if [ -n "$fp" ]; then
   check_one "$fp"
 elif [ "$PLATFORM" = "codex" ]; then

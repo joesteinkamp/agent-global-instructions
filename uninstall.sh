@@ -118,6 +118,17 @@ cursor_hooks_cleanup() {  # $1 = hooks.json
   if [ -f "$f" ] && [ "$(jq -c . "$f" 2>/dev/null)" = '{}' ]; then rm -f "$f"; echo "  removed empty $f"; fi
 }
 
+# Antigravity's hooks.json is a flat map of top-level named hooks; drop exactly the
+# ones we added (the aigi-* keys), preserving any the user wrote, and delete the
+# file if it ends up empty. (Copied hook scripts/wrappers are left in place, like
+# every other tool's uninstall leaves its ~/.<tool>/hooks scripts.)
+strip_antigravity_hooks() {  # $1 = hooks.json
+  local f="$1"
+  [ -f "$f" ] || return 0
+  edit_json "$f" '(to_entries | map(select(.key | startswith("aigi-") | not)) | from_entries)'
+  if [ -f "$f" ] && [ "$(jq -c . "$f" 2>/dev/null)" = '{}' ]; then rm -f "$f"; echo "  removed empty $f"; fi
+}
+
 PROJECT=0
 targets=()
 for a in "$@"; do
@@ -164,7 +175,7 @@ for t in "${targets[@]}"; do
       cursor_hooks_cleanup "$HOME/.cursor/hooks.json"
       strip_permissions_json "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json"
       ;;
-    gemini|antigravity)
+    gemini)
       remove_commands_dir "$HOME/.gemini/commands" "$DIR/commands/gemini" toml
       strip_hooks "$HOME/.gemini/settings.json"
       if [ -f "$HOME/.gemini/policies/gemini-guardrails.toml" ]; then
@@ -172,7 +183,10 @@ for t in "${targets[@]}"; do
         echo "  removed $HOME/.gemini/policies/gemini-guardrails.toml"
       fi
       ;;
-    *) echo "  unknown target: $t (use: claude codex cursor gemini)" >&2;;
+    antigravity)
+      strip_antigravity_hooks "$HOME/.gemini/antigravity-cli/hooks.json"
+      ;;
+    *) echo "  unknown target: $t (use: claude codex cursor gemini antigravity)" >&2;;
   esac
 done
 echo "Done. Backups saved next to each file. Instruction files (and Gemini folderTrust) left in place."

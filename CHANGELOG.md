@@ -9,16 +9,30 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
-### Docs
-- Corrected the Antigravity claim: the `gemini`/`antigravity` install target
-  writes to the **Gemini CLI**'s `~/.gemini/settings.json`, which **Antigravity
-  does not read** — Antigravity (CLI) keeps its own config under
-  `~/.gemini/antigravity-cli/` (verified on a real install: no `hooks` key; a
-  native `permissions.allow/deny` + `toolPermission` model). `antigravity` is
-  therefore currently just an alias for the Gemini-CLI target and is **not yet
-  actually wired**; README, `hooks/README.md`, and `install-hooks.sh` now say so.
-  Real Antigravity support (its native permission model or a confirmed hooks
-  file) is a tracked follow-up.
+### Added
+- **Real Antigravity hook support** (opt-in target). Antigravity is a *separate*
+  tool from the Gemini CLI — it reads its own `~/.gemini/antigravity-cli/hooks.json`,
+  which the previous `antigravity` alias (writing the Gemini CLI's
+  `~/.gemini/settings.json`) never reached. `./install-hooks.sh antigravity` now
+  wires the real thing, verified against the `agy` binary (proto + embedded docs;
+  `agy` loads our generated `hooks.json` — "loaded 4 named hooks"):
+  - New `HOOK_PLATFORM=antigravity` block dialect — stdout
+    `{"allow_tool":false,"deny_reason":…}` with **exit 0** (a non-zero exit is a
+    hook *failure*, not a block).
+  - `guard-bash`/`guard-paths`/`format-edited`/`log-tool` read the Antigravity
+    input shape (`toolCall.args.CommandLine` / `.TargetFile`).
+  - Installer writes top-level **named hooks** with tool-name matchers
+    (`run_command`; `write_to_file|replace_file_content|multi_replace_file_content`)
+    and drops `*.ag.sh` wrappers that set `HOOK_PLATFORM` (agy invokes hooks by
+    absolute path). Idempotent; `uninstall.sh antigravity` strips exactly the
+    `aigi-*` named hooks, preserving user hooks. Opt-in — not in the default set;
+    skips gracefully if `~/.gemini/antigravity-cli` is absent.
+  - `install-commands.sh`/`install-settings.sh` no longer alias `antigravity` to
+    the Gemini CLI — they skip it with a note (Antigravity has its own command &
+    `permissions.allow/deny` models).
+  - Caveat: schema and hook-script output are verified, but live deny-firing must
+    be confirmed in an interactive `agy` session (print mode bypasses the
+    interactive hook path). See `hooks/README.md`.
 
 ### Fixed
 - Commands now install on Codex/Cursor/Gemini on macOS. `render-commands.sh`

@@ -12,12 +12,13 @@ set -u
 PLATFORM="${HOOK_PLATFORM:-claude}"
 input="$(cat)"
 command -v jq >/dev/null 2>&1 || exit 0
-cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // .tool_input.cmd // .command // empty')"
+cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // .tool_input.cmd // .command // .toolCall.args.CommandLine // empty')"
 [ -z "$cmd" ] && exit 0
 
 block() {  # $1 = reason
   case "$PLATFORM" in
-    gemini|antigravity) jq -nc --arg r "$1" '{decision:"deny",reason:$r}'; exit 0;;
+    gemini)             jq -nc --arg r "$1" '{decision:"deny",reason:$r}'; exit 0;;
+    antigravity)        jq -nc --arg r "$1" '{allow_tool:false,deny_reason:$r}'; exit 0;;  # exit 0: non-zero = hook failure, not a block
     cursor)             jq -nc --arg r "$1" '{permission:"deny",user_message:$r,agent_message:$r}'; exit 0;;
     *)                  echo "$1" >&2; exit 2;;
   esac
