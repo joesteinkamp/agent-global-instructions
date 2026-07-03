@@ -16,7 +16,13 @@ Run a **multi-role improvement review** on the recent changes (working tree vs H
    - **Technical architect** — structure, coupling, boundaries, risk, missing abstractions.
    - **Back-end engineer** — correctness, data handling, error paths, performance.
    - **Front-end engineer** — component design, state, accessibility, UX edge cases.
-   - **UI/UX** — *only if UI changed* — visual/interaction quality and consistency.
+   - **UI/UX** — *only if UI changed* — judge visual & interaction quality against a concrete rubric, not vibes:
+     - **Nielsen's 10 heuristics** — status visibility, match to the real world, user control/undo, consistency & standards, error prevention, recognition over recall, flexibility, minimalist design, error recovery, help.
+     - **Accessibility (WCAG 2.2 AA)** — contrast, visible focus, labels/roles, and adequate target size.
+     - **Visual hierarchy & copy** — Gestalt grouping, alignment, scannability, and clear copy/microcopy; is the primary action obvious?
+     - **Fitts's / Hick's law** — target size & distance for key actions; choice load kept low.
+     - **Design-system consistency** — stays on the type/spacing/color scales and existing tokens/components; no one-off values.
+     - **Responsive & motion** — holds up at mobile/tablet/desktop; animation honors `prefers-reduced-motion`.
    Give each only the diff + the relevant files. Ask each for concrete, prioritized **improvement opportunities** (not praise), each with `file:line` and a suggested change.
 3. Collect findings, **dedupe**, group by theme, sort by impact.
 4. Present a tight summary: top opportunities first (where + why + suggested fix). Call out any real bugs separately.

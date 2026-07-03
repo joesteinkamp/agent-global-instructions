@@ -70,6 +70,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `converge.sh` | Daemon for the `/worktrees` flow: folds parallel agent branches (`ai/*`) into the integration branch as they advance, so one dev server sees every model's work near-live. |
 | `sync.sh` | Mirror a rendered `AGENTS.md` to `CLAUDE.md` / `GEMINI.md` in this dir. |
 | `sync-global.sh` | Keep the hand-maintained **global** files in sync (`~/.claude/CLAUDE.md` → the others), backing up differences. |
+| `DESIGN.example.json` | Sample of the design-token contract the `design` instruction section points at and `/verify`'s "matches the design" lens reads (color/type/space/radius/shadow/breakpoints/motion). Copy into a project as `DESIGN.json` and fill in. |
 | `CHANGELOG.md` | Human-readable log of AI-made changes — proposed by the assistant at session end, written only after you approve. `customize.sh --global` seeds a copy into `~/.claude/` (seed-only; never overwrites an accumulated one). |
 | `.github/workflows/ci.yml` | CI: shellcheck every script + run `test.sh` on push / PR. |
 | `test.sh` | Smoke tests: render engine, the `load_env` parser, example reproducibility, and installer/uninstaller smoke tests. |
@@ -131,8 +132,10 @@ All non-interactive modes read your saved `my-context.env`.
   browser, …). Leave blank to omit the line.
 - **How you preview/test web & HTML work** — Tailscale, local, or none. The
   HTML-artifact preference stays either way; only the *serving* method changes.
-- **How you like work done** — autonomy posture (aggressive/balanced); whether
-  to encourage agent teams (and which roles); subagents for long work.
+- **How you like work done** — a **primary focus** persona
+  (`product-designer` / `engineer` / `generic`) that seeds sensible defaults
+  without locking you in; autonomy posture (aggressive/balanced); whether to
+  encourage agent teams (and which roles); subagents for long work.
 - **Where your memory lives** — when the memory-OS section is on, it asks
   whether your memory is a local file/db store (e.g. Hermes at `~/.hermes/`), a
   notes app reached over MCP (e.g. Notion, Obsidian), both, or generic — and
@@ -140,8 +143,11 @@ All non-interactive modes read your saved `my-context.env`.
   `MEM_KIND` + `MEM_PATH` / `MEM_TOOL` (or override the bullets via `MEM_BLOCK`).
 - **Which sections to include** — memory-OS discovery, agent teams,
   improve-after-larger-changes, tools & MCP servers, output artifacts,
+  **design system & UI** (build to the tokens, stay on the scales, WCAG AA,
+  honor reduced-motion — on by default under the `product-designer` persona),
   project-specific instructions, docs-first, correction capture, change log
-  (propose an entry + get approval at session end).
+  (propose an entry + get approval at session end). Leave `INC_DESIGN` blank to
+  let the persona decide; set it `y`/`n` to override.
 
 ## 2. Commands
 
@@ -169,15 +175,18 @@ all four tools pick it up.
 
 ## 3. Guardrails & observability (hooks)
 
-One set of scripts serves **Claude Code, Codex, Cursor, and Gemini (CLI)**
-— a `HOOK_PLATFORM` env var (set by the installer) makes each block in the right
-dialect (exit-2 for Claude/Codex, `{"decision":"deny"}` for Gemini,
-`{"permission":"deny"}` for Cursor). `./install-hooks.sh [claude|codex|cursor|gemini]`
+One set of scripts serves **Claude Code, Codex, Cursor, Gemini (CLI), and
+Antigravity** — a `HOOK_PLATFORM` env var (set by the installer) makes each block
+in the right dialect (exit-2 for Claude/Codex, `{"decision":"deny"}` for Gemini,
+`{"permission":"deny"}` for Cursor, `{"allow_tool":false,"deny_reason":…}`+exit-0
+for Antigravity). `./install-hooks.sh [claude|codex|cursor|gemini|antigravity]`
 merges them into each tool's config (idempotent, backs up first). Codex now
 surfaces file edits via `apply_patch`, so path-guard + auto-format are wired
 there too; Cursor has no blocking pre-edit event, so its write-protection comes
-from the permissions layer while the hook guards secret *reads*. Full detail in
-[`hooks/README.md`](hooks/README.md).
+from the permissions layer while the hook guards secret *reads*. **Antigravity**
+is a separate tool from the Gemini CLI with its own `~/.gemini/antigravity-cli/
+hooks.json` schema — it's **opt-in** (`./install-hooks.sh antigravity`), not in
+the default set. Full detail in [`hooks/README.md`](hooks/README.md).
 
 | Hook | Fires | Does |
 |------|-------|------|

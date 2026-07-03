@@ -25,18 +25,28 @@ subagents (Task) and integrate; otherwise run them in order.
    `0.0.0.0`, never `127.0.0.1`; verify 200) and drive the changed route(s) headless with Playwright
    (install it if absent; if it can't be installed here, mark this lens N/A — don't fake it).
    - Capture **console + network**; treat any uncaught error or 4xx/5xx as a FAIL.
-   - **Responsive matrix** — screenshot each touched route at mobile (390px), tablet (768px), and desktop
-     (1280px); lay them out as a contact sheet in the report.
+   - **Responsive matrix** — screenshot each touched route at the project's breakpoints (from `DESIGN.json`'s
+     `breakpoints` if present, else mobile 390px / tablet 768px / desktop 1280px); lay them out as a contact
+     sheet in the report.
    - Run an **axe-core a11y** pass and a contrast check in the same session (skip if axe can't be loaded).
+   - **Reduced motion** — re-render each touched route with `page.emulateMedia({ reducedMotion: 'reduce' })`; **FAIL if non-essential motion still plays** — this behavioral re-render is the authoritative test. Don't FAIL merely on a missing CSS `@media (prefers-reduced-motion: reduce)` block: JS/WAAPI, Framer Motion, and GSAP honor the preference via `matchMedia` without one. **N/A** when nothing on the route animates. Relates to WCAG 2.2.2 Pause/Stop/Hide (AA); the preference itself is named by SC 2.3.3 (AAA). axe won't catch this — it's a separate, deterministic check in the same session.
 3. **Visual regression.** Diff this run's screenshots **pixel-by-pixel** (Playwright `toHaveScreenshot`,
    `pixelmatch`, or ImageMagick `compare`) against a baseline — the prior `verify/` run, or the same routes
    built from the default branch. Surface any unintended visual change (per-route, per breakpoint) with a
    before/after and the diff image. If there's no baseline yet, save these as the baseline and mark N/A.
    (The baseline is machine-local — `verify/` is gitignored — so cross-machine, the default-branch rebuild
    is the real reference.)
-4. **Matches the design.** Compare the screenshots to the reference — Figma node (via MCP) or
-   `DESIGN.md` + `DESIGN.json` tokens (color, type, spacing, radius, motion). Report drift as
-   expected-vs-actual, not vibes.
+4. **Matches the design.** Compare the screenshots to the reference — Figma node (via MCP) or a
+   `DESIGN.json` token file (with `DESIGN.md` for intent). Report drift as expected-vs-actual, not vibes.
+   The `DESIGN.json` contract this lens reads (all keys optional; check whatever is present) —
+   see `DESIGN.example.json` for a filled sample:
+   - `color` — named roles → hex/rgb (e.g. `bg`, `fg`, `primary`, `border`).
+   - `type` — `family`, and named `size` / `leading` (line-height) / `weight` scales.
+   - `space` — the spacing scale (e.g. `{ "1": "4px", "2": "8px", … }`).
+   - `radius`, `shadow` — named scales.
+   - `breakpoints` — named widths; **feed these to the responsive matrix in lens 2** instead of the 390/768/1280 defaults when present.
+   - `motion` — `duration` and `easing` scales, and named `transition` specs (duration + easing).
+   Drift = a rendered computed value (color, font-size, padding, radius, transition-duration/easing) that isn't on the corresponding scale.
 5. **Conforms to the briefs.** Check the diff against `PRODUCT.md` / `DESIGN.md` / `CODE.md` and any
    `guardrails/` — stack & conventions, security, accessibility, and the anti-pattern registries. The
    brief is the contract; the diff is the claim.

@@ -10,6 +10,18 @@ only after human approval (see the `changelog` instruction section and the
 ## [Unreleased]
 
 ### Added
+- **Persona-aware, design-leaning harness (P0 #1–#4).** New `PERSONA` preset
+  (`product-designer` / `engineer` / `generic`, default `generic`) that seeds an
+  optional, toggleable **"Design system & UI"** instruction section
+  (`INC_DESIGN`, off by default; an explicit `y`/`n` always overrides the
+  persona). Filled the previously-empty `/improve` **UI/UX lens** with a concrete
+  heuristics rubric (Nielsen, WCAG 2.2 AA, Gestalt, Fitts/Hick, design-system
+  consistency, responsive + reduced-motion). Defined the `DESIGN.json` **token
+  contract** that `/verify`'s "matches the design" lens reads, with a
+  `DESIGN.example.json` sample; added a `prefers-reduced-motion` a11y gate to
+  `/verify` and made its responsive matrix honor `DESIGN.json` breakpoints. The
+  general substrate stays neutral for engineers; it leans product-designer only
+  when opted in.
 - **Real Antigravity hook support** (opt-in target). Antigravity is a *separate*
   tool from the Gemini CLI — it reads its own `~/.gemini/antigravity-cli/hooks.json`,
   which the previous `antigravity` alias (writing the Gemini CLI's
