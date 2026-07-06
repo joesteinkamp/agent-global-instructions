@@ -12,6 +12,7 @@
 #   codex   commands/codex/*.md    -> ~/.codex/prompts/     (global only; invoke /prompts:<name>)
 #   cursor  commands/cursor/*.md   -> ~/.cursor/commands/   (project: ./.cursor/commands/)
 #   gemini  commands/gemini/*.toml -> ~/.gemini/commands/   (project: ./.gemini/commands/)
+#   antigravity                    -> skipped (separate tool; hooks-only, see install-hooks.sh)
 #
 # commands/*.md (top level) is the canonical Claude-dialect source of truth; the
 # commands/<tool>/ files are GENERATED from it by render-commands.sh (run here
@@ -28,7 +29,7 @@ for a in "$@"; do
   case "$a" in
     --project) PROJECT=1;;
     claude|codex|cursor|gemini|antigravity) targets+=("$a");;
-    *) echo "unknown arg: $a (use: --project | claude codex cursor gemini)" >&2; exit 1;;
+    *) echo "unknown arg: $a (use: --project | claude codex cursor gemini antigravity)" >&2; exit 1;;
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)

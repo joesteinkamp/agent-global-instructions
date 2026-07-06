@@ -1,7 +1,7 @@
 # Hooks
 
 Guardrail hooks — shell commands that fire on tool events. One set of scripts
-serves **Claude Code, Codex, Cursor, and Antigravity/Gemini**; `HOOK_PLATFORM`
+serves **Claude Code, Codex, Cursor, Gemini (CLI), and Antigravity (opt-in)**; `HOOK_PLATFORM`
 (set by the installer in each wired command) makes them block in the right
 dialect.
 

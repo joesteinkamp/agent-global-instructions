@@ -136,7 +136,7 @@ for t in "${targets[@]}"; do
     cursor)             install_cursor_settings || echo "  cursor: skipped (error above)" >&2;;
     gemini)             install_gemini_settings || echo "  gemini: skipped (error above)" >&2;;
     antigravity)        echo "  antigravity: uses its own permission model (~/.gemini/antigravity-cli/settings.json); not wired here — guardrails come from its hooks (install-hooks.sh antigravity)";;
-    *) echo "  unknown target: $t (use: claude codex cursor gemini)" >&2;;
+    *) echo "  unknown target: $t (use: claude codex cursor gemini antigravity)" >&2;;
   esac
 done
 echo "Done. Backups saved next to each file."

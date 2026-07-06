@@ -541,6 +541,16 @@ PY
   fi
   rm -rf "$AGH"
 
+  # Opt-in safety: with no ~/.gemini/antigravity-cli, install exits 0 and writes nothing.
+  AGN="$(mktemp -d)"    # bare HOME, no .gemini at all
+  HOME="$AGN" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1; agn_rc=$?
+  if [ "$agn_rc" = 0 ] && [ ! -e "$AGN/.gemini/antigravity-cli/hooks.json" ]; then
+    ok "install-hooks antigravity skips gracefully when agy is not installed"
+  else
+    bad "install-hooks antigravity skips gracefully when agy is not installed"
+  fi
+  rm -rf "$AGN"
+
   # Codex permissions block prepends ABOVE any existing [table], so top-level keys
   # stay top-level instead of being folded into the table (inert + corrupting).
   if command -v python3 >/dev/null 2>&1; then

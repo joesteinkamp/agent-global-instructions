@@ -135,7 +135,7 @@ for a in "$@"; do
   case "$a" in
     --project) PROJECT=1;;
     claude|codex|cursor|gemini|antigravity) targets+=("$a");;
-    *) echo "  unknown arg: $a (use: --project | claude codex cursor gemini)" >&2; exit 1;;
+    *) echo "  unknown arg: $a (use: --project | claude codex cursor gemini antigravity)" >&2; exit 1;;
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
@@ -146,11 +146,12 @@ done
 if [ "$PROJECT" = 1 ]; then
   for t in "${targets[@]}"; do
     case "$t" in
-      claude)             remove_commands_dir "$DIR/.claude/commands"  "$DIR/commands"        md;;
-      codex)              echo "  codex prompts are global; --project has no effect for codex";;
-      cursor)             remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md;;
-      gemini|antigravity) remove_commands_dir "$DIR/.gemini/commands"  "$DIR/commands/gemini" toml;;
-      *) echo "  unknown target: $t (use: claude codex cursor gemini)" >&2;;
+      claude)      remove_commands_dir "$DIR/.claude/commands"  "$DIR/commands"        md;;
+      codex)       echo "  codex prompts are global; --project has no effect for codex";;
+      cursor)      remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md;;
+      gemini)      remove_commands_dir "$DIR/.gemini/commands"  "$DIR/commands/gemini" toml;;
+      antigravity) echo "  antigravity installs no command files; --project has no effect for antigravity";;
+      *) echo "  unknown target: $t (use: claude codex cursor gemini antigravity)" >&2;;
     esac
   done
   echo "Done. Removed in-repo (--project) command files only."
