@@ -40,8 +40,8 @@ TEMPLATE="$DIR/template.md"
 # values handed to awk and the substitution loop, and all three lists drive the
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST)  # {{VAR}} <-> $VAR
-CTRL_VARS=(PREVIEW AUTONOMY MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                             # control render, not substituted
-INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
+CTRL_VARS=(PREVIEW AUTONOMY PERSONA MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                     # control render, not substituted
+INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
 TMPFILES=()
@@ -67,10 +67,15 @@ mktmp() {
 : "${PREVIEW:=local}"          # tailscale | local | none
 : "${TS_HOST:=your-host.ts.net}"
 : "${AUTONOMY:=aggressive}"    # aggressive | balanced
+: "${PERSONA:=generic}"        # product-designer | engineer | generic — seeds design-leaning defaults
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
 : "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
 : "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
+# INC_DESIGN starts UNSET (empty) on purpose: the PERSONA preset seeds it in
+# normalize_inputs() so "product-designer" turns the Design section on by default,
+# while an explicit y/n from the environment or my-context.env always wins.
+: "${INC_DESIGN:=}"            # y | n | "" (unset → seeded from PERSONA)
 
 # Where the user's memory / notes actually live. MEM_KIND drives which bullets
 # the memory-os section renders ({{MEMORY_PATHS}}); MEM_PATH / MEM_TOOL fill in
@@ -131,6 +136,11 @@ fi
 # we ever build one — build_mem_block honors that as a power-user escape hatch.
 MEM_BLOCK_EXPLICIT=""; [ -n "${MEM_BLOCK:-}" ] && MEM_BLOCK_EXPLICIT=1
 
+# Record whether INC_DESIGN was set explicitly (env or my-context.env) BEFORE the
+# first normalize_inputs seeds it from PERSONA — so the interactive prompt can
+# honor an explicit y/n instead of re-seeding from the persona (explicit wins).
+INC_DESIGN_EXPLICIT=""; [ -n "${INC_DESIGN:-}" ] && INC_DESIGN_EXPLICIT=1
+
 # Build the {{MEMORY_PATHS}} bullets from MEM_KIND/MEM_PATH/MEM_TOOL. Re-runnable:
 # it only short-circuits on an explicit MEM_BLOCK, so calling it after the
 # interactive prompts rebuilds from the freshly chosen backend.
@@ -165,6 +175,18 @@ build_mem_block() {
 # the non-interactive paths below, and again after the interactive prompts.
 normalize_inputs() {
   local _v
+  case "$(lc "$PERSONA")" in
+    prod*|design*|pd|ux|ui) PERSONA=product-designer;;
+    eng*|dev*|swe|backend|frontend) PERSONA=engineer;;
+    gen*|'') PERSONA=generic;;
+    *) echo "customize.sh: unknown PERSONA='$PERSONA' (expected product-designer/engineer/generic); using generic." >&2; PERSONA=generic;;
+  esac
+  # Seed the Design section from the persona ONLY when the user left INC_DESIGN
+  # unset — an explicit y/n (env or my-context.env) always wins. Runs before the
+  # toggle loop below so the seeded value gets canonicalized like the rest.
+  if [ -z "$INC_DESIGN" ]; then
+    case "$PERSONA" in product-designer) INC_DESIGN=y;; *) INC_DESIGN=n;; esac
+  fi
   for _v in "${INC_VARS[@]}"; do
     case "$(lc "${!_v}")" in y*|true|1|on) printf -v "$_v" y;; *) printf -v "$_v" n;; esac
   done
@@ -256,6 +278,7 @@ render() {
     tailscale) keep="${keep}preview-tailscale:";;
     local)     keep="${keep}preview-local:";;
   esac
+  [ "$INC_DESIGN" = "y" ]        && keep="${keep}design:"
   [ "$INC_PROJECT" = "y" ]       && keep="${keep}project-instructions:"
   [ "$INC_DOCS" = "y" ]          && keep="${keep}docs-first:"
   [ "$INC_CORRECTIONS" = "y" ]   && keep="${keep}corrections:"
@@ -407,6 +430,8 @@ fi
 
 echo ""
 echo "-- How you like work done --"
+PERSONA="$(ask_one 'Primary focus (seeds sensible defaults)' "product-designer/engineer/generic" "$PERSONA")"
+case "$(lc "$PERSONA")" in prod*|design*|pd|ux|ui) PERSONA="product-designer";; eng*|dev*|swe|backend|frontend) PERSONA="engineer";; *) PERSONA="generic";; esac
 AUTONOMY="$(ask_one 'Autonomy posture' "aggressive/balanced" "$AUTONOMY")"
 case "$AUTONOMY" in bal*) AUTONOMY="balanced";; *) AUTONOMY="aggressive";; esac
 
@@ -442,6 +467,11 @@ if [ "$INC_MEMORY" = "y" ]; then
   esac
 fi
 INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y/n" "$INC_ARTIFACTS")"; INC_ARTIFACTS="${INC_ARTIFACTS:0:1}"
+# Design-section prompt default: honor an explicit env/my-context.env value;
+# otherwise follow the (possibly just-changed) persona. The typed answer wins.
+if [ -n "$INC_DESIGN_EXPLICIT" ]; then _dz="$INC_DESIGN"
+else case "$PERSONA" in product-designer) _dz=y;; *) _dz=n;; esac; fi
+INC_DESIGN="$(ask_one 'Include "design system & UI" section?' "y/n" "$_dz")"; INC_DESIGN="${INC_DESIGN:0:1}"
 INC_PROJECT="$(ask_one 'Include "encourage project-specific instructions" section?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
 INC_DOCS="$(ask_one 'Include "documentation first" section?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
 INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"

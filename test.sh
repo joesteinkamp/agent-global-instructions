@@ -506,6 +506,58 @@ PY
     && ok "guard-bash blocks --force/+refspec but allows safe --force-with-lease" \
     || bad "guard-bash blocks --force/+refspec but allows safe --force-with-lease"
 
+  # Antigravity dialect: input under toolCall.args, deny is {"allow_tool":false,
+  # "deny_reason":…} on stdout with exit 0 (non-zero would be a hook failure).
+  R=$'\x72\x6d'
+  ag_bash="$(printf '{"toolCall":{"args":{"CommandLine":"sudo %s -rf /"}}}' "$R" | HOOK_PLATFORM=antigravity bash "$DIR/hooks/guard-bash.sh" 2>/dev/null)"
+  agb_rc="$(printf '{"toolCall":{"args":{"CommandLine":"sudo %s -rf /"}}}' "$R" | HOOK_PLATFORM=antigravity bash "$DIR/hooks/guard-bash.sh" >/dev/null 2>&1; echo $?)"
+  { printf '%s' "$ag_bash" | jq -e '.allow_tool == false and (.deny_reason|type=="string")' >/dev/null 2>&1 && [ "$agb_rc" = 0 ]; } \
+    && ok "guard-bash antigravity: {allow_tool:false, deny_reason} + exit 0" \
+    || bad "guard-bash antigravity: {allow_tool:false, deny_reason} + exit 0"
+  ag_env="$(printf '{"cwd":"/p","toolCall":{"args":{"TargetFile":"/p/.env"}}}' | HOOK_PLATFORM=antigravity bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
+  ag_ex="$(printf '{"cwd":"/p","toolCall":{"args":{"TargetFile":"/p/.env.example"}}}' | HOOK_PLATFORM=antigravity bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
+  { printf '%s' "$ag_env" | jq -e '.allow_tool == false' >/dev/null 2>&1 && [ -z "$ag_ex" ]; } \
+    && ok "guard-paths antigravity: blocks .env (TargetFile), allows .env.example" \
+    || bad "guard-paths antigravity: blocks .env (TargetFile), allows .env.example"
+  # Antigravity delivers args as JSON-encoded strings, so TargetFile/CommandLine can
+  # arrive wrapped in a literal quote pair — the guard must strip it or fail open.
+  agq_p="$(jq -nc '{cwd:"/p",toolCall:{args:{TargetFile:"\"/p/.env\""}}}' | HOOK_PLATFORM=antigravity bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
+  agq_b="$(jq -nc --arg c "\"$R -rf /\"" '{toolCall:{args:{CommandLine:$c}}}' | HOOK_PLATFORM=antigravity bash "$DIR/hooks/guard-bash.sh" 2>/dev/null)"
+  { printf '%s' "$agq_p" | jq -e '.allow_tool == false' >/dev/null 2>&1 && printf '%s' "$agq_b" | jq -e '.allow_tool == false' >/dev/null 2>&1; } \
+    && ok "guard antigravity: strips quote-wrapped args (no fail-open)" \
+    || bad "guard antigravity: strips quote-wrapped args (no fail-open)"
+
+  # install/uninstall antigravity hooks.json (opt-in target) in a throwaway HOME.
+  AGH="$(mktemp -d)"; mkdir -p "$AGH/.gemini/antigravity-cli"
+  echo '{"my-own":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"/x.sh"}]}]}}' > "$AGH/.gemini/antigravity-cli/hooks.json"
+  HOME="$AGH" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+  if jq -e '."aigi-guard-bash".PreToolUse[0].matcher == "run_command"
+            and ."aigi-guard-paths".PreToolUse[0].matcher == "write_to_file|replace_file_content|multi_replace_file_content"
+            and (."aigi-log".PreToolUse and ."aigi-format".PostToolUse)
+            and ."my-own"' "$AGH/.gemini/antigravity-cli/hooks.json" >/dev/null 2>&1 \
+     && [ -x "$AGH/.gemini/antigravity-cli/hooks/guard-bash.ag.sh" ]; then
+    ok "install-hooks antigravity writes hooks.json + wrappers, preserves user hooks"
+  else
+    bad "install-hooks antigravity writes hooks.json + wrappers, preserves user hooks"
+  fi
+  HOME="$AGH" bash "$DIR/uninstall.sh" antigravity >/dev/null 2>&1
+  if jq -e 'has("my-own") and ([keys[]|select(startswith("aigi-"))]|length==0)' "$AGH/.gemini/antigravity-cli/hooks.json" >/dev/null 2>&1; then
+    ok "uninstall antigravity strips aigi-* hooks, keeps user hooks"
+  else
+    bad "uninstall antigravity strips aigi-* hooks, keeps user hooks"
+  fi
+  rm -rf "$AGH"
+
+  # Opt-in safety: with no ~/.gemini/antigravity-cli, install exits 0 and writes nothing.
+  AGN="$(mktemp -d)"    # bare HOME, no .gemini at all
+  HOME="$AGN" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1; agn_rc=$?
+  if [ "$agn_rc" = 0 ] && [ ! -e "$AGN/.gemini/antigravity-cli/hooks.json" ]; then
+    ok "install-hooks antigravity skips gracefully when agy is not installed"
+  else
+    bad "install-hooks antigravity skips gracefully when agy is not installed"
+  fi
+  rm -rf "$AGN"
+
   # Codex permissions block prepends ABOVE any existing [table], so top-level keys
   # stay top-level instead of being folded into the table (inert + corrupting).
   if command -v python3 >/dev/null 2>&1; then

@@ -9,6 +9,43 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
+### Added
+- **Persona-aware, design-leaning harness (P0 #1–#4).** New `PERSONA` preset
+  (`product-designer` / `engineer` / `generic`, default `generic`) that seeds an
+  optional, toggleable **"Design system & UI"** instruction section
+  (`INC_DESIGN`, off by default; an explicit `y`/`n` always overrides the
+  persona). Filled the previously-empty `/improve` **UI/UX lens** with a concrete
+  heuristics rubric (Nielsen, WCAG 2.2 AA, Gestalt, Fitts/Hick, design-system
+  consistency, responsive + reduced-motion). Defined the `DESIGN.json` **token
+  contract** that `/verify`'s "matches the design" lens reads, with a
+  `DESIGN.example.json` sample; added a `prefers-reduced-motion` a11y gate to
+  `/verify` and made its responsive matrix honor `DESIGN.json` breakpoints. The
+  general substrate stays neutral for engineers; it leans product-designer only
+  when opted in.
+- **Real Antigravity hook support** (opt-in target). Antigravity is a *separate*
+  tool from the Gemini CLI — it reads its own `~/.gemini/antigravity-cli/hooks.json`,
+  which the previous `antigravity` alias (writing the Gemini CLI's
+  `~/.gemini/settings.json`) never reached. `./install-hooks.sh antigravity` now
+  wires the real thing, verified against the `agy` binary (proto + embedded docs;
+  `agy` loads our generated `hooks.json` — "loaded 4 named hooks"):
+  - New `HOOK_PLATFORM=antigravity` block dialect — stdout
+    `{"allow_tool":false,"deny_reason":…}` with **exit 0** (a non-zero exit is a
+    hook *failure*, not a block).
+  - `guard-bash`/`guard-paths`/`format-edited`/`log-tool` read the Antigravity
+    input shape (`toolCall.args.CommandLine` / `.TargetFile`).
+  - Installer writes top-level **named hooks** with tool-name matchers
+    (`run_command`; `write_to_file|replace_file_content|multi_replace_file_content`)
+    and drops `*.ag.sh` wrappers that set `HOOK_PLATFORM` (agy invokes hooks by
+    absolute path). Idempotent; `uninstall.sh antigravity` strips exactly the
+    `aigi-*` named hooks, preserving user hooks. Opt-in — not in the default set;
+    skips gracefully if `~/.gemini/antigravity-cli` is absent.
+  - `install-commands.sh`/`install-settings.sh` no longer alias `antigravity` to
+    the Gemini CLI — they skip it with a note (Antigravity has its own command &
+    `permissions.allow/deny` models).
+  - Caveat: schema and hook-script output are verified, but live deny-firing must
+    be confirmed in an interactive `agy` session (print mode bypasses the
+    interactive hook path). See `hooks/README.md`.
+
 ### Fixed
 - Commands now install on Codex/Cursor/Gemini on macOS. `render-commands.sh`
   deleted the committed ports *before* regenerating, and the bare `mktemp` in

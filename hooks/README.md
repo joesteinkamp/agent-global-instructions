@@ -1,7 +1,7 @@
 # Hooks
 
 Guardrail hooks — shell commands that fire on tool events. One set of scripts
-serves **Claude Code, Codex, Cursor, and Antigravity/Gemini**; `HOOK_PLATFORM`
+serves **Claude Code, Codex, Cursor, Gemini (CLI), and Antigravity (opt-in)**; `HOOK_PLATFORM`
 (set by the installer in each wired command) makes them block in the right
 dialect.
 
@@ -57,7 +57,8 @@ them yourself if they grow large.
 | **Claude Code** | `~/.claude/settings.json` | `SessionStart`, `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse`, `PreCompact`, `Stop`, `SessionEnd` | exit 2 + stderr |
 | **Codex** | `~/.codex/hooks.json` | `PreToolUse` (`apply_patch\|Edit\|Write`, `Bash`), `PostToolUse`, `Stop` | exit 2 + stderr |
 | **Cursor** | `~/.cursor/hooks.json` (`version: 1`) | `sessionStart`, `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`, `stop` | stdout `{"permission":"deny"}` |
-| **Antigravity / Gemini** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |
+| **Gemini CLI** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |
+| **Antigravity** (opt-in) | `~/.gemini/antigravity-cli/hooks.json` | `PreToolUse` (`run_command`, `write_to_file\|replace_file_content\|multi_replace_file_content`), `PostToolUse` | stdout `{"allow_tool":false,"deny_reason":…}` + **exit 0** |
 
 ## Caveats
 
@@ -72,10 +73,32 @@ them yourself if they grow large.
   lockfiles, and build dirs comes from the **permissions layer**
   (`../install-settings.sh cursor`), not the hook. Cursor's `stop` nudge uses
   `followup_message` (auto-continue), and is local-only (not cloud agents).
-- **Antigravity**'s schema is the Gemini CLI hooks format
-  (`settings.json` → `hooks` → `BeforeTool`/`AfterTool`). If your Antigravity
-  build reads hooks from a different path (e.g. `.agents/hooks.json`), copy the
-  same `hooks` block there.
+- **Antigravity is a SEPARATE tool from the Gemini CLI** — despite the shared
+  `~/.gemini/` prefix. The `gemini` target writes the **Gemini CLI**'s
+  `~/.gemini/settings.json`; the **`antigravity`** target writes Antigravity's own
+  **`~/.gemini/antigravity-cli/hooks.json`**, which the Gemini CLI never reads and
+  vice-versa. `antigravity` is **opt-in** — not in the default target set — and
+  `./install-hooks.sh antigravity` skips gracefully if `~/.gemini/antigravity-cli`
+  isn't present. Its schema (verified against the `agy` binary's proto + embedded
+  docs) differs from every other tool: top-level **named hooks**, `PreToolUse`/
+  `PostToolUse` events, **tool-name matchers** (`run_command`, and the edit trio
+  `write_to_file|replace_file_content|multi_replace_file_content`), tool input
+  under **`toolCall.args`** (`CommandLine`/`TargetFile`), and a stdout deny of
+  **`{"allow_tool":false,"deny_reason":…}` with exit 0** (a non-zero exit is a hook
+  *failure*, not a block). Because `agy` invokes each hook by absolute path, the
+  installer drops tiny `*.ag.sh` wrappers that set `HOOK_PLATFORM=antigravity`.
+  The commands/permissions layers don't apply (Antigravity has its own
+  slash-command and `permissions.allow/deny` models), so `install-commands.sh`/
+  `install-settings.sh` skip it with a note. **Note:** the schema and the hook
+  scripts' output are verified, but live deny-firing must be confirmed in an
+  interactive `agy` session — headless `agy -p` (print mode) does not invoke the
+  interactive hook path, so it can't demonstrate a block. Two `agy`-specific
+  details are handled: tool args arrive as JSON-encoded strings (so a wrapped
+  quote pair is stripped before matching), and the `*.ag.sh` wrappers resolve the
+  real script via `$0` rather than embedding `$HOME` (safe with spaces/quotes in
+  the path). As with every guard here it is **fail-open on error** — a missing
+  `jq`, unparseable input, or a script crash lets the tool through (exit 0 / no
+  deny), never fail-closed; it's a best-effort tripwire, not a boundary.
 - `guard-bash.sh` anchors on the target operand, so targeted deletes
   (`rm -rf /tmp/build`) and most quoted/argument mentions of a dangerous string
   pass, while split/long flags and `/bin/rm` are caught. A bare catastrophic
