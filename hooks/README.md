@@ -92,7 +92,13 @@ them yourself if they grow large.
   `install-settings.sh` skip it with a note. **Note:** the schema and the hook
   scripts' output are verified, but live deny-firing must be confirmed in an
   interactive `agy` session — headless `agy -p` (print mode) does not invoke the
-  interactive hook path, so it can't demonstrate a block.
+  interactive hook path, so it can't demonstrate a block. Two `agy`-specific
+  details are handled: tool args arrive as JSON-encoded strings (so a wrapped
+  quote pair is stripped before matching), and the `*.ag.sh` wrappers resolve the
+  real script via `$0` rather than embedding `$HOME` (safe with spaces/quotes in
+  the path). As with every guard here it is **fail-open on error** — a missing
+  `jq`, unparseable input, or a script crash lets the tool through (exit 0 / no
+  deny), never fail-closed; it's a best-effort tripwire, not a boundary.
 - `guard-bash.sh` anchors on the target operand, so targeted deletes
   (`rm -rf /tmp/build`) and most quoted/argument mentions of a dangerous string
   pass, while split/long flags and `/bin/rm` are caught. A bare catastrophic

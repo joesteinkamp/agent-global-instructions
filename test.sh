@@ -519,6 +519,13 @@ PY
   { printf '%s' "$ag_env" | jq -e '.allow_tool == false' >/dev/null 2>&1 && [ -z "$ag_ex" ]; } \
     && ok "guard-paths antigravity: blocks .env (TargetFile), allows .env.example" \
     || bad "guard-paths antigravity: blocks .env (TargetFile), allows .env.example"
+  # Antigravity delivers args as JSON-encoded strings, so TargetFile/CommandLine can
+  # arrive wrapped in a literal quote pair — the guard must strip it or fail open.
+  agq_p="$(jq -nc '{cwd:"/p",toolCall:{args:{TargetFile:"\"/p/.env\""}}}' | HOOK_PLATFORM=antigravity bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
+  agq_b="$(jq -nc --arg c "\"$R -rf /\"" '{toolCall:{args:{CommandLine:$c}}}' | HOOK_PLATFORM=antigravity bash "$DIR/hooks/guard-bash.sh" 2>/dev/null)"
+  { printf '%s' "$agq_p" | jq -e '.allow_tool == false' >/dev/null 2>&1 && printf '%s' "$agq_b" | jq -e '.allow_tool == false' >/dev/null 2>&1; } \
+    && ok "guard antigravity: strips quote-wrapped args (no fail-open)" \
+    || bad "guard antigravity: strips quote-wrapped args (no fail-open)"
 
   # install/uninstall antigravity hooks.json (opt-in target) in a throwaway HOME.
   AGH="$(mktemp -d)"; mkdir -p "$AGH/.gemini/antigravity-cli"

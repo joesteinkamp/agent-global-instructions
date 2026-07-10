@@ -32,6 +32,8 @@ format_one() {  # $1 = file path
 }
 
 fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .tool_input.notebook_path // .file_path // .toolCall.args.TargetFile // empty' 2>/dev/null)"
+# Antigravity delivers args as JSON-encoded strings; strip a wrapping quote pair.
+if [ "$PLATFORM" = antigravity ]; then fp="${fp#\"}"; fp="${fp%\"}"; fi
 if [ -n "$fp" ]; then
   format_one "$fp"
 elif [ "$PLATFORM" = "codex" ]; then

@@ -13,6 +13,9 @@ PLATFORM="${HOOK_PLATFORM:-claude}"
 input="$(cat)"
 command -v jq >/dev/null 2>&1 || exit 0
 cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // .tool_input.cmd // .command // .toolCall.args.CommandLine // empty')"
+# Antigravity stores tool args as JSON-encoded strings, so a value can arrive
+# wrapped in a literal quote pair; strip one so matching sees the bare command.
+if [ "$PLATFORM" = antigravity ]; then cmd="${cmd#\"}"; cmd="${cmd%\"}"; fi
 [ -z "$cmd" ] && exit 0
 
 block() {  # $1 = reason

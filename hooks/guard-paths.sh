@@ -97,6 +97,9 @@ check_one() {  # $1 = file path
 
 # Single explicit path (Claude/Codex-Edit/Gemini tool_input, or Cursor top-level).
 fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .tool_input.notebook_path // .file_path // .toolCall.args.TargetFile // empty' 2>/dev/null)"
+# Antigravity delivers args as JSON-encoded strings — TargetFile can arrive wrapped
+# in a literal quote pair; strip it so the protected-path globs actually match.
+if [ "$PLATFORM" = antigravity ]; then fp="${fp#\"}"; fp="${fp%\"}"; fi
 if [ -n "$fp" ]; then
   check_one "$fp"
 elif [ "$PLATFORM" = "codex" ]; then

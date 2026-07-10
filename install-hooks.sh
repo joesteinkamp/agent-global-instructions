@@ -194,7 +194,10 @@ install_antigravity() {
   copy_scripts "$hd"
   local s
   for s in guard-bash guard-paths log-tool format-edited; do
-    printf '#!/usr/bin/env bash\nexport HOOK_PLATFORM=antigravity\nexec "%s/%s.sh"\n' "$hd" "$s" > "$hd/$s.ag.sh"
+    # Resolve the real script via $0's dir at runtime — never embed $hd/$HOME into
+    # the wrapper's quoted exec line (a HOME with a space or quote would otherwise
+    # break the path or inject). Only the fixed hook name is interpolated.
+    printf '#!/usr/bin/env bash\nexport HOOK_PLATFORM=antigravity\nexec "$(dirname "$0")/%s.sh"\n' "$s" > "$hd/$s.ag.sh"
     chmod +x "$hd/$s.ag.sh"
   done
   [ -f "$hj" ] || echo '{}' > "$hj"
