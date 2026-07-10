@@ -9,6 +9,19 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
+### Fixed
+- **/audit portable fallback + design-group prune hardening.** `/audit` now runs
+  an inline heuristic audit (Nielsen, Gestalt, WCAG 2.2 AA, Fitts/Hick/Miller,
+  dark patterns; view-the-image guard so a vision-less tool stops instead of
+  guessing) on tools without skill support — it was effectively dead on
+  Codex/Cursor/Gemini, whose ports delegated to the Claude-only `ux-audit`
+  skill. A persona-resolver *error* on `install-commands.sh`'s auto path now
+  warns and leaves installed design commands in place instead of silently
+  pruning them (a real "n" still prunes); prune/reinstall messages point at the
+  hand-edit backups they create, so a persona toggle can't silently orphan your
+  edits. +4 tests locking in prune-safety, the auto-resolve path, gemini `.toml`
+  gating, and `install.sh` flag forwarding (89 total).
+
 ### Added
 - **Design command pack (persona-gated group).** A command opts into a group via
   a `group:` frontmatter key; the new **`design`** group installs only when your

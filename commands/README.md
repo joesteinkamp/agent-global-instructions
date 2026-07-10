@@ -12,7 +12,7 @@ Portable slash-command shortcuts. Each top-level `.md` file is the canonical
 | `/tidy` | Run the project's formatter / linter / tests and fix what's safe (no commit). |
 | `/improve` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities. No changes applied. |
 | `/verify` | Prove the change is correct & true to spec: build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (`PRODUCT`/`DESIGN`/`CODE.md`). Writes a served HTML report; no changes applied. |
-| `/audit` | *(design)* Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores the UI against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
+| `/audit` | *(design)* UX audit **from a screenshot**. On Claude Code with the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill installed it scores against 15 UX heuristic frameworks with annotated screenshots; on the other tools (no skill support) it runs the heuristic rubric inline. Writes + serves a self-contained HTML report. |
 | `/handoff` | *(design)* Developer handoff for a screen/route — component states, tokens used, a11y notes, and acceptance criteria — as a served HTML artifact. |
 | `/critique` | *(design)* Pre-pixel heuristic critique of a flow, spec, or idea (the complement to `/audit`=screenshot and `/verify`=running app). Severity-ranked findings with principle citations; served HTML. |
 | `/flow` | *(design)* Generate a user-flow / sitemap / journey-map artifact from a task or spec — inline diagram + journey table, served as HTML. |

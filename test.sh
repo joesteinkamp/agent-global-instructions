@@ -329,16 +329,19 @@ if command -v jq >/dev/null 2>&1; then
   fi
   rm -rf "$SMOKE"
 
-  # install.sh orchestrates every layer into a throwaway HOME.
+  # install.sh orchestrates every layer into a throwaway HOME — and forwards
+  # --no-design to install-commands.sh (the empty-array idiom on bash 3.2), so
+  # core commands land while the design group stays out.
   SMOKE2="$(mktemp -d)"
-  if HOME="$SMOKE2" bash "$DIR/install.sh" --yes claude >/dev/null 2>&1 </dev/null \
+  if HOME="$SMOKE2" bash "$DIR/install.sh" --yes --no-design claude >/dev/null 2>&1 </dev/null \
      && jq -e '.permissions.deny and .hooks.SessionStart' "$SMOKE2/.claude/settings.json" >/dev/null 2>&1 \
      && [ -f "$SMOKE2/.claude/commands/ship.md" ] \
+     && [ ! -f "$SMOKE2/.claude/commands/handoff.md" ] \
      && [ -f "$SMOKE2/.claude/CLAUDE.md" ] \
      && [ -f "$SMOKE2/.claude/CHANGELOG.md" ]; then
-    ok "install.sh orchestrates instructions + commands + hooks + settings + changelog"
+    ok "install.sh orchestrates every layer and forwards --no-design"
   else
-    bad "install.sh orchestrates instructions + commands + hooks + settings + changelog"
+    bad "install.sh orchestrates every layer and forwards --no-design"
   fi
   rm -rf "$SMOKE2"
 
@@ -419,6 +422,65 @@ if command -v jq >/dev/null 2>&1; then
   { [ "$core_ok" = 1 ] && [ "$des_off" = 0 ] && [ "$des_on" = 4 ] && [ "$des_pruned" = 0 ]; } \
     && ok "design group: core installs, --design adds 4, --no-design prunes them" \
     || bad "design group gating (core=$core_ok off=$des_off on=$des_on pruned=$des_pruned)"
+  rm -rf "$GT"
+
+  # Prune-safety invariants (the destructive branch of install_dir): a user's
+  # OWN command in the destination is never a prune candidate, and a hand-edited
+  # design command is backed up (*.bak.*) before removal — counts alone don't
+  # lock these in, so a prune-branch refactor could regress them silently.
+  GT="$(mktemp -d)"; GC="$GT/.claude/commands"
+  HOME="$GT" "$DIR/install-commands.sh" --design claude >/dev/null 2>&1
+  echo "my own command" > "$GC/mycustom.md"
+  echo "hand-edited" >> "$GC/critique.md"
+  HOME="$GT" "$DIR/install-commands.sh" --no-design claude >/dev/null 2>&1
+  # shellcheck disable=SC2012  # counting mktemp-named backups; no exotic filenames
+  bak_n=$(ls -1 "$GC"/critique.md.bak.* 2>/dev/null | wc -l | tr -d ' ')
+  { [ -f "$GC/mycustom.md" ] && [ ! -f "$GC/critique.md" ] && [ "$bak_n" = 1 ] \
+    && grep -q "hand-edited" "$GC"/critique.md.bak.*; } \
+    && ok "prune safety: user's own command survives, edited design command backed up" \
+    || bad "prune safety (mycustom=$([ -f "$GC/mycustom.md" ] && echo kept || echo LOST) critique-baks=$bak_n)"
+  rm -rf "$GT"
+
+  # The auto path end-to-end (the real-world default): no explicit flag — the
+  # persona resolves the group through customize.sh --design-group, exercising
+  # the install-commands→customize seam integrated.
+  GT="$(mktemp -d)"; GC="$GT/.claude/commands"
+  HOME="$GT" AIGI_NO_USER_ENV=1 PERSONA=product-designer "$DIR/install-commands.sh" claude >/dev/null 2>&1
+  auto_pd=$(count_design "$GC")
+  HOME="$GT" AIGI_NO_USER_ENV=1 PERSONA=generic "$DIR/install-commands.sh" claude >/dev/null 2>&1
+  auto_gen=$(count_design "$GC")
+  { [ "$auto_pd" = 4 ] && [ "$auto_gen" = 0 ]; } \
+    && ok "design group auto-resolves from persona end-to-end (pd installs 4, generic prunes)" \
+    || bad "design group auto path (pd=$auto_pd generic=$auto_gen)"
+  rm -rf "$GT"
+
+  # A resolver ERROR is not "off": when customize.sh fails on the auto path, an
+  # already-installed design pack must be left in place (warn, don't prune) —
+  # a transient failure must never silently delete the designer's commands.
+  GT="$(mktemp -d)"
+  cp -R "$DIR/commands" "$GT/commands"
+  cp "$DIR/install-commands.sh" "$GT/"
+  printf '#!/bin/sh\nexit 1\n' > "$GT/customize.sh"; chmod +x "$GT/customize.sh"
+  GC="$GT/home/.claude/commands"
+  HOME="$GT/home" "$GT/install-commands.sh" --design claude >/dev/null 2>&1
+  HOME="$GT/home" "$GT/install-commands.sh" claude >/dev/null 2>&1   # auto + broken resolver
+  fail_kept=$(count_design "$GC")
+  [ "$fail_kept" = 4 ] \
+    && ok "design group survives a resolver failure (no silent prune on customize.sh error)" \
+    || bad "resolver failure pruned design commands (kept=$fail_kept of 4)"
+  rm -rf "$GT"
+
+  # Group gating isn't claude-only: the gemini port maps <name>.toml back to the
+  # canonical commands/<name>.md group (${base%.*} across a different extension).
+  GT="$(mktemp -d)"; GG="$GT/.gemini/commands"
+  count_design_toml() { local f2 n2=0; for f2 in handoff critique flow audit; do [ -f "$GG/$f2.toml" ] && n2=$((n2+1)); done; printf '%s' "$n2"; }
+  HOME="$GT" "$DIR/install-commands.sh" --no-design gemini >/dev/null 2>&1
+  g_off=$(count_design_toml)
+  HOME="$GT" "$DIR/install-commands.sh" --design gemini >/dev/null 2>&1
+  g_on=$(count_design_toml)
+  { [ "$g_off" = 0 ] && [ "$g_on" = 4 ]; } \
+    && ok "design group gating works for the gemini .toml dialect" \
+    || bad "gemini design gating (off=$g_off on=$g_on)"
   rm -rf "$GT"
 
   # Gemini command TOML + the TOML permission snippets parse.

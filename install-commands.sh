@@ -49,12 +49,24 @@ done
 
 # Decide whether the "design" command group installs. Explicit flag wins; on
 # "auto" ask customize.sh, which applies the same PERSONA/INC_DESIGN precedence
-# used everywhere else (so we never re-parse my-context.env here). Fail closed.
-want_design=0
+# used everywhere else (so we never re-parse my-context.env here). A resolver
+# "n" fails closed (don't install), but a resolver ERROR is not an answer:
+# treating it as "off" would silently prune an installed pack on a transient
+# customize.sh failure — so warn and leave existing design commands untouched.
+want_design=0   # 1 = install; 0 = skip + prune; keep = skip but don't prune
 case "$DESIGN_FLAG" in
   on)  want_design=1;;
   off) want_design=0;;
-  *)   [ -x "$DIR/customize.sh" ] && [ "$("$DIR/customize.sh" --design-group 2>/dev/null)" = y ] && want_design=1;;
+  *)
+    if [ -x "$DIR/customize.sh" ]; then
+      if dg="$("$DIR/customize.sh" --design-group 2>/dev/null)"; then
+        [ "$dg" = y ] && want_design=1
+      else
+        want_design=keep
+        echo "warning: could not resolve your persona (customize.sh --design-group failed);" >&2
+        echo "         leaving any installed design commands in place (none added). Pass --design or --no-design to force." >&2
+      fi
+    fi;;
 esac
 
 # Read a canonical command's `group:` frontmatter (empty => core). Mirrors
@@ -71,10 +83,17 @@ fm_group() {  # $1 = canonical commands/<name>.md
 
 # Should command <name> install, given the requested groups? core always; design
 # only when wanted; an unknown group installs (fail-open — never hide a command).
+# Returns 0 = install, 1 = skip and prune an installed copy, 2 = skip but leave
+# an installed copy alone (design when the persona resolver failed).
 cmd_wanted() {  # $1 = command basename without extension
   case "$(fm_group "$SRC/$1.md")" in
-    design) [ "$want_design" = 1 ];;
-    *)      return 0;;
+    design)
+      case "$want_design" in
+        1)    return 0;;
+        keep) return 2;;
+        *)    return 1;;
+      esac;;
+    *) return 0;;
   esac
 }
 
@@ -93,8 +112,10 @@ fi
 RETIRED="validate"
 
 # Back up to a collision-free name (mktemp), keeping only the 5 newest backups.
+# Sets BACKUP_PATH to the created backup so callers can point the user at it.
 backup_file() {  # $1 = file to back up
-  cp "$1" "$(mktemp "$1.bak.XXXXXX")"
+  BACKUP_PATH="$(mktemp "$1.bak.XXXXXX")"
+  cp "$1" "$BACKUP_PATH"
   local n=0 b
   while IFS= read -r b; do n=$((n+1)); if [ "$n" -gt 5 ]; then rm -f -- "$b"; fi; done \
     < <(ls -1t -- "$1".bak.* 2>/dev/null)
@@ -104,7 +125,7 @@ backup_file() {  # $1 = file to back up
 # Copy every <src>/*.<ext> into <dest>, backing up a differing prior copy first,
 # skipping README and pruning retired names.
 install_dir() {  # $1=label  $2=src dir  $3=ext  $4=dest dir
-  local label="$1" src="$2" ext="$3" dest="$4" f base dst n=0 old
+  local label="$1" src="$2" ext="$3" dest="$4" f base dst n=0 old rc prior
   if [ ! -d "$src" ]; then echo "  $label: no $src (skipped)"; return 0; fi
   mkdir -p "$dest"
   for old in $RETIRED; do
@@ -116,13 +137,28 @@ install_dir() {  # $1=label  $2=src dir  $3=ext  $4=dest dir
     [ "$base" = "README.$ext" ] && continue
     dst="$dest/$base"
     # Group filter: a command not in the requested groups is skipped, and pruned
-    # from the destination if present (so turning a group off self-heals).
-    if ! cmd_wanted "${base%.*}"; then
-      if [ -f "$dst" ]; then
-        cmp -s "$f" "$dst" || backup_file "$dst"   # preserve a hand-edited copy before pruning
-        rm -f "$dst"; echo "  removed $base (not in requested groups)"
+    # from the destination if present (so turning a group off self-heals). rc=2
+    # (persona resolver failed) skips the install but leaves an existing copy.
+    rc=0; cmd_wanted "${base%.*}" || rc=$?
+    if [ "$rc" != 0 ]; then
+      if [ "$rc" = 1 ] && [ -f "$dst" ]; then
+        if cmp -s "$f" "$dst"; then
+          rm -f "$dst"; echo "  removed $base (not in requested groups)"
+        else
+          backup_file "$dst"; rm -f "$dst"   # preserve the hand-edited copy before pruning
+          echo "  removed $base (not in requested groups; your edited copy: $BACKUP_PATH)"
+        fi
       fi
       continue
+    fi
+    if [ ! -f "$dst" ]; then
+      # A prior prune may have archived a hand-edited copy — point at it rather
+      # than silently installing canonical over the user's customizations.
+      # shellcheck disable=SC2012  # need newest-first (mtime); names are mktemp-safe
+      prior="$(ls -1t -- "$dst".bak.* 2>/dev/null | head -n 1 || true)"
+      if [ -n "$prior" ] && ! cmp -s "$f" "$prior"; then
+        echo "  note: $base installed from canonical; your earlier edited copy is at $prior"
+      fi
     fi
     if [ -f "$dst" ] && ! cmp -s "$f" "$dst"; then backup_file "$dst"; echo "  backed up your edited $base"; fi
     cp "$f" "$dst"; n=$((n+1))

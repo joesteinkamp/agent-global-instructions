@@ -170,7 +170,7 @@ all four tools pick it up.
 | `/tidy` | Run the project's formatter/linter/tests and fix what's safe. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
-| `/audit` | *(design group)* Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
+| `/audit` | *(design group)* UX audit **from a screenshot**. Uses the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill when available (Claude Code) — 15 heuristic frameworks, annotated screenshots; the other tools run the heuristic rubric inline. Writes + serves a self-contained HTML report. |
 | `/handoff` | *(design group)* Developer handoff for a screen/route — component states, tokens used, a11y notes, acceptance criteria — served HTML. |
 | `/critique` | *(design group)* Pre-pixel heuristic critique of a flow, spec, or idea (complements `/audit`=screenshot and `/verify`=running app) — severity-ranked, served HTML. |
 | `/flow` | *(design group)* User-flow / sitemap / journey-map artifact from a task or spec — inline diagram + journey table, served HTML. |
