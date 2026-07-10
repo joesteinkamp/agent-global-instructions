@@ -394,6 +394,33 @@ if command -v jq >/dev/null 2>&1; then
   [ -z "$miss" ] && ok "every canonical command has a codex/cursor/gemini port" \
                  || bad "missing command ports:$miss"
 
+  # ---- command groups: the design group is persona-gated at install time ----
+  # The resolver reuses customize.sh's INC_DESIGN precedence (persona seeds it).
+  dg_gen="$(AIGI_NO_USER_ENV=1 "$CUSTOMIZE" --design-group 2>/dev/null)"
+  dg_pd="$(AIGI_NO_USER_ENV=1 PERSONA=product-designer "$CUSTOMIZE" --design-group 2>/dev/null)"
+  { [ "$dg_gen" = n ] && [ "$dg_pd" = y ]; } \
+    && ok "customize --design-group resolves persona (generic=n, product-designer=y)" \
+    || bad "customize --design-group resolves persona (got generic=$dg_gen pd=$dg_pd)"
+
+  # Explicit flags gate the design commands and prune them when turned off.
+  count_design() {  # $1 = commands dir -> number of design commands present
+    local d="$1" f n=0
+    for f in handoff critique flow audit; do [ -f "$d/$f.md" ] && n=$((n+1)); done
+    printf '%s' "$n"
+  }
+  GT="$(mktemp -d)"; GC="$GT/.claude/commands"
+  HOME="$GT" "$DIR/install-commands.sh" --no-design claude >/dev/null 2>&1
+  core_ok=1; [ -f "$GC/ship.md" ] || core_ok=0
+  des_off=$(count_design "$GC")
+  HOME="$GT" "$DIR/install-commands.sh" --design claude >/dev/null 2>&1
+  des_on=$(count_design "$GC")
+  HOME="$GT" "$DIR/install-commands.sh" --no-design claude >/dev/null 2>&1
+  des_pruned=$(count_design "$GC")
+  { [ "$core_ok" = 1 ] && [ "$des_off" = 0 ] && [ "$des_on" = 4 ] && [ "$des_pruned" = 0 ]; } \
+    && ok "design group: core installs, --design adds 4, --no-design prunes them" \
+    || bad "design group gating (core=$core_ok off=$des_off on=$des_on pruned=$des_pruned)"
+  rm -rf "$GT"
+
   # Gemini command TOML + the TOML permission snippets parse.
   if command -v python3 >/dev/null 2>&1; then
     if python3 -c "import tomllib,glob; [tomllib.load(open(f,'rb')) for f in glob.glob('$DIR/commands/gemini/*.toml')+['$DIR/policies/gemini-guardrails.toml','$DIR/codex-permissions.snippet.toml']]" 2>/dev/null; then

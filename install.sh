@@ -6,6 +6,7 @@
 #   ./install.sh --yes           # same, but don't prompt to confirm the global render
 #   ./install.sh claude          # just Claude Code
 #   ./install.sh codex cursor    # instructions + commands + hooks + settings for those
+#   ./install.sh --design        # also install the design command group (else auto by persona)
 #
 # Layers (each applied to whichever targets you name):
 #   - instructions (customize.sh --global): all tools, always — the portable core.
@@ -20,12 +21,15 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Split args into flags and tool targets.
 yes_flag=""
+design_flag=()   # forwarded to install-commands.sh: --design | --no-design
 targets=()
 for a in "$@"; do
   case "$a" in
     --yes|-y) yes_flag="--yes";;
+    --design) design_flag=(--design);;
+    --no-design) design_flag=(--no-design);;
     claude|codex|cursor|gemini|antigravity) targets+=("$a");;
-    *) echo "unknown arg: $a (use: --yes | claude | codex | cursor | gemini | antigravity)" >&2; exit 1;;
+    *) echo "unknown arg: $a (use: --yes | --design | --no-design | claude | codex | cursor | gemini | antigravity)" >&2; exit 1;;
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
@@ -35,7 +39,7 @@ echo "== instructions =="
 if [ -n "$yes_flag" ]; then "$DIR/customize.sh" --global --yes; else "$DIR/customize.sh" --global; fi
 
 echo "== commands =="
-"$DIR/install-commands.sh" "${targets[@]}"
+"$DIR/install-commands.sh" ${design_flag[@]+"${design_flag[@]}"} "${targets[@]}"
 
 echo "== hooks =="
 "$DIR/install-hooks.sh" "${targets[@]}"

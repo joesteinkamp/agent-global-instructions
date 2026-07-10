@@ -20,7 +20,7 @@ Run a UX/design audit. $ARGUMENTS
    `annotated/*.png`, and a self-contained `report.html`.
 4. Serve the report per my environment's preview method: if headless, start a
    static server on `0.0.0.0` (never `127.0.0.1`), verify it returns 200, and
-   hand me the Tailscale URL to `report.html`; otherwise open it locally. Keep
+   hand me the URL to `report.html`; otherwise open it locally. Keep
    it running.
 5. Summarize the top severity-ranked findings inline, then link the full report
    for the annotated detail.

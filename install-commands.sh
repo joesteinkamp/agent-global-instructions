@@ -6,6 +6,16 @@
 #   ./install-commands.sh --project           # all tools, into ./ (this repo)
 #   ./install-commands.sh claude cursor       # just these tools, global
 #   ./install-commands.sh --project cursor gemini
+#   ./install-commands.sh --design            # also install the design command group
+#   ./install-commands.sh --no-design         # core commands only
+#
+# Command groups: a canonical command opts into a group with `group: <name>` in
+# its frontmatter (absent => "core", always installed). The "design" group
+# (/handoff, /critique, /flow, /audit) installs when --design is passed, or
+# automatically when your persona/INC_DESIGN wants it (asked of customize.sh);
+# --no-design forces it off. Ports are always generated for every command; the
+# group only decides what gets INSTALLED, and an unwanted command already present
+# is pruned so flipping your persona self-heals.
 #
 # Per-tool source + destination:
 #   claude  commands/*.md          -> ~/.claude/commands/   (project: ./.claude/commands/)
@@ -24,15 +34,49 @@ SRC="$DIR/commands"
 [ -d "$SRC" ] || { echo "No commands/ dir at $SRC" >&2; exit 1; }
 
 PROJECT=0
+DESIGN_FLAG=auto   # auto | on | off
 targets=()
 for a in "$@"; do
   case "$a" in
     --project) PROJECT=1;;
+    --design) DESIGN_FLAG=on;;
+    --no-design) DESIGN_FLAG=off;;
     claude|codex|cursor|gemini|antigravity) targets+=("$a");;
-    *) echo "unknown arg: $a (use: --project | claude codex cursor gemini antigravity)" >&2; exit 1;;
+    *) echo "unknown arg: $a (use: --project | --design | --no-design | claude codex cursor gemini antigravity)" >&2; exit 1;;
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+
+# Decide whether the "design" command group installs. Explicit flag wins; on
+# "auto" ask customize.sh, which applies the same PERSONA/INC_DESIGN precedence
+# used everywhere else (so we never re-parse my-context.env here). Fail closed.
+want_design=0
+case "$DESIGN_FLAG" in
+  on)  want_design=1;;
+  off) want_design=0;;
+  *)   [ -x "$DIR/customize.sh" ] && [ "$("$DIR/customize.sh" --design-group 2>/dev/null)" = y ] && want_design=1;;
+esac
+
+# Read a canonical command's `group:` frontmatter (empty => core). Mirrors
+# render-commands.sh's fm_field, pinned to the group key.
+fm_group() {  # $1 = canonical commands/<name>.md
+  [ -f "$1" ] || return 0
+  awk '
+    { sub(/\r$/,"") }
+    NR==1 && $0=="---" { infm=1; next }
+    infm && $0=="---"  { exit }
+    infm && $0 ~ /^group:/ { v=$0; sub(/^group:[[:space:]]*/,"",v); gsub(/[[:space:]]+$/,"",v); print v; exit }
+  ' "$1"
+}
+
+# Should command <name> install, given the requested groups? core always; design
+# only when wanted; an unknown group installs (fail-open — never hide a command).
+cmd_wanted() {  # $1 = command basename without extension
+  case "$(fm_group "$SRC/$1.md")" in
+    design) [ "$want_design" = 1 ];;
+    *)      return 0;;
+  esac
+}
 
 # Regenerate the per-tool ports from the canonical commands/*.md first, so what
 # gets installed always reflects the current canonical (hand-edits to a generated
@@ -71,6 +115,15 @@ install_dir() {  # $1=label  $2=src dir  $3=ext  $4=dest dir
     base="$(basename "$f")"
     [ "$base" = "README.$ext" ] && continue
     dst="$dest/$base"
+    # Group filter: a command not in the requested groups is skipped, and pruned
+    # from the destination if present (so turning a group off self-heals).
+    if ! cmd_wanted "${base%.*}"; then
+      if [ -f "$dst" ]; then
+        cmp -s "$f" "$dst" || backup_file "$dst"   # preserve a hand-edited copy before pruning
+        rm -f "$dst"; echo "  removed $base (not in requested groups)"
+      fi
+      continue
+    fi
     if [ -f "$dst" ] && ! cmp -s "$f" "$dst"; then backup_file "$dst"; echo "  backed up your edited $base"; fi
     cp "$f" "$dst"; n=$((n+1))
   done

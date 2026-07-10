@@ -10,6 +10,17 @@ only after human approval (see the `changelog` instruction section and the
 ## [Unreleased]
 
 ### Added
+- **Design command pack (persona-gated group).** A command opts into a group via
+  a `group:` frontmatter key; the new **`design`** group installs only when your
+  persona / `INC_DESIGN` wants it (`install-commands.sh --design` / `--no-design`,
+  auto-resolved via `customize.sh --design-group`) and prunes when turned off, so
+  switching personas self-heals. Ships three gap commands that *compose with, not
+  duplicate,* the external `project-starter-pack` (briefs + `DESIGN.json`) and
+  `ux-audit` (screenshot audits): **`/handoff`** (developer handoff — states,
+  tokens, a11y, acceptance), **`/critique`** (pre-pixel heuristic review of a
+  flow/spec/idea), **`/flow`** (user-flow / journey-map artifact); moved `/audit`
+  into the group. Ports are still generated for every command — the group only
+  gates what's installed, keeping engineers' set clean.
 - **Persona-aware, design-leaning harness (P0 #1–#4).** New `PERSONA` preset
   (`product-designer` / `engineer` / `generic`, default `generic`) that seeds an
   optional, toggleable **"Design system & UI"** instruction section
@@ -17,9 +28,10 @@ only after human approval (see the `changelog` instruction section and the
   persona). Filled the previously-empty `/improve` **UI/UX lens** with a concrete
   heuristics rubric (Nielsen, WCAG 2.2 AA, Gestalt, Fitts/Hick, design-system
   consistency, responsive + reduced-motion). Defined the `DESIGN.json` **token
-  contract** that `/verify`'s "matches the design" lens reads, with a
-  `DESIGN.example.json` sample; added a `prefers-reduced-motion` a11y gate to
-  `/verify` and made its responsive matrix honor `DESIGN.json` breakpoints. The
+  contract** that `/verify`'s "matches the design" lens reads (its canonical
+  source is the external `project-starter-pack`); added a `prefers-reduced-motion`
+  a11y gate to `/verify` and made its responsive matrix honor `DESIGN.json`
+  breakpoints. The
   general substrate stays neutral for engineers; it leans product-designer only
   when opted in.
 - **Real Antigravity hook support** (opt-in target). Antigravity is a *separate*
