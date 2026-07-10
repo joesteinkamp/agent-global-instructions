@@ -38,7 +38,8 @@ subagents (Task) and integrate; otherwise run them in order.
 4. **Matches the design.** Compare the screenshots to the reference — Figma node (via MCP) or a
    `DESIGN.json` token file (with `DESIGN.md` for intent). Report drift as expected-vs-actual, not vibes.
    The `DESIGN.json` contract this lens reads (all keys optional; check whatever is present) —
-   see `DESIGN.example.json` for a filled sample:
+   its canonical source is the [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack),
+   which generates `DESIGN.json` alongside the briefs:
    - `color` — named roles → hex/rgb (e.g. `bg`, `fg`, `primary`, `border`).
    - `type` — `family`, and named `size` / `leading` (line-height) / `weight` scales.
    - `space` — the spacing scale (e.g. `{ "1": "4px", "2": "8px", … }`).
@@ -55,7 +56,7 @@ subagents (Task) and integrate; otherwise run them in order.
 **Output is an artifact.** Write `verify/<slug>-YYYY-MM-DD/` — `report.html` (self-contained: pass/fail table,
 the responsive contact sheet, visual-regression before/afters, design diffs, console logs) plus the raw
 `screenshots/`. Serve the report per my preview method (headless → static server on `0.0.0.0`, verify 200,
-hand me the Tailscale URL; keep it running). Inline, give me only the **verdict + the link** — don't dump
+hand me the URL; keep it running). Inline, give me only the **verdict + the link** — don't dump
 findings in chat.
 
 This is a verification pass — **report what passed, what failed, and what was N/A.** Don't fix things

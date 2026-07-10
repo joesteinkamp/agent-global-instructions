@@ -7,10 +7,13 @@ mcp-rules.local
 *.jsonl
 .ai-logs/
 
-# Generated review/audit/verify artifacts — local, never commit
+# Generated review/audit/verify + design-command artifacts — local, never commit
 review/
 audits/
 verify/
+handoff/
+critiques/
+flows/
 
 # Per-tool port research notes (agent scratch) — local, never commit
 ports/

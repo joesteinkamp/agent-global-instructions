@@ -70,7 +70,6 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `converge.sh` | Daemon for the `/worktrees` flow: folds parallel agent branches (`ai/*`) into the integration branch as they advance, so one dev server sees every model's work near-live. |
 | `sync.sh` | Mirror a rendered `AGENTS.md` to `CLAUDE.md` / `GEMINI.md` in this dir. |
 | `sync-global.sh` | Keep the hand-maintained **global** files in sync (`~/.claude/CLAUDE.md` → the others), backing up differences. |
-| `DESIGN.example.json` | Sample of the design-token contract the `design` instruction section points at and `/verify`'s "matches the design" lens reads (color/type/space/radius/shadow/breakpoints/motion). Copy into a project as `DESIGN.json` and fill in. |
 | `CHANGELOG.md` | Human-readable log of AI-made changes — proposed by the assistant at session end, written only after you approve. `customize.sh --global` seeds a copy into `~/.claude/` (seed-only; never overwrites an accumulated one). |
 | `.github/workflows/ci.yml` | CI: shellcheck every script + run `test.sh` on push / PR. |
 | `test.sh` | Smoke tests: render engine, the `load_env` parser, example reproducibility, and installer/uninstaller smoke tests. |
@@ -171,7 +170,21 @@ all four tools pick it up.
 | `/tidy` | Run the project's formatter/linter/tests and fix what's safe. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
-| `/audit` | Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
+| `/audit` | *(design group)* Run the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill on a screenshot — scores against 15 UX heuristic frameworks, writes a self-contained HTML report, and serves it. |
+| `/handoff` | *(design group)* Developer handoff for a screen/route — component states, tokens used, a11y notes, acceptance criteria — served HTML. |
+| `/critique` | *(design group)* Pre-pixel heuristic critique of a flow, spec, or idea (complements `/audit`=screenshot and `/verify`=running app) — severity-ranked, served HTML. |
+| `/flow` | *(design group)* User-flow / sitemap / journey-map artifact from a task or spec — inline diagram + journey table, served HTML. |
+
+**Command groups.** A command declares `group: <name>` in its frontmatter (absent ⇒
+`core`, always installed). The **`design`** group (`/audit`, `/handoff`, `/critique`,
+`/flow`) installs with `./install-commands.sh --design`, or automatically when your
+persona / `INC_DESIGN` wants it; `--no-design` forces it off (and prunes any already
+installed, so switching personas self-heals). Ports are generated for every command
+regardless — the group only gates what's **installed**, keeping engineers' command set
+clean while designers get the pack. The design commands compose with the external
+[project-starter-pack](https://github.com/joesteinkamp/project-starter-pack) (briefs +
+`DESIGN.json`) and [ux-audit](https://github.com/joesteinkamp/ux-audit-skill) — this
+harness doesn't duplicate them.
 
 ## 3. Guardrails & observability (hooks)
 

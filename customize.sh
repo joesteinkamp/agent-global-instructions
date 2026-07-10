@@ -392,6 +392,11 @@ for _a in "$@"; do case "$_a" in -y|--yes) ASSUME_YES=1;; esac; done
 
 case "${1:-}" in
   --print)    render; exit 0;;
+  # Resolve whether the design command group is wanted, reusing the same
+  # precedence as everything else (explicit INC_DESIGN wins, else PERSONA seeds
+  # it — both already applied by normalize_inputs above). install-commands.sh
+  # queries this so it never has to re-parse my-context.env itself. Prints y|n.
+  --design-group) printf '%s\n' "$INC_DESIGN"; exit 0;;
   --project)  write_project; exit 0;;
   --global)
     echo "This OVERWRITES your machine-wide instruction files (each is backed up first):"
