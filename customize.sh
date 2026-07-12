@@ -447,7 +447,7 @@ fi
 
 INC_WORKTREES="$(ask_one 'Include "parallel AI models on one repo" (worktrees) section?' "y/n" "$INC_WORKTREES")"; INC_WORKTREES="${INC_WORKTREES:0:1}"
 
-INC_IMPROVE="$(ask_one 'Include "improve after larger changes" section?' "y/n" "$INC_IMPROVE")"; INC_IMPROVE="${INC_IMPROVE:0:1}"
+INC_IMPROVE="$(ask_one 'Include "auto run improve command after larger changes" section?' "y/n" "$INC_IMPROVE")"; INC_IMPROVE="${INC_IMPROVE:0:1}"
 INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n" "$INC_TOOLS")"; INC_TOOLS="${INC_TOOLS:0:1}"
 if [ "$INC_TOOLS" = "y" ]; then
   DO_SCAN="$(ask_one 'Scan this machine'\''s MCP servers and add usage rules?' "y/n" "n")"
@@ -476,11 +476,11 @@ INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y
 # otherwise follow the (possibly just-changed) persona. The typed answer wins.
 if [ -n "$INC_DESIGN_EXPLICIT" ]; then _dz="$INC_DESIGN"
 else case "$PERSONA" in product-designer) _dz=y;; *) _dz=n;; esac; fi
-INC_DESIGN="$(ask_one 'Include "design system & UI" section?' "y/n" "$_dz")"; INC_DESIGN="${INC_DESIGN:0:1}"
-INC_PROJECT="$(ask_one 'Include "encourage project-specific instructions" section?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
-INC_DOCS="$(ask_one 'Include "documentation first" section?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
-INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
-INC_CHANGELOG="$(ask_one 'Include "change log" section (propose entry + approval at session end)?' "y/n" "$INC_CHANGELOG")"; INC_CHANGELOG="${INC_CHANGELOG:0:1}"
+INC_DESIGN="$(ask_one 'Include "design system & UI" section (build to design tokens, stay on scales, design accessibly)?' "y/n" "$_dz")"; INC_DESIGN="${INC_DESIGN:0:1}"
+INC_PROJECT="$(ask_one 'Include "project-specific instructions" section (encourages keeping/updating per-project AGENTS.md/CLAUDE.md)?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
+INC_DOCS="$(ask_one 'Include "documentation first" section (read official docs before using libraries; custom hacks as last resort)?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
+INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section (rules for capturing corrections/memories to prevent repeating mistakes)?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
+INC_CHANGELOG="$(ask_one 'Include "change log" section (tracks AI changes, proposes draft entry, requires approval before writing)?' "y/n" "$INC_CHANGELOG")"; INC_CHANGELOG="${INC_CHANGELOG:0:1}"
 
 # Canonicalize the answers just typed (so "Y", "Balanced", "Tailscale" all work).
 normalize_inputs

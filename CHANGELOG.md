@@ -9,6 +9,10 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
+### Changed
+- Clarify the prompt for the "improve after larger changes" section in [customize.sh](file:///home/jsteinka/projects/agent-global-instructions/customize.sh) by rewriting it to "Include 'auto run improve command after larger changes' section?".
+- In [customize.sh](file:///home/jsteinka/projects/agent-global-instructions/customize.sh): Clarified other section prompts by adding descriptive/explanatory details for "design system & UI", "project-specific instructions", "documentation first", "when I say you did wrong", and "change log".
+
 ### Fixed
 - **/audit portable fallback + design-group prune hardening.** `/audit` now runs
   an inline heuristic audit (Nielsen, Gestalt, WCAG 2.2 AA, Fitts/Hick/Miller,
