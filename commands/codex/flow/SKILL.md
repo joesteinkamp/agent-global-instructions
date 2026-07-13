@@ -1,12 +1,13 @@
 ---
-# GENERATED from commands/flow.md by render-commands.sh — do not edit. Invoke as /prompts:flow
-description: Generate a user-flow / sitemap / journey-map artifact from a task or spec — served HTML
-argument-hint: [feature/task or spec path; + optional flow|sitemap|journey]
+name: "flow"
+description: "Generate a user-flow / sitemap / journey-map artifact from a task or spec — served HTML"
 ---
+
+<!-- GENERATED from commands/flow.md by render-commands.sh — do not edit. Invoke as $flow. -->
 
 Design refs: run `ls PRODUCT.md DESIGN.md 2>/dev/null || true`
 
-Produce a **flow artifact** for the feature/task in $ARGUMENTS — a user flow (default),
+Produce a **flow artifact** for the feature/task in Use any focus supplied in the user request. — a user flow (default),
 a sitemap, or a journey map if named. Design deliverables, not chat.
 
 1. **Resolve the subject & type** — a described feature/task or a spec path, and which

@@ -1,8 +1,9 @@
 ---
-# GENERATED from commands/worktrees.md by render-commands.sh — do not edit. Invoke as /prompts:worktrees
-description: Set up parallel-agent git worktrees and converge them into one live dev tree
-argument-hint: [agent names, e.g. "claude codex gemini"]
+name: "worktrees"
+description: "Set up parallel-agent git worktrees and converge them into one live dev tree"
 ---
+
+<!-- GENERATED from commands/worktrees.md by render-commands.sh — do not edit. Invoke as $worktrees. -->
 
 Current state:
 - Repo root: run `git rev-parse --show-toplevel 2>/dev/null`
@@ -11,7 +12,7 @@ Current state:
 
 Set up isolated worktrees so several AI agents can work this repo in parallel,
 then converge their branches into a single **integration** tree that one dev
-server watches — so I see everyone's changes near-live. $ARGUMENTS are the agent
+server watches — so I see everyone's changes near-live. Use any focus supplied in the user request. are the agent
 names (default: `claude codex gemini`).
 
 Steps:

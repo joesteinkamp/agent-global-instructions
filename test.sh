@@ -357,15 +357,15 @@ if command -v jq >/dev/null 2>&1; then
   # Faithful dialect transforms — ship-specific positives plus invariants across
   # ALL ports (so a regression on sync/tidy/verify/... is caught, not just ship).
   ft=1
-  grep -q '\$ARGUMENTS'     "$DIR/commands/codex/ship.md"    || ft=0   # codex keeps $ARGUMENTS
-  grep -q 'run `git branch' "$DIR/commands/codex/ship.md"    || ft=0   # !`cmd` -> run `cmd`
+  grep -q '^name: "ship"'  "$DIR/commands/codex/ship/SKILL.md" || ft=0 # Codex skill metadata
+  grep -q 'run `git branch' "$DIR/commands/codex/ship/SKILL.md" || ft=0 # !`cmd` -> run `cmd`
   grep -q '{{args}}'        "$DIR/commands/gemini/ship.toml"  || ft=0   # gemini $ARGUMENTS -> {{args}}
   grep -q '!{git branch'    "$DIR/commands/gemini/ship.toml"  || ft=0   # gemini !`cmd` -> !{cmd}
   head -1 "$DIR/commands/cursor/ship.md" | grep -q '^<!--'    || ft=0   # cursor: no frontmatter
-  for cf in "$DIR"/commands/codex/*.md; do
+  for cf in "$DIR"/commands/codex/*/SKILL.md; do
     grep -q '^allowed-tools' "$cf" && ft=0                              # allowed-tools dropped everywhere
     grep -qF '!`' "$cf" && ft=0                                          # no leftover !`cmd` injection
-    grep -q '^# GENERATED' "$cf" || ft=0                                 # marker is in frontmatter, not body
+    grep -q '^<!-- GENERATED' "$cf" || ft=0                               # marker is in the skill body
   done
   for gf in "$DIR"/commands/gemini/*.toml; do
     grep -q '\$ARGUMENTS' "$gf" && ft=0                                  # every $ARGUMENTS -> {{args}}
@@ -390,7 +390,7 @@ if command -v jq >/dev/null 2>&1; then
   for c in "$DIR"/commands/*.md; do
     [ "$(basename "$c")" = "README.md" ] && continue
     cn="$(basename "$c" .md)"
-    [ -f "$DIR/commands/codex/$cn.md" ]    || miss="$miss codex/$cn"
+    [ -f "$DIR/commands/codex/$cn/SKILL.md" ] || miss="$miss codex/$cn"
     [ -f "$DIR/commands/cursor/$cn.md" ]   || miss="$miss cursor/$cn"
     [ -f "$DIR/commands/gemini/$cn.toml" ] || miss="$miss gemini/$cn"
   done
@@ -521,7 +521,7 @@ PY
 
   MT="$(mktemp -d)"
   HOME="$MT" bash "$DIR/install-commands.sh" >/dev/null 2>&1
-  if [ -f "$MT/.codex/prompts/ship.md" ] && [ -f "$MT/.cursor/commands/ship.md" ] \
+  if [ -f "$MT/.codex/skills/ship/SKILL.md" ] && [ -f "$MT/.cursor/commands/ship.md" ] \
      && [ -f "$MT/.gemini/commands/ship.toml" ]; then
     ok "install-commands installs codex/cursor/gemini ports"
   else
@@ -686,7 +686,8 @@ PY
   # uninstall reverses commands/hooks/policy for all four tools.
   HOME="$MT" bash "$DIR/uninstall.sh" >/dev/null 2>&1
   u_ok=1
-  [ -f "$MT/.codex/prompts/ship.md" ]       && u_ok=0
+  [ -f "$MT/.codex/skills/ship/SKILL.md" ]   && u_ok=0
+  [ -d "$MT/.codex/skills/ship" ]            && u_ok=0   # no orphaned empty skill dir
   [ -f "$MT/.cursor/commands/ship.md" ]     && u_ok=0
   [ -f "$MT/.gemini/commands/ship.toml" ]   && u_ok=0
   jq -e '(.hooks // {}) | length > 0' "$MT/.cursor/hooks.json" >/dev/null 2>&1 && u_ok=0

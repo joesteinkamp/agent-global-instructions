@@ -108,6 +108,19 @@ remove_commands_dir() {  # $1 = dest dir  $2 = src dir  $3 = ext
   return 0
 }
 
+remove_codex_skills() {  # $1 = destination skills dir  $2 = generated source dir
+  local dest="$1" src="$2" source skill target n=0
+  [ -d "$dest" ] || return 0
+  for source in "$src"/*/SKILL.md; do
+    [ -f "$source" ] || continue
+    skill="$(basename "$(dirname "$source")")"
+    target="$dest/$skill/SKILL.md"
+    [ -f "$target" ] && { rm -f "$target"; rmdir "$dest/$skill" 2>/dev/null || true; n=$((n+1)); }
+  done
+  [ "$n" -gt 0 ] && echo "  removed $n Codex skill(s) from $dest"
+  return 0
+}
+
 # Cursor stores a top-level "version":1 beside .hooks; once our hooks are stripped
 # and no user hooks remain, drop it too (and delete an emptied file) so uninstall
 # fully reverses install rather than leaving {"version":1} behind.
@@ -147,7 +160,7 @@ if [ "$PROJECT" = 1 ]; then
   for t in "${targets[@]}"; do
     case "$t" in
       claude)      remove_commands_dir "$DIR/.claude/commands"  "$DIR/commands"        md;;
-      codex)       echo "  codex prompts are global; --project has no effect for codex";;
+      codex)       echo "  Codex skills are global; --project has no effect for codex";;
       cursor)      remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md;;
       gemini)      remove_commands_dir "$DIR/.gemini/commands"  "$DIR/commands/gemini" toml;;
       antigravity) echo "  antigravity installs no command files; --project has no effect for antigravity";;
@@ -166,7 +179,7 @@ for t in "${targets[@]}"; do
       strip_permissions_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
       ;;
     codex)
-      remove_commands_dir "$HOME/.codex/prompts" "$DIR/commands/codex" md
+      remove_codex_skills "$HOME/.codex/skills" "$DIR/commands/codex"
       strip_hooks "$HOME/.codex/hooks.json"
       strip_codex_block "$HOME/.codex/config.toml"
       ;;

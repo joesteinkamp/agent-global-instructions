@@ -63,7 +63,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `my-context.env.example` | Copy to `my-context.env` (gitignored) to save your answers. |
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
 | `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
-| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, committed snapshots so port diffs show up in review) → `install-commands.sh` installs each into its command dir (`~/.claude/commands`, `~/.codex/prompts`, `~/.cursor/commands`, `~/.gemini/commands`). |
+| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, committed snapshots so port diffs show up in review) → `install-commands.sh` installs Claude/Cursor/Gemini commands and Codex skills (`~/.codex/skills/`). |
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Gemini). |
 | `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
@@ -157,8 +157,8 @@ tokens (`$ARGUMENTS` → `{{args}}` for Gemini), and shell-injection (`` !`cmd` 
 `!{cmd}` for Gemini, → "run `cmd`" for Codex/Cursor). Those ports are **generated
 snapshots** — never hand-edit them; `./install-commands.sh` re-renders on every
 run, so hand-edits never reach your tools. `./install-commands.sh [tool ...]` re-renders, then installs
-each into the right place — Claude `~/.claude/commands/`, Codex `~/.codex/prompts/`
-(invoked `/prompts:<name>`), Cursor `~/.cursor/commands/`, Gemini
+each into the right place — Claude `~/.claude/commands/`, Codex skills under
+`~/.codex/skills/` (invoked `$<name>`), Cursor `~/.cursor/commands/`, Gemini
 `~/.gemini/commands/` (`.toml`). Add a command once as `commands/<name>.md` and
 all four tools pick it up.
 

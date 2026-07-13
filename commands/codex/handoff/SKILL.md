@@ -1,13 +1,14 @@
 ---
-# GENERATED from commands/handoff.md by render-commands.sh — do not edit. Invoke as /prompts:handoff
-description: Developer handoff for a screen/route — states, tokens, a11y, and acceptance criteria
-argument-hint: [route/url, Figma node, or component + optional focus]
+name: "handoff"
+description: "Developer handoff for a screen/route — states, tokens, a11y, and acceptance criteria"
 ---
+
+<!-- GENERATED from commands/handoff.md by render-commands.sh — do not edit. Invoke as $handoff. -->
 
 Changed files: run `git --no-pager diff --stat HEAD 2>/dev/null`
 Design refs: run `ls DESIGN.json DESIGN.md PRODUCT.md 2>/dev/null || true`
 
-Build a **developer handoff** for the screen/component in $ARGUMENTS — the spec a
+Build a **developer handoff** for the screen/component in Use any focus supplied in the user request. — the spec a
 front-end engineer implements against. Not a review (that's `/improve`) and not a
 QA pass (that's `/verify`): this is the *contract*. Pull from real references when
 they exist and mark anything unavailable **N/A** — never invent.

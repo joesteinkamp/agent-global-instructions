@@ -63,8 +63,8 @@ marker="$state_dir/.verify-nudge.$key"
 [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$fp" ] && exit 0
 printf '%s' "$fp" > "$marker" 2>/dev/null || true
 
-# Codex invokes the ported command as /prompts:verify, not /verify.
-case "$PLATFORM" in codex) nudgecmd="/prompts:verify";; *) nudgecmd="/verify";; esac
+# Codex invokes the ported workflow as a skill, not a slash command.
+case "$PLATFORM" in codex) nudgecmd='$verify';; *) nudgecmd="/verify";; esac
 reason="UI/route change detected (${nfiles} file(s)) with no fresh verify report. Before finishing, run ${nudgecmd} to prove it renders and matches the design/briefs — or tell me you've intentionally skipped it."
 case "$PLATFORM" in
   claude) jq -nc --arg r "$reason" '{decision:"block",reason:$r}'; exit 0;;

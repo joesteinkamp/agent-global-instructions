@@ -1,14 +1,15 @@
 ---
-# GENERATED from commands/improve.md by render-commands.sh — do not edit. Invoke as /prompts:improve
-description: Run a multi-role review team on recent changes to find improvement opportunities
-argument-hint: [optional focus, e.g. "perf" or a path]
+name: "improve"
+description: "Run a multi-role review team on recent changes to find improvement opportunities"
 ---
+
+<!-- GENERATED from commands/improve.md by render-commands.sh — do not edit. Invoke as $improve. -->
 
 Changed files: run `git --no-pager diff --stat HEAD 2>/dev/null`
 Untracked: run `git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
 Recent commits: run `git --no-pager log --oneline -5 2>/dev/null`
 
-Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). $ARGUMENTS
+Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). Use any focus supplied in the user request.
 
 1. Scope the changes and decide whether they touch UI.
 2. Spin up the review team **in parallel** — one subagent per lens (Task/Agent tool):

@@ -1,19 +1,20 @@
 ---
-# GENERATED from commands/audit.md by render-commands.sh — do not edit. Invoke as /prompts:audit
-description: UX/design audit of a screen — ux-audit skill when available, else an inline heuristic audit; serves the report
-argument-hint: [screenshot path(s) or design, + optional focus]
+name: "audit"
+description: "UX/design audit of a screen — ux-audit skill when available, else an inline heuristic audit; serves the report"
 ---
 
-Run a UX/design audit. $ARGUMENTS
+<!-- GENERATED from commands/audit.md by render-commands.sh — do not edit. Invoke as $audit. -->
 
-1. Resolve the target screenshot(s) from $ARGUMENTS — explicit file path(s), a
+Run a UX/design audit. Use any focus supplied in the user request.
+
+1. Resolve the target screenshot(s) from Use any focus supplied in the user request. — explicit file path(s), a
    directory, or the most recent screenshot if none were given.
 2. If the **`ux-audit`** skill is available to you (Claude Code, installed at
    `~/.claude/skills/ux-audit`; repo: github.com/joesteinkamp/ux-audit-skill —
    install with `ln -s <repo> ~/.claude/skills/ux-audit`), run it: it scores
    the UI 0–100 against 15 UX heuristic frameworks with annotated screenshots.
    Answer its intake (design goal, target persona, platform, artifact stage)
-   from $ARGUMENTS and surrounding context; ask me only what genuinely can't
+   from Use any focus supplied in the user request. and surrounding context; ask me only what genuinely can't
    be inferred.
    **If that skill isn't available** (any tool without it), run the audit
    inline instead. First confirm you can actually view the image(s) — if you

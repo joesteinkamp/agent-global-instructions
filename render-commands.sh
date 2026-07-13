@@ -11,9 +11,10 @@
 # re-render. The ports are committed so port diffs show up in review.
 #
 # Translation rules (canonical -> port):
-#   - frontmatter: description kept everywhere; argument-hint kept for codex;
+#   - frontmatter: description kept everywhere; Codex receives skill-compatible
+#     name/description metadata;
 #     allowed-tools dropped (Claude-only — other tools govern tools elsewhere).
-#   - $ARGUMENTS: kept for codex; -> {{args}} for gemini; kept (with a note) for
+#   - $ARGUMENTS: translated to request context for Codex skills; -> {{args}} for gemini; kept (with a note) for
 #     cursor (no placeholder — it appends typed input).
 #   - !`cmd` shell-injection: -> !{cmd} for gemini (native); -> run `cmd` for
 #     codex/cursor (no injection — tell the agent to run it).
@@ -53,9 +54,10 @@ fm_body() {  # $1 = file  -> body after the frontmatter (leading blanks trimmed)
 
 # --- body dialect transforms (single-quoted sed: backticks/$ are literal) ----
 to_gemini_body() { sed -e 's/!`\([^`]*\)`/!{\1}/g' -e 's/\$ARGUMENTS/{{args}}/g'; }
-to_norun_body()  { sed -e 's/!`\([^`]*\)`/run `\1`/g'; }   # codex + cursor: keep $ARGUMENTS
+to_norun_body()  { sed -e 's/!`\([^`]*\)`/run `\1`/g'; }
+to_codex_skill_body() { to_norun_body | sed 's/\$ARGUMENTS/Use any focus supplied in the user request./g'; }
 
-toml_escape() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }      # for TOML "..." basic strings
+dq_escape() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }         # for TOML/YAML "..." double-quoted strings
 
 # Write stdin to a destination atomically (temp + mv) so a mid-render failure
 # never leaves a truncated/empty port file. The temp goes in the destination's
@@ -75,6 +77,9 @@ mkdir -p "$SRC/codex" "$SRC/cursor" "$SRC/gemini"
 # Sweep any orphaned temp from a previously-interrupted run (prune_dir only globs
 # *.md/*.toml, so these hidden .cmd.* files would otherwise linger uncommitted).
 rm -f "$SRC"/codex/.cmd.* "$SRC"/cursor/.cmd.* "$SRC"/gemini/.cmd.* 2>/dev/null || true
+# Codex used to receive flat custom-prompt files here. They are unsupported in
+# current Codex; remove only these generated port artifacts during migration.
+rm -f "$SRC"/codex/*.md
 # Stale-port cleanup happens AFTER a successful render (prune_dir below), not
 # before — so an aborted render can never empty the committed port dirs (that
 # emptied codex/cursor/gemini and silently installed zero commands).
@@ -106,18 +111,17 @@ for f in "$SRC"/*.md; do
     *"'''"*) echo "render-commands: commands/$base body contains ''' — breaks the Gemini TOML literal string. Aborting." >&2; exit 1;;
   esac
 
-  # --- Codex: ~/.codex/prompts/<name>.md (invoke /prompts:<name>) ---
-  # Generated marker lives in the YAML frontmatter (a comment Codex ignores), so
-  # it isn't sent to the model as body text.
+  # --- Codex: ~/.codex/skills/<name>/SKILL.md (invoke $<name>) ---
+  mkdir -p "$SRC/codex/$name"
   {
     printf -- '---\n'
-    printf '# GENERATED from commands/%s by render-commands.sh — do not edit. Invoke as /prompts:%s\n' "$base" "$name"
-    printf 'description: %s\n' "$desc"
-    [ -n "$arghint" ] && printf 'argument-hint: %s\n' "$arghint"
+    printf 'name: "%s"\n' "$(printf '%s' "$name" | dq_escape)"
+    printf 'description: "%s"\n' "$(printf '%s' "$desc" | dq_escape)"
     printf -- '---\n\n'
-    printf '%s\n' "$body" | to_norun_body
-  } | emit "$SRC/codex/$base"
-  gen_codex="$gen_codex$base "
+    printf '<!-- GENERATED from commands/%s by render-commands.sh — do not edit. Invoke as $%s. -->\n\n' "$base" "$name"
+    printf '%s\n' "$body" | to_codex_skill_body
+  } | emit "$SRC/codex/$name/SKILL.md"
+  gen_codex="$gen_codex$name "
 
   # --- Cursor: ~/.cursor/commands/<name>.md (plain markdown, no frontmatter) ---
   {
@@ -132,7 +136,7 @@ for f in "$SRC"/*.md; do
   # --- Gemini: ~/.gemini/commands/<name>.toml ---
   {
     printf '# GENERATED from commands/%s by render-commands.sh — do not edit.\n' "$base"
-    printf 'description = "%s"\n\n' "$(printf '%s' "$desc" | toml_escape)"
+    printf 'description = "%s"\n\n' "$(printf '%s' "$desc" | dq_escape)"
     printf "prompt = '''\n"
     printf '%s\n' "$body" | to_gemini_body
     printf "'''\n"
@@ -144,7 +148,23 @@ done
 
 # Now that every port rendered successfully, drop any stale port whose canonical
 # command was removed/renamed (safe — only runs on a complete render).
-prune_dir "$SRC/codex"  md   "$gen_codex"
+# Codex skills are directories, unlike the flat Cursor/Gemini ports. Only remove
+# a directory this script actually generated (marker check) — never rm -rf a
+# hand-authored or WIP directory someone dropped under commands/codex/.
+for d in "$SRC/codex"/*; do
+  [ -d "$d" ] || continue
+  base="$(basename "$d")"
+  case "$gen_codex" in
+    *" $base "*) ;;
+    *)
+      if [ -f "$d/SKILL.md" ] && grep -q '^<!-- GENERATED from commands/' "$d/SKILL.md" 2>/dev/null; then
+        rm -rf "$d"
+      else
+        echo "render-commands: skipping non-generated commands/codex/$base/ (no GENERATED marker) — leaving it in place" >&2
+      fi
+      ;;
+  esac
+done
 prune_dir "$SRC/cursor" md   "$gen_cursor"
 prune_dir "$SRC/gemini" toml "$gen_gemini"
 

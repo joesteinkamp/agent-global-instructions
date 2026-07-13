@@ -1,7 +1,9 @@
 ---
-# GENERATED from commands/tidy.md by render-commands.sh — do not edit. Invoke as /prompts:tidy
-description: Run the project's formatter, linter, and tests; fix what's safe
+name: "tidy"
+description: "Run the project's formatter, linter, and tests; fix what's safe"
 ---
+
+<!-- GENERATED from commands/tidy.md by render-commands.sh — do not edit. Invoke as $tidy. -->
 
 Tidy up the code in this project.
 

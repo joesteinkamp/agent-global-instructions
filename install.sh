@@ -10,7 +10,7 @@
 #
 # Layers (each applied to whichever targets you name):
 #   - instructions (customize.sh --global): all tools, always — the portable core.
-#   - commands (install-commands.sh):       per tool (~/.claude, ~/.codex/prompts, ~/.cursor, ~/.gemini).
+#   - commands (install-commands.sh):       per tool (~/.claude, ~/.codex/skills, ~/.cursor, ~/.gemini).
 #   - hooks (install-hooks.sh):             per tool.
 #   - settings/permissions (install-settings.sh): per tool (native model differs; see that script).
 #

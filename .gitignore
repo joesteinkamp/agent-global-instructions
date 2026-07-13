@@ -8,15 +8,17 @@ mcp-rules.local
 .ai-logs/
 
 # Generated review/audit/verify + design-command artifacts — local, never commit
-review/
-audits/
-verify/
-handoff/
-critiques/
-flows/
+# (anchored to repo root: unanchored patterns would also match the committed
+# commands/codex/verify/ and commands/codex/handoff/ skill port directories)
+/review/
+/audits/
+/verify/
+/handoff/
+/critiques/
+/flows/
 
 # Per-tool port research notes (agent scratch) — local, never commit
-ports/
+/ports/
 
 # converge.sh conflict markers — transient, written into the integration tree
 .converge-conflict-*

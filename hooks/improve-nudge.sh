@@ -42,8 +42,8 @@ marker="$state_dir/.improve-nudge.$key"
 [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$fp" ] && exit 0
 printf '%s' "$fp" > "$marker" 2>/dev/null || true
 
-# Codex invokes the ported command as /prompts:improve, not /improve.
-case "$PLATFORM" in codex) nudgecmd="/prompts:improve";; *) nudgecmd="/improve";; esac
+# Codex invokes the ported workflow as a skill, not a slash command.
+case "$PLATFORM" in codex) nudgecmd='$improve';; *) nudgecmd="/improve";; esac
 reason="Larger change detected (${files} files, ${lines} lines vs HEAD). Before finishing, run the improvement review (${nudgecmd}) to surface improvement opportunities — or tell me you've intentionally skipped it."
 case "$PLATFORM" in
   claude) jq -nc --arg r "$reason" '{decision:"block",reason:$r}'; exit 0;;

@@ -1,7 +1,9 @@
 ---
-# GENERATED from commands/sync.md by render-commands.sh — do not edit. Invoke as /prompts:sync
-description: Update the default branch and rebase the current branch on it
+name: "sync"
+description: "Update the default branch and rebase the current branch on it"
 ---
+
+<!-- GENERATED from commands/sync.md by render-commands.sh — do not edit. Invoke as $sync. -->
 
 Current state:
 - Branch: run `git branch --show-current`

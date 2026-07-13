@@ -14,6 +14,28 @@ only after human approval (see the `changelog` instruction section and the
 - In [customize.sh](file:///home/jsteinka/projects/agent-global-instructions/customize.sh): Clarified other section prompts by adding descriptive/explanatory details for "design system & UI", "project-specific instructions", "documentation first", "when I say you did wrong", and "change log".
 
 ### Fixed
+- **Completed the Codex slash-commands → Skills migration.** Codex doesn't
+  support custom slash commands like Claude Code does — only Skills (a
+  directory per skill: `SKILL.md`, invoked `$<name>`). Finished the in-progress
+  port: `render-commands.sh` generates `commands/codex/<name>/SKILL.md`,
+  `install-commands.sh`/`uninstall.sh` install/remove them at
+  `~/.codex/skills/<name>/`, and the `verify`/`improve` nudge hooks point at
+  `$verify`/`$improve`. Fixed a `.gitignore` bug where unanchored `verify/` and
+  `handoff/` patterns (meant for local generated review-artifact dirs) were
+  silently excluding the new `commands/codex/verify/` and
+  `commands/codex/handoff/` skill directories from git — anchored those
+  patterns (and `ports/`) to the repo root. A follow-up review then found the
+  new directory-based install/uninstall logic had reused file-oriented
+  cleanup code that didn't fully account for directories: retired/renamed
+  skills never got uninstalled (self-heals now, mirroring how the other three
+  tools prune `RETIRED` names); the repo-side prune loop did an unguarded
+  `rm -rf` on any non-generated directory dropped under `commands/codex/`
+  (now gated on the `GENERATED` marker); uninstall/prune left an empty skill
+  directory behind (now `rmdir`'d); and a skill description containing a
+  `"` would have silently corrupted the generated YAML frontmatter (now
+  escaped, matching the existing Gemini/TOML handling). 89 tests still pass;
+  +1 assertion locks in the empty-dir cleanup.
+
 - **/audit portable fallback + design-group prune hardening.** `/audit` now runs
   an inline heuristic audit (Nielsen, Gestalt, WCAG 2.2 AA, Fitts/Hick/Miller,
   dark patterns; view-the-image guard so a vision-less tool stops instead of

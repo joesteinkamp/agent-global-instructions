@@ -1,8 +1,9 @@
 ---
-# GENERATED from commands/verify.md by render-commands.sh — do not edit. Invoke as /prompts:verify
-description: Prove a change works and is true to spec — run it, drive it in a browser, check it against the project briefs
-argument-hint: [optional route/url, focus, or acceptance note]
+name: "verify"
+description: "Prove a change works and is true to spec — run it, drive it in a browser, check it against the project briefs"
 ---
+
+<!-- GENERATED from commands/verify.md by render-commands.sh — do not edit. Invoke as $verify. -->
 
 Changed files: run `git --no-pager diff --stat HEAD 2>/dev/null`
 Untracked: run `git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
@@ -11,7 +12,7 @@ Prior runs: run `ls -dt verify/*/ 2>/dev/null | head -3 || true`
 
 **Verify** the recent change — don't review it for taste (that's `/improve`), **prove** it does what it
 should and is true to the design and the briefs. This is evidence, not opinion: run it, drive it,
-screenshot it, diff it. $ARGUMENTS
+screenshot it, diff it. Use any focus supplied in the user request.
 
 Run the lenses below. Each emits **PASS / FAIL / N/A** with attached evidence. A lens with no reference or
 no capability is **N/A** — skip it, never block on it. For long or independent lenses, fan out with

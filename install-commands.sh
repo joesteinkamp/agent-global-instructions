@@ -19,7 +19,7 @@
 #
 # Per-tool source + destination:
 #   claude  commands/*.md          -> ~/.claude/commands/   (project: ./.claude/commands/)
-#   codex   commands/codex/*.md    -> ~/.codex/prompts/     (global only; invoke /prompts:<name>)
+#   codex   commands/codex/*/SKILL.md -> ~/.codex/skills/   (global only; invoke $<name>)
 #   cursor  commands/cursor/*.md   -> ~/.cursor/commands/   (project: ./.cursor/commands/)
 #   gemini  commands/gemini/*.toml -> ~/.gemini/commands/   (project: ./.gemini/commands/)
 #   antigravity                    -> skipped (separate tool; hooks-only, see install-hooks.sh)
@@ -166,14 +166,51 @@ install_dir() {  # $1=label  $2=src dir  $3=ext  $4=dest dir
   echo "  $label -> $dest ($n command(s))"
 }
 
+install_codex_skills() {
+  local src="$SRC/codex" dest="$HOME/.codex/skills" skill source target rc n=0 gen=" "
+  mkdir -p "$dest"
+  for source in "$src"/*/SKILL.md; do
+    [ -f "$source" ] || continue
+    skill="$(basename "$(dirname "$source")")"
+    gen="$gen$skill "
+    target="$dest/$skill/SKILL.md"
+    rc=0; cmd_wanted "$skill" || rc=$?
+    if [ "$rc" != 0 ]; then
+      if [ "$rc" = 1 ] && [ -f "$target" ]; then
+        rm -f "$target"; rmdir "$dest/$skill" 2>/dev/null || true
+      fi
+      continue
+    fi
+    mkdir -p "$(dirname "$target")"
+    if [ -f "$target" ] && ! cmp -s "$source" "$target"; then backup_file "$target"; echo "  backed up your edited $skill skill"; fi
+    cp "$source" "$target"; n=$((n+1))
+  done
+  # Prune an installed skill whose canonical command was renamed/removed (self-heal
+  # across `git pull && install`, same intent as install_dir's RETIRED list) — only
+  # ever remove one we generated (GENERATED marker), never a hand-authored skill.
+  for target in "$dest"/*/SKILL.md; do
+    [ -f "$target" ] || continue
+    skill="$(basename "$(dirname "$target")")"
+    case "$gen" in *" $skill "*) continue;; esac
+    grep -q '^<!-- GENERATED from commands/' "$target" 2>/dev/null || continue
+    rm -f "$target"; rmdir "$dest/$skill" 2>/dev/null || true
+    echo "  removed retired \$$skill skill"
+  done
+  for source in "$HOME/.codex/prompts"/*.md; do
+    [ -f "$source" ] || continue
+    if grep -q '^# GENERATED from commands/' "$source"; then rm -f "$source"; fi
+  done
+  echo "  codex -> $dest ($n skill(s); invoke \$<name>)"
+}
+
 for t in "${targets[@]}"; do
   case "$t" in
     claude)
       if [ "$PROJECT" = 1 ]; then d="$DIR/.claude/commands"; else d="$HOME/.claude/commands"; fi
       install_dir claude "$SRC" md "$d";;
     codex)
-      install_dir codex "$SRC/codex" md "$HOME/.codex/prompts"
-      [ "$PROJECT" = 1 ] && echo "  (codex prompts are global; --project has no effect for codex)";;
+      install_codex_skills
+      [ "$PROJECT" = 1 ] && echo "  (Codex skills are global; --project has no effect for codex)";;
     cursor)
       if [ "$PROJECT" = 1 ]; then d="$DIR/.cursor/commands"; else d="$HOME/.cursor/commands"; fi
       install_dir cursor "$SRC/cursor" md "$d";;
@@ -184,4 +221,4 @@ for t in "${targets[@]}"; do
       echo "  antigravity: command install not supported here (Antigravity CLI is a separate tool); skipped — its hooks are wired by install-hooks.sh";;
   esac
 done
-echo "Done. Type / in each tool to see the commands (Codex: /prompts:<name>)."
+echo "Done. Type / in each tool to see the commands (Codex: use \$<name>)."

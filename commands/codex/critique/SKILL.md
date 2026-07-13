@@ -1,12 +1,13 @@
 ---
-# GENERATED from commands/critique.md by render-commands.sh — do not edit. Invoke as /prompts:critique
-description: Pre-pixel heuristic critique of a flow, spec, or idea — severity-ranked findings with citations
-argument-hint: [path to a spec/flow doc, or describe the flow]
+name: "critique"
+description: "Pre-pixel heuristic critique of a flow, spec, or idea — severity-ranked findings with citations"
 ---
+
+<!-- GENERATED from commands/critique.md by render-commands.sh — do not edit. Invoke as $critique. -->
 
 Design refs: run `ls PRODUCT.md DESIGN.md 2>/dev/null || true`
 
-**Critique** the flow, spec, or idea in $ARGUMENTS *before there are pixels*. This is
+**Critique** the flow, spec, or idea in Use any focus supplied in the user request. *before there are pixels*. This is
 the pre-pixel complement to `/audit` (which needs a screenshot) and `/verify` (which
 needs a running app): reason about the concept, the flow logic, and the copy — not the
 rendering. (To *generate* a flow rather than critique one, use `/flow`.)
