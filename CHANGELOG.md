@@ -9,6 +9,21 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
+### Added
+- **Vendored `grill-me` / `grill-with-docs` Skills across all 4 tools.** Installed
+  [mattpocock/skills.sh](https://skills.sh)'s `grill-me` and `grill-with-docs`
+  (pre-build "grilling" interviews that stress-test a plan one question at a
+  time) plus their required primitives `grilling` and `domain-modeling` via
+  `npx skills`, project-scoped so they ship with the repo: `.claude/skills/`
+  for Claude Code, and the shared Agent-Skills-standard `.agents/skills/` for
+  Codex, Cursor, and Gemini CLI — 4-way parity, matching the existing
+  `commands/` convention. `grill-me` is stateless (nothing persists past the
+  conversation); `grill-with-docs` runs the same interview but writes durable
+  ADRs and a glossary via `domain-modeling`. One `skills-lock.json` pins each
+  skill's upstream source path + content hash; re-sync anytime with
+  `npx skills update` from the repo root. Documented in README's "What's
+  here" table.
+
 ### Changed
 - Clarify the prompt for the "improve after larger changes" section in [customize.sh](file:///home/jsteinka/projects/agent-global-instructions/customize.sh) by rewriting it to "Include 'auto run improve command after larger changes' section?".
 - In [customize.sh](file:///home/jsteinka/projects/agent-global-instructions/customize.sh): Clarified other section prompts by adding descriptive/explanatory details for "design system & UI", "project-specific instructions", "documentation first", "when I say you did wrong", and "change log".
