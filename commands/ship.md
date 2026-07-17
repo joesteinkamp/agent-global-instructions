@@ -19,12 +19,18 @@ First, figure out which forge this repo lives on, from the `origin` remote URL a
 
 Steps:
 1. If there are no changes and nothing unpushed, say so and stop.
-2. Stage everything (`git add -A`).
-3. Commit with a concise message that follows this repo's existing convention
+2. **Tidy gate.** Detect the project's tooling — `package.json` scripts, or
+   configs like prettier/eslint/ruff/black/gofmt/rubocop, a `Makefile`, etc.
+   (same detection as `/tidy`). Run, in order: formatter → linter → tests.
+   Auto-fix what's safe (formatting, lint autofixes). If linting or tests still
+   fail after autofix, **stop here** and report what failed — do not commit
+   broken code. (No project tooling detected → skip this step.)
+3. Stage everything (`git add -A`).
+4. Commit with a concise message that follows this repo's existing convention
    (check `git log --oneline -5`). If I passed text in $ARGUMENTS, use it as the
    message/title; otherwise generate one from the diff.
-4. Push, setting upstream if the branch has none.
-5. Figure out the default branch. Prefer a forge-independent lookup so this works
+5. Push, setting upstream if the branch has none.
+6. Figure out the default branch. Prefer a forge-independent lookup so this works
    anywhere: `git symbolic-ref --short refs/remotes/origin/HEAD` (strip the
    `origin/` prefix), falling back to `git remote show origin` ("HEAD branch").
    - **If the current branch IS the default branch:** stop here — committed and pushed.
@@ -33,6 +39,6 @@ Steps:
      - GitHub: `gh pr create …`, then `gh pr merge --squash --delete-branch`.
      - GitLab: `glab mr create …`, then `glab mr merge --squash --remove-source-branch`.
      After merge, `git checkout` the default branch and `git pull`.
-6. If the merge is blocked (failing checks, conflicts, branch protection), stop
+7. If the merge is blocked (failing checks, conflicts, branch protection), stop
    and report exactly what blocked it — do not force anything.
-7. Report what happened: commit hash, push, PR/MR URL, merge result.
+8. Report what happened: tidy results (if run), commit hash, push, PR/MR URL, merge result.

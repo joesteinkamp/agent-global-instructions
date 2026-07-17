@@ -25,6 +25,14 @@ only after human approval (see the `changelog` instruction section and the
   here" table.
 
 ### Changed
+- **Fold `/tidy` into `/ship`'s pre-commit gate.** Added a tidy step (format →
+  lint → test, stop if broken) as step 2 of `/ship`, so the lint/test gate runs
+  automatically before every commit instead of requiring a separate `/tidy`
+  invocation to remember. Re-rendered the Codex/Cursor/Gemini ports and updated
+  `commands/README.md`'s `/ship` description to match. Motivated by a review of
+  which of the 10 slash commands actually need to be memorized vs. run
+  automatically — `/verify` and `/improve` already self-trigger via Stop-hook
+  nudges; `/tidy` was the one gap.
 - Clarify the prompt for the "improve after larger changes" section in [customize.sh](file:///home/jsteinka/projects/agent-global-instructions/customize.sh) by rewriting it to "Include 'auto run improve command after larger changes' section?".
 - In [customize.sh](file:///home/jsteinka/projects/agent-global-instructions/customize.sh): Clarified other section prompts by adding descriptive/explanatory details for "design system & UI", "project-specific instructions", "documentation first", "when I say you did wrong", and "change log".
 
