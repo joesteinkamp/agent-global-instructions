@@ -447,7 +447,7 @@ fi
 
 INC_WORKTREES="$(ask_one 'Include "parallel AI models on one repo" (worktrees) section?' "y/n" "$INC_WORKTREES")"; INC_WORKTREES="${INC_WORKTREES:0:1}"
 
-INC_IMPROVE="$(ask_one 'Include "auto run improve command after larger changes" section?' "y/n" "$INC_IMPROVE")"; INC_IMPROVE="${INC_IMPROVE:0:1}"
+INC_IMPROVE="$(ask_one 'Include "when to verify & improve (auto-run on larger asks)" section?' "y/n" "$INC_IMPROVE")"; INC_IMPROVE="${INC_IMPROVE:0:1}"
 INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n" "$INC_TOOLS")"; INC_TOOLS="${INC_TOOLS:0:1}"
 if [ "$INC_TOOLS" = "y" ]; then
   DO_SCAN="$(ask_one 'Scan this machine'\''s MCP servers and add usage rules?' "y/n" "n")"

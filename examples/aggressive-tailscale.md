@@ -46,11 +46,19 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Converge continuously:** fold each `ai/*` branch into `integration` as it advances (a short-interval auto-merge loop); hot-reload then surfaces every agent's changes near-live. Liveness tracks commit cadence — commit WIP often. On a merge conflict, stop and surface it; never auto-resolve.
 - **Scope agents to disjoint areas** (feature / dir / route) so merges stay clean, and give one owner the lockfiles / migrations / generated files. When supported, a dedicated **integrator agent** can run the loop and resolve conflicts.
 
-## Improve after larger changes
+## When to verify & improve
 
-- **After a larger code change (~8+ files or ~200+ lines), run a multi-role review team** to find improvement opportunities before treating the work as done — don't wait for me to ask.
-- **Default panel:** technical architect, back-end engineer, front-end engineer, plus a UI/UX lens when UI changed. Run them in parallel as subagents; each returns concrete, prioritized suggestions (`file:line` + fix). Then dedupe and summarize, top impact first.
-- It's a review pass — surface opportunities and any real bugs; don't apply changes unless I say so.
+Size the work to the **ask** (my opening request), not just the diff it produces, and set the default before you start:
+
+- **Large / greenfield** — project setup or first build-out, a new feature, or a big refactor: when the work is done, **automatically run `/verify` (prove it works + product-grade evaluation) and `/improve` (multi-role review)**, then hand me the results and a ready-to-apply plan. Don't wait for me to ask — and don't apply fixes without my go-ahead.
+- **Applying changes I already approved** — the fixes/improvements from a prior verify or improve pass ("yes, do those"): just make them and confirm. **Don't re-run** verify/improve on the result — that review already happened, and re-running loops. Before finishing, drop the backstop's skip markers so the Stop-hook nudges don't re-fire:
+  `d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"; mkdir -p "$d"; touch "$d/.nudge-skip-verify.$k" "$d/.nudge-skip-improve.$k"`
+- **Mid-size iteration** — changing or extending existing behavior: **ask me up front** — "when this is done, want me to run `/verify` and/or `/improve`?" — and honor the answer.
+- **Trivial** — a typo, one-liner, or docs-only change: neither, unless I ask.
+
+**The review itself (`/improve`):** default panel — technical architect, back-end engineer, front-end engineer, plus a UI/UX lens when UI changed. Run them in parallel as subagents; each returns concrete, prioritized suggestions (`file:line` + fix). Then dedupe and summarize, top impact first. It's a review pass — surface opportunities and any real bugs; don't apply changes unless I say so.
+
+**Backstop:** even on a smaller ask, if the change grows past ~8 files / ~200 lines or touches UI, treat it as large and verify/improve before calling it done — the `improve-nudge` / `verify-nudge` Stop hooks enforce this if you forget.
 
 ## Tools & MCP servers
 

@@ -18,11 +18,27 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `guard-bash.sh`  | shell tool (before) | Trips on `rm -r` targeting root/home/parent **as a whole token** (so `rm -rf /tmp/build` and `rm -rf node_modules` pass), and on force-pushes — `--force`, a `-f` flag, or a `+refspec` (allows `--force-with-lease`). |
 | `format-edited.sh` | edit tools (after) | Auto-formats the edited file with the project's Prettier/ESLint. Never blocks. |
 | `log-tool.sh` | every tool (before + after) | **Observability** — appends one JSONL record per tool event to an audit log. Never blocks. |
-| `improve-nudge.sh` | turn end (Stop) | When a turn ends with a **larger** diff (≥ `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`, default 8/200), nudges the agent to run `/improve`. Fires once (loop-guarded). Claude/Codex (exit-2 or `block`), Cursor (`followup_message`) — Gemini has no per-turn Stop event. |
+| `improve-nudge.sh` | turn end (Stop) | When a turn ends with a **larger** diff (≥ `IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`, default 8/200), nudges the agent to run `/improve`. Fires once (loop-guarded); honors the `.nudge-skip-improve.<key>` marker (see below). Claude/Codex (exit-2 or `block`), Cursor (`followup_message`) — Gemini has no per-turn Stop event. |
+| `verify-nudge.sh` | turn end (Stop) | When a turn ends with a **UI/route** change (`VERIFY_UI_RE`) and no `verify/*/report.html` newer than the changed files, nudges the agent to run `/verify`. Fires once per diff; honors the `.nudge-skip-verify.<key>` marker (see below). Claude/Codex/Cursor — Gemini has no per-turn Stop event. |
 | `changelog-nudge.sh` | turn end (Stop) | When a session ends with any uncommitted change, reminds the agent to **propose a Change Log entry and get your approval before writing it** (never auto-writes — the human-approval gate is preserved). Once per distinct diff. Claude/Codex/Cursor; Gemini has no Stop event. Pairs with the `changelog` instruction section in `template.md`. |
 | `load-memory.sh` | session start | Injects a pointer to your **out-of-tool** memory stores (Hermes `~/.hermes/`, OpenClaw `~/.openclaw/workspace/`, project `MEMORY.md`/`memory/`) so the agent reads them before personal tasks. Lists only stores that exist; silent otherwise. Never blocks. Claude (`additionalContext`) + Cursor (`additional_context`) — the tools with SessionStart injection. Complements Claude's native auto-memory (`~/.claude/projects/<project>/memory/`), which it doesn't duplicate. |
 | `precompact-archive.sh` | before compaction (PreCompact) | Copies the **raw transcript** to `<log-dir>/transcripts/` before Claude compacts (and silently drops detail), and logs a `PreCompact` audit record. The platform forbids context injection here, so it preserves the record on disk rather than curating it. Never blocks. Claude only. |
 | `log-session-end.sh` | session end (SessionEnd) | Appends a `SessionEnd` audit record with the end reason (`clear`/`logout`/`prompt_input_exit`/`resume`/`other`), closing the trail the SessionStart loader opened. Output is ignored by the platform — pure observability. Claude only. |
+
+### Skip markers (suppressing a nudge)
+
+Both Stop nudges honor a **consume-once** skip file in `$AI_NUDGE_STATE` (default
+`~/.ai-logs`): `.nudge-skip-verify.<key>` and `.nudge-skip-improve.<key>`, where
+`<key>` is `printf '%s' "$cwd" | cksum | cut -d' ' -f1`. When present, the hook
+deletes it and stays quiet for that turn (then nudges normally again). The agent
+drops these when applying changes you already approved — a prior review's fixes —
+so the backstop doesn't re-nag work that was itself the product of a review. The
+one-liner lives in the `template.md` **"When to verify & improve"** section:
+
+```
+d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"
+mkdir -p "$d"; touch "$d/.nudge-skip-verify.$k" "$d/.nudge-skip-improve.$k"
+```
 
 ## Observability
 

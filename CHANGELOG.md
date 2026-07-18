@@ -10,6 +10,18 @@ only after human approval (see the `changelog` instruction section and the
 ## [Unreleased]
 
 ### Added
+- **Ask-aware triggering for `/verify` and `/improve`, with consume-once skip
+  markers.** Rewrote `template.md`'s improve section (now **"When to verify &
+  improve"**) so the decision keys off the *ask*, not just the resulting diff:
+  large/greenfield asks (setup, a new feature, a big refactor) **auto-run** both
+  `/verify` and `/improve` and hand back a ready-to-apply plan; applying changes
+  I already approved **skips** them (re-running loops); mid-size iteration
+  **asks up front**; trivial does neither. The `improve-nudge` / `verify-nudge`
+  Stop hooks stay as the diff-size backstop and now honor a consume-once skip
+  file in `$AI_NUDGE_STATE` — `.nudge-skip-{improve,verify}.<key>` — so applying
+  an already-reviewed change doesn't re-nag. Documented `verify-nudge` in the
+  hooks README (previously undocumented) plus the skip protocol; updated the
+  `customize.sh` section prompt; added hook tests.
 - **Vendored `grill-me` / `grill-with-docs` Skills across all 4 tools.** Installed
   [mattpocock/skills.sh](https://skills.sh)'s `grill-me` and `grill-with-docs`
   (pre-build "grilling" interviews that stress-test a plan one question at a
@@ -25,6 +37,19 @@ only after human approval (see the `changelog` instruction section and the
   here" table.
 
 ### Changed
+- **Reshape `/verify` into a product-grade evaluation.** It was a binary
+  PASS/FAIL/N/A evidence gate on the diff; now it grades the work as a product
+  increment — establishes the session's goal as the yardstick, keeps the
+  build/run/browser evidence as the floor, then grades A–F across goal fit,
+  experience quality, design/a11y, and product fit, and reconciles divergence
+  from the briefs as *intentional evolution* (docs to update) vs *drift*
+  (regression) so it never fails against stale docs.
+- **`/verify` and `/improve` report inline and prepare to act.** Both were
+  report-only; they now turn findings into a prioritized, ready-to-apply plan
+  and apply on my go-ahead (nothing edited until I approve). Both report inline
+  by default, with the self-contained HTML report offered on request (verify
+  was previously artifact-mandatory). Re-rendered the Codex/Cursor/Gemini ports
+  and updated `commands/README.md`.
 - **Fold `/tidy` into `/ship`'s pre-commit gate.** Added a tidy step (format →
   lint → test, stop if broken) as step 2 of `/ship`, so the lint/test gate runs
   automatically before every commit instead of requiring a separate `/tidy`

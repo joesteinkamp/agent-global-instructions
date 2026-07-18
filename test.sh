@@ -315,7 +315,37 @@ if command -v jq >/dev/null 2>&1; then
     vn_none="$(printf '{"cwd":"%s"}' "$VN2" | AI_NUDGE_STATE="$VN2/s" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
     [ -z "$vn_none" ] && ok "verify-nudge stays quiet for a non-UI change" \
                       || bad "verify-nudge stays quiet for a non-UI change"
-    rm -rf "$VN" "$VN2"
+
+    # Skip marker: applying changes I already approved suppresses the backstop
+    # nudge (consume-once, per-hook), then the next turn nudges normally again.
+    VN3="$(mktemp -d)"; VN3S="$(mktemp -d)"
+    ( cd "$VN3" && git init -q && git config user.email t@t.t && git config user.name t \
+      && echo base > README.md && git add -A && git commit -qm init ) >/dev/null 2>&1
+    mkdir -p "$VN3/src/components"; echo ".x{}" > "$VN3/src/components/Button.css"
+    vk="$(printf '%s' "$VN3" | cksum | cut -d' ' -f1)"; touch "$VN3S/.nudge-skip-verify.$vk"
+    vn_skip="$(printf '{"cwd":"%s"}' "$VN3" | AI_NUDGE_STATE="$VN3S" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
+    if [ -z "$vn_skip" ] && [ ! -f "$VN3S/.nudge-skip-verify.$vk" ]; then
+      ok "verify-nudge honors + consumes the skip marker"
+    else
+      bad "verify-nudge honors + consumes the skip marker"
+    fi
+    vn_after="$(printf '{"cwd":"%s"}' "$VN3" | AI_NUDGE_STATE="$VN3S" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
+    printf '%s' "$vn_after" | jq -e '.decision=="block"' >/dev/null 2>&1 \
+      && ok "verify-nudge nudges again after the skip marker is consumed" \
+      || bad "verify-nudge nudges again after the skip marker is consumed"
+
+    IN="$(mktemp -d)"; INS="$(mktemp -d)"
+    ( cd "$IN" && git init -q && git config user.email t@t.t && git config user.name t \
+      && echo base > README.md && git add -A && git commit -qm init \
+      && for i in 1 2 3 4 5 6 7 8; do echo "x" > "f$i.txt"; done ) >/dev/null 2>&1
+    ik="$(printf '%s' "$IN" | cksum | cut -d' ' -f1)"; touch "$INS/.nudge-skip-improve.$ik"
+    in_skip="$(printf '{"cwd":"%s"}' "$IN" | AI_NUDGE_STATE="$INS" HOOK_PLATFORM=claude bash "$DIR/hooks/improve-nudge.sh" 2>/dev/null)"
+    if [ -z "$in_skip" ] && [ ! -f "$INS/.nudge-skip-improve.$ik" ]; then
+      ok "improve-nudge honors + consumes the skip marker"
+    else
+      bad "improve-nudge honors + consumes the skip marker"
+    fi
+    rm -rf "$VN" "$VN2" "$VN3" "$VN3S" "$IN" "$INS"
   fi
 
   # uninstall reverses hooks, permissions, and commands cleanly.
