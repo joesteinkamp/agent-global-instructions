@@ -54,11 +54,15 @@ subagents (Task) and integrate; otherwise run them in order.
 6. **Does what it claimed.** Re-run the acceptance criteria from the task / PR / issue against the running
    app. Flag any “verified” step that wasn't actually exercised — the honesty gate.
 
-**Output is an artifact.** Write `verify/<slug>-YYYY-MM-DD/` — `report.html` (self-contained: pass/fail table,
-the responsive contact sheet, visual-regression before/afters, design diffs, console logs) plus the raw
-`screenshots/`. Serve the report per my preview method (headless → static server on `0.0.0.0`, verify 200,
-hand me the URL; keep it running). Inline, give me only the **verdict + the link** — don't dump
-findings in chat.
+**Report inline by default.** Give me the results directly in chat: the **PASS / FAIL / N/A table** with a
+line of evidence per lens, FAILs called out with `file:line`, then the fix plan. Keep it tight — the table
+plus the plan, not a screenshot dump.
+
+**Offer the HTML artifact.** The visual evidence (responsive contact sheet, visual-regression before/afters,
+design diffs, console logs) doesn't fit in chat — offer to write `verify/<slug>-YYYY-MM-DD/` (`report.html`,
+self-contained, plus the raw `screenshots/`) and serve it per my preview method (headless → static server on
+`0.0.0.0`, verify 200, hand me the URL; keep it running). Produce it only if I say yes, or right away if I
+asked for the report up front.
 
 This is a verification pass — **report what passed, what failed, and what was N/A.** Then **prepare to
 act:** for every FAIL, propose a concrete fix (`file:line` + the change the evidence points to) and

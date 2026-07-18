@@ -25,5 +25,5 @@ Run a **multi-role improvement review** on the recent changes (working tree vs H
      - **Responsive & motion** — holds up at mobile/tablet/desktop; animation honors `prefers-reduced-motion`.
    Give each only the diff + the relevant files. Ask each for concrete, prioritized **improvement opportunities** (not praise), each with `file:line` and a suggested change.
 3. Collect findings, **dedupe**, group by theme, sort by impact.
-4. Present a tight summary: top opportunities first (where + why + suggested fix). Call out any real bugs separately.
+4. Present a tight summary **inline**: top opportunities first (where + why + suggested fix). Call out any real bugs separately. Offer to also write this up as a self-contained HTML report (served on `0.0.0.0` per my preview method) if I want a shareable artifact — produce it only if I say yes or asked for it up front.
 5. **Prepare to act.** Turn the findings into a prioritized, ready-to-apply plan — each item with `file:line`, the concrete change, and its expected impact — ordered so I can approve all or cherry-pick. This is still a review pass: **don't edit anything yet.** Then ask which items to apply and, on my go-ahead, make exactly those changes (nothing more).
