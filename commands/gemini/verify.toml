@@ -57,6 +57,8 @@ the responsive contact sheet, visual-regression before/afters, design diffs, con
 hand me the URL; keep it running). Inline, give me only the **verdict + the link** — don't dump
 findings in chat.
 
-This is a verification pass — **report what passed, what failed, and what was N/A.** Don't fix things
-unless I ask; if something failed, point at `file:line` and what the evidence shows.
+This is a verification pass — **report what passed, what failed, and what was N/A.** Then **prepare to
+act:** for every FAIL, propose a concrete fix (`file:line` + the change the evidence points to) and
+assemble them into a prioritized, ready-to-apply plan. **Don't fix anything yet** — ask which items to
+apply and, on my go-ahead, make exactly those changes and re-run the affected lenses to confirm the fix.
 '''
