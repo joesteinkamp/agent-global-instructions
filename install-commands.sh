@@ -11,8 +11,8 @@
 #
 # Command groups: a canonical command opts into a group with `group: <name>` in
 # its frontmatter (absent => "core", always installed). The "design" group
-# (/handoff, /critique, /flow, /audit) installs when --design is passed, or
-# automatically when your persona/INC_DESIGN wants it (asked of customize.sh);
+# (/critique, /audit) installs when --design is passed, or automatically when
+# INC_DESIGN wants it (asked of customize.sh; on by default for everyone);
 # --no-design forces it off. Ports are always generated for every command; the
 # group only decides what gets INSTALLED, and an unwanted command already present
 # is pruned so flipping your persona self-heals.
@@ -48,8 +48,8 @@ done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
 
 # Decide whether the "design" command group installs. Explicit flag wins; on
-# "auto" ask customize.sh, which applies the same PERSONA/INC_DESIGN precedence
-# used everywhere else (so we never re-parse my-context.env here). A resolver
+# "auto" ask customize.sh, which applies the same INC_DESIGN precedence (on by
+# default for everyone; so we never re-parse my-context.env here). A resolver
 # "n" fails closed (don't install), but a resolver ERROR is not an answer:
 # treating it as "off" would silently prune an installed pack on a transient
 # customize.sh failure — so warn and leave existing design commands untouched.
@@ -63,7 +63,7 @@ case "$DESIGN_FLAG" in
         [ "$dg" = y ] && want_design=1
       else
         want_design=keep
-        echo "warning: could not resolve your persona (customize.sh --design-group failed);" >&2
+        echo "warning: could not resolve the design group (customize.sh --design-group failed);" >&2
         echo "         leaving any installed design commands in place (none added). Pass --design or --no-design to force." >&2
       fi
     fi;;
@@ -109,7 +109,7 @@ fi
 
 # Command basenames we've renamed/dropped. Pruned on every install (per tool, in
 # that tool's extension) so a rename self-heals across `git pull && install`.
-RETIRED="validate"
+RETIRED="validate handoff flow"
 
 # Back up to a collision-free name (mktemp), keeping only the 5 newest backups.
 # Sets BACKUP_PATH to the created backup so callers can point the user at it.

@@ -10,7 +10,7 @@ Design refs: !`ls PRODUCT.md DESIGN.md 2>/dev/null || true`
 **Critique** the flow, spec, or idea in $ARGUMENTS *before there are pixels*. This is
 the pre-pixel complement to `/audit` (which needs a screenshot) and `/verify` (which
 needs a running app): reason about the concept, the flow logic, and the copy — not the
-rendering. (To *generate* a flow rather than critique one, use `/flow`.)
+rendering.
 
 1. **Resolve the subject** — a path to a spec/flow doc, or the flow described in the
    arguments. Read `PRODUCT.md`/`DESIGN.md` for intent, target user, and success metrics

@@ -74,6 +74,13 @@ Size the work to the **ask** (my opening request), not just the diff it produces
 - **Headless — serve over Tailscale, no local browser.** Start a webserver on `0.0.0.0` (never `127.0.0.1`), verify it returns 200, then give me `http://alex-dev.example.ts.net:PORT/`. Keep it running.
 - **Vite/Astro 403 gotcha:** binding `0.0.0.0` isn't enough — they reject an unknown `*.ts.net` Host. For `astro dev`/Vite add `vite.server.allowedHosts: ['.ts.net']`; for `astro preview` (a separate check `allowedHosts` doesn't fix) serve the build statically: `python3 -m http.server PORT --bind 0.0.0.0 --directory dist`.
 
+## Design system & UI
+
+- **Build to the system — don't reinvent it.** When the project ships design tokens (a `DESIGN.json`, a Figma library over MCP, or a `DESIGN.md`), treat them as the source of truth: pull real color, type, spacing, radius, shadow, and motion values instead of inventing hex codes and pixel values.
+- **Stay on the scales.** Use the defined type, spacing, and color scales and the project's breakpoints; don't introduce one-off values a component or two later has to reconcile.
+- **Accessible by default.** Meet WCAG 2.2 AA contrast, keep focus states visible and hit targets adequate, and honor `prefers-reduced-motion` for any animation.
+- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — fix the drift (or update the tokens), and run `/verify` before handoff.
+
 ## Project-specific instructions
 
 - **Keep per-project instructions** in this same portable format — a committed `AGENTS.md` (and/or `CLAUDE.md`) that works with any tool, not one.

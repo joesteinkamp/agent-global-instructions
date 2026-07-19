@@ -70,6 +70,13 @@ assert_has "MEM_KIND=both names the notes app"   'notes live in **Notion**'
 MEM_BLOCK='  - Hand-written bullet.' MEM_KIND=local render
 assert_has "explicit MEM_BLOCK overrides MEM_KIND" 'Hand-written bullet.'
 
+# 6c. {{EXTRAS}} splice: personal sections appear verbatim; empty leaves no
+#     leak (test 1 covers the leak half). EXTRAS is file-fed normally; the env
+#     var reaches render() directly under AIGI_NO_USER_ENV.
+EXTRAS=$'## My extra section\n\n- A machine-specific rule.' render
+assert_has "EXTRAS content is spliced into the render" '## My extra section'
+assert_has "EXTRAS bullets survive verbatim"           '- A machine-specific rule.'
+
 # 7. Every {{VAR}} placeholder in the template is substituted in a full render.
 #    (for-loop, not a while|grep pipeline — the latter exits after the first
 #    match and silently can't fail.)
@@ -155,6 +162,18 @@ echo "$out" | grep -qF 'line two'             && ok "multi-line quoted value pre
 echo "$out" | grep -qF 'EVIL=[<unset>]'       && ok "non-allowlisted key ignored" || bad "non-allowlisted key ignored"
 [ ! -e /tmp/aigi_pwned ] && ok "value is NOT executed (no code injection)" || bad "value is NOT executed (no code injection)"
 rm -f "$ENVF" /tmp/aigi_pwned
+
+# Shell env outranks the context files: run a copy of the engine beside a
+# my-context.env, once plain (file wins) and once with an explicit env var.
+PT="$(mktemp -d)"
+cp "$CUSTOMIZE" "$DIR/template.md" "$PT/"
+printf 'INC_DOCS="n"\n' > "$PT/my-context.env"
+pt_file="$(cd "$PT" && bash ./customize.sh --print 2>/dev/null | grep -cF 'Documentation first' || true)"
+pt_env="$(cd "$PT" && INC_DOCS=y bash ./customize.sh --print 2>/dev/null | grep -cF 'Documentation first' || true)"
+{ [ "$pt_file" = 0 ] && [ "$pt_env" != 0 ]; } \
+  && ok "explicit shell env var outranks my-context.env" \
+  || bad "explicit shell env var outranks my-context.env (file=$pt_file env=$pt_env)"
+rm -rf "$PT"
 
 # ---- installer smoke tests — run the installers into a throwaway HOME so a
 #      regression like "backup_file returns 1 and set -e aborts before merge"
@@ -366,14 +385,59 @@ if command -v jq >/dev/null 2>&1; then
   if HOME="$SMOKE2" bash "$DIR/install.sh" --yes --no-design claude >/dev/null 2>&1 </dev/null \
      && jq -e '.permissions.deny and .hooks.SessionStart' "$SMOKE2/.claude/settings.json" >/dev/null 2>&1 \
      && [ -f "$SMOKE2/.claude/commands/ship.md" ] \
-     && [ ! -f "$SMOKE2/.claude/commands/handoff.md" ] \
-     && [ -f "$SMOKE2/.claude/CLAUDE.md" ] \
+     && [ ! -f "$SMOKE2/.claude/commands/critique.md" ] \
+     && [ -f "$SMOKE2/AGENTS.md" ] \
+     && [ ! -L "$SMOKE2/.claude/CLAUDE.md" ] && grep -qF '@~/AGENTS.md' "$SMOKE2/.claude/CLAUDE.md" \
+     && [ -L "$SMOKE2/.codex/AGENTS.md" ] && [ -L "$SMOKE2/.gemini/GEMINI.md" ] \
      && [ -f "$SMOKE2/.claude/CHANGELOG.md" ]; then
     ok "install.sh orchestrates every layer and forwards --no-design"
   else
     bad "install.sh orchestrates every layer and forwards --no-design"
   fi
+
+  # Claude pointer: hand additions below the @import survive a re-render;
+  # codex/gemini pointers stay symlinks.
+  echo "- my claude-only note" >> "$SMOKE2/.claude/CLAUDE.md"
+  HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+  { grep -qF -- "- my claude-only note" "$SMOKE2/.claude/CLAUDE.md" \
+    && grep -qF '@~/AGENTS.md' "$SMOKE2/.claude/CLAUDE.md" \
+    && [ -L "$SMOKE2/.codex/AGENTS.md" ]; } \
+    && ok "claude pointer preserves hand additions across re-renders" \
+    || bad "claude pointer preserves hand additions across re-renders"
+
+  # uninstall reverses the pointers: with no pre-existing backup they are
+  # removed; ~/AGENTS.md itself stays.
+  HOME="$SMOKE2" bash "$DIR/uninstall.sh" claude codex gemini >/dev/null 2>&1
+  { [ ! -e "$SMOKE2/.claude/CLAUDE.md" ] && [ ! -e "$SMOKE2/.codex/AGENTS.md" ] \
+    && [ ! -e "$SMOKE2/.gemini/GEMINI.md" ] && [ -f "$SMOKE2/AGENTS.md" ]; } \
+    && ok "uninstall removes our pointers (no backups) and keeps ~/AGENTS.md" \
+    || bad "uninstall removes our pointers (no backups) and keeps ~/AGENTS.md"
   rm -rf "$SMOKE2"
+
+  # ...and when the pointer replaced a real file, uninstall restores it.
+  SMK4="$(mktemp -d)"; mkdir -p "$SMK4/.claude"
+  echo "original claude rules" > "$SMK4/.claude/CLAUDE.md"
+  HOME="$SMK4" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+  HOME="$SMK4" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+  { [ -f "$SMK4/.claude/CLAUDE.md" ] && grep -qF "original claude rules" "$SMK4/.claude/CLAUDE.md"; } \
+    && ok "uninstall restores a pre-existing claude file from its backup" \
+    || bad "uninstall restores a pre-existing claude file from its backup"
+  rm -rf "$SMK4"
+
+  # write_global must NOT create the per-tool pointers when the ~/AGENTS.md
+  # render fails — otherwise every tool dangles on a missing/stale target.
+  # (Skipped as root, where an unwritable $HOME doesn't fail the render.)
+  if [ "$(id -u)" != 0 ]; then
+    SMK3="$(mktemp -d)"; mkdir -p "$SMK3/.claude" "$SMK3/.codex" "$SMK3/.gemini"
+    chmod 555 "$SMK3"    # $HOME unwritable => the ~/AGENTS.md render fails
+    HOME="$SMK3" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+    if [ ! -e "$SMK3/.claude/CLAUDE.md" ] && [ ! -L "$SMK3/.claude/CLAUDE.md" ]; then
+      ok "write_global leaves pointers untouched when the render fails"
+    else
+      bad "write_global leaves pointers untouched when the render fails"
+    fi
+    chmod 755 "$SMK3"; rm -rf "$SMK3"
+  fi
 
   # ---- render-commands: ports are generated from the canonical commands ----
   bash "$DIR/render-commands.sh" >/dev/null 2>&1 \
@@ -427,18 +491,18 @@ if command -v jq >/dev/null 2>&1; then
   [ -z "$miss" ] && ok "every canonical command has a codex/cursor/gemini port" \
                  || bad "missing command ports:$miss"
 
-  # ---- command groups: the design group is persona-gated at install time ----
-  # The resolver reuses customize.sh's INC_DESIGN precedence (persona seeds it).
-  dg_gen="$(AIGI_NO_USER_ENV=1 "$CUSTOMIZE" --design-group 2>/dev/null)"
-  dg_pd="$(AIGI_NO_USER_ENV=1 PERSONA=product-designer "$CUSTOMIZE" --design-group 2>/dev/null)"
-  { [ "$dg_gen" = n ] && [ "$dg_pd" = y ]; } \
-    && ok "customize --design-group resolves persona (generic=n, product-designer=y)" \
-    || bad "customize --design-group resolves persona (got generic=$dg_gen pd=$dg_pd)"
+  # ---- command groups: the design group is INC_DESIGN-gated at install time ----
+  # Design is on by default for everyone; an explicit INC_DESIGN=n opts out.
+  dg_def="$(AIGI_NO_USER_ENV=1 "$CUSTOMIZE" --design-group 2>/dev/null)"
+  dg_off="$(AIGI_NO_USER_ENV=1 INC_DESIGN=n "$CUSTOMIZE" --design-group 2>/dev/null)"
+  { [ "$dg_def" = y ] && [ "$dg_off" = n ]; } \
+    && ok "customize --design-group defaults on, honors explicit INC_DESIGN=n" \
+    || bad "customize --design-group (got default=$dg_def explicit-n=$dg_off)"
 
   # Explicit flags gate the design commands and prune them when turned off.
   count_design() {  # $1 = commands dir -> number of design commands present
     local d="$1" f n=0
-    for f in handoff critique flow audit; do [ -f "$d/$f.md" ] && n=$((n+1)); done
+    for f in critique audit; do [ -f "$d/$f.md" ] && n=$((n+1)); done
     printf '%s' "$n"
   }
   GT="$(mktemp -d)"; GC="$GT/.claude/commands"
@@ -449,8 +513,8 @@ if command -v jq >/dev/null 2>&1; then
   des_on=$(count_design "$GC")
   HOME="$GT" "$DIR/install-commands.sh" --no-design claude >/dev/null 2>&1
   des_pruned=$(count_design "$GC")
-  { [ "$core_ok" = 1 ] && [ "$des_off" = 0 ] && [ "$des_on" = 4 ] && [ "$des_pruned" = 0 ]; } \
-    && ok "design group: core installs, --design adds 4, --no-design prunes them" \
+  { [ "$core_ok" = 1 ] && [ "$des_off" = 0 ] && [ "$des_on" = 2 ] && [ "$des_pruned" = 0 ]; } \
+    && ok "design group: core installs, --design adds 2, --no-design prunes them" \
     || bad "design group gating (core=$core_ok off=$des_off on=$des_on pruned=$des_pruned)"
   rm -rf "$GT"
 
@@ -472,16 +536,16 @@ if command -v jq >/dev/null 2>&1; then
   rm -rf "$GT"
 
   # The auto path end-to-end (the real-world default): no explicit flag — the
-  # persona resolves the group through customize.sh --design-group, exercising
+  # INC_DESIGN default resolves through customize.sh --design-group, exercising
   # the install-commands→customize seam integrated.
   GT="$(mktemp -d)"; GC="$GT/.claude/commands"
-  HOME="$GT" AIGI_NO_USER_ENV=1 PERSONA=product-designer "$DIR/install-commands.sh" claude >/dev/null 2>&1
-  auto_pd=$(count_design "$GC")
-  HOME="$GT" AIGI_NO_USER_ENV=1 PERSONA=generic "$DIR/install-commands.sh" claude >/dev/null 2>&1
-  auto_gen=$(count_design "$GC")
-  { [ "$auto_pd" = 4 ] && [ "$auto_gen" = 0 ]; } \
-    && ok "design group auto-resolves from persona end-to-end (pd installs 4, generic prunes)" \
-    || bad "design group auto path (pd=$auto_pd generic=$auto_gen)"
+  HOME="$GT" AIGI_NO_USER_ENV=1 "$DIR/install-commands.sh" claude >/dev/null 2>&1
+  auto_def=$(count_design "$GC")
+  HOME="$GT" AIGI_NO_USER_ENV=1 INC_DESIGN=n "$DIR/install-commands.sh" claude >/dev/null 2>&1
+  auto_off=$(count_design "$GC")
+  { [ "$auto_def" = 2 ] && [ "$auto_off" = 0 ]; } \
+    && ok "design group auto path (default installs 2, INC_DESIGN=n prunes)" \
+    || bad "design group auto path (default=$auto_def explicit-n=$auto_off)"
   rm -rf "$GT"
 
   # A resolver ERROR is not "off": when customize.sh fails on the auto path, an
@@ -495,20 +559,20 @@ if command -v jq >/dev/null 2>&1; then
   HOME="$GT/home" "$GT/install-commands.sh" --design claude >/dev/null 2>&1
   HOME="$GT/home" "$GT/install-commands.sh" claude >/dev/null 2>&1   # auto + broken resolver
   fail_kept=$(count_design "$GC")
-  [ "$fail_kept" = 4 ] \
+  [ "$fail_kept" = 2 ] \
     && ok "design group survives a resolver failure (no silent prune on customize.sh error)" \
-    || bad "resolver failure pruned design commands (kept=$fail_kept of 4)"
+    || bad "resolver failure pruned design commands (kept=$fail_kept of 2)"
   rm -rf "$GT"
 
   # Group gating isn't claude-only: the gemini port maps <name>.toml back to the
   # canonical commands/<name>.md group (${base%.*} across a different extension).
   GT="$(mktemp -d)"; GG="$GT/.gemini/commands"
-  count_design_toml() { local f2 n2=0; for f2 in handoff critique flow audit; do [ -f "$GG/$f2.toml" ] && n2=$((n2+1)); done; printf '%s' "$n2"; }
+  count_design_toml() { local f2 n2=0; for f2 in critique audit; do [ -f "$GG/$f2.toml" ] && n2=$((n2+1)); done; printf '%s' "$n2"; }
   HOME="$GT" "$DIR/install-commands.sh" --no-design gemini >/dev/null 2>&1
   g_off=$(count_design_toml)
   HOME="$GT" "$DIR/install-commands.sh" --design gemini >/dev/null 2>&1
   g_on=$(count_design_toml)
-  { [ "$g_off" = 0 ] && [ "$g_on" = 4 ]; } \
+  { [ "$g_off" = 0 ] && [ "$g_on" = 2 ]; } \
     && ok "design group gating works for the gemini .toml dialect" \
     || bad "gemini design gating (off=$g_off on=$g_on)"
   rm -rf "$GT"
@@ -548,6 +612,19 @@ PY
     else bad "gemini argsPattern matches JSON-serialized protected args"
     fi
   fi
+
+  # Vendored skills: every .claude/skills entry must be a SYMLINK resolving into
+  # the canonical .agents/skills tree — parity by construction, not by copy.
+  # The diff (which follows links) additionally catches a broken link.
+  par_ok=1
+  for sk in "$DIR"/.claude/skills/*; do
+    [ -e "$sk" ] || continue
+    [ -L "$sk" ] || par_ok=0
+    case "$(readlink "$sk")" in ../../.agents/skills/*) ;; *) par_ok=0;; esac
+  done
+  diff -rq "$DIR/.claude/skills" "$DIR/.agents/skills" >/dev/null 2>&1 || par_ok=0
+  [ "$par_ok" = 1 ] && ok ".claude/skills symlinks into .agents/skills (canonical tree)" \
+                    || bad ".claude/skills symlinks into .agents/skills (canonical tree)"
 
   MT="$(mktemp -d)"
   HOME="$MT" bash "$DIR/install-commands.sh" >/dev/null 2>&1

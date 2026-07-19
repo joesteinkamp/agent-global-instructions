@@ -11,8 +11,10 @@
 # Removes, per tool: our hook entries (matched by hook-script name), the
 # permissions we added (Claude/Cursor JSON rules subtracted; Codex managed TOML
 # block removed; Gemini policy file deleted), and the installed command files.
-# Each config is backed up first. Rendered instruction files (~/.claude/CLAUDE.md,
-# etc.) and Gemini's folderTrust setting are LEFT IN PLACE.
+# Each config is backed up first. The per-tool instruction POINTERS that
+# customize.sh --global installed (Claude's @import file, Codex/Gemini symlinks)
+# are restored from their newest backup (or removed if none). The rendered
+# ~/AGENTS.md itself and Gemini's folderTrust setting are LEFT IN PLACE.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -27,12 +29,45 @@ HOOK_RE="/($(IFS='|'; echo "${HOOK_NAMES[*]}"))\\.sh"
 TMPFILES=()
 trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
 
+# The per-tool ports are generated, not committed — regenerate them first so
+# remove_commands_dir / remove_codex_skills know which basenames are ours even
+# on a fresh clone. Best-effort: retired-name pruning still runs if this fails.
+# Side effect: leaves the (gitignored) commands/{codex,cursor,gemini}/ ports in
+# the working tree, same as any install run.
+[ -x "$DIR/render-commands.sh" ] && { "$DIR/render-commands.sh" >/dev/null 2>&1 || true; }
+
 backup_file() {  # $1 = file to back up, keep 5 newest
   cp "$1" "$(mktemp "$1.bak.XXXXXX")"
   local n=0 b
   while IFS= read -r b; do n=$((n+1)); if [ "$n" -gt 5 ]; then rm -f -- "$b"; fi; done \
     < <(ls -1t -- "$1".bak.* 2>/dev/null)
   return 0
+}
+
+# Reverse a global instruction pointer that customize.sh --global installed.
+# Handles both shapes: the Codex/Gemini symlink to ~/AGENTS.md and Claude's
+# generated @import pointer file — anything else at the path is left alone.
+# The current pointer file is backed up first (it may carry hand additions
+# below the import), then the newest PRE-EXISTING backup of the original is
+# restored; with no backup the pointer is simply removed.
+restore_global_pointer() {  # $1 = pointer path
+  local f="$1" bak
+  if [ -L "$f" ]; then
+    [ "$(readlink "$f")" = "$HOME/AGENTS.md" ] || return 0
+  elif [ -f "$f" ]; then
+    { grep -qF '@~/AGENTS.md' "$f" && grep -qF 'agent-global-instructions' "$f"; } || return 0
+  else
+    return 0
+  fi
+  # shellcheck disable=SC2012  # newest-first by mtime; names are mktemp-safe
+  bak="$(ls -1t -- "$f".bak.* 2>/dev/null | head -n 1 || true)"
+  if [ -f "$f" ] && [ ! -L "$f" ]; then backup_file "$f"; fi
+  rm -f "$f"
+  if [ -n "$bak" ]; then
+    cp "$bak" "$f" && echo "  restored $f from ${bak##*/}"
+  else
+    echo "  removed pointer $f (no prior backup to restore)"
+  fi
 }
 
 # Apply a jq program to a settings file in place (backup + atomic), no-op if
@@ -177,11 +212,13 @@ for t in "${targets[@]}"; do
       remove_commands_dir "$HOME/.claude/commands" "$DIR/commands" md
       strip_hooks "$HOME/.claude/settings.json"
       strip_permissions_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
+      restore_global_pointer "$HOME/.claude/CLAUDE.md"
       ;;
     codex)
       remove_codex_skills "$HOME/.codex/skills" "$DIR/commands/codex"
       strip_hooks "$HOME/.codex/hooks.json"
       strip_codex_block "$HOME/.codex/config.toml"
+      restore_global_pointer "$HOME/.codex/AGENTS.md"
       ;;
     cursor)
       remove_commands_dir "$HOME/.cursor/commands" "$DIR/commands/cursor" md
@@ -192,6 +229,7 @@ for t in "${targets[@]}"; do
     gemini)
       remove_commands_dir "$HOME/.gemini/commands" "$DIR/commands/gemini" toml
       strip_hooks "$HOME/.gemini/settings.json"
+      restore_global_pointer "$HOME/.gemini/GEMINI.md"
       if [ -f "$HOME/.gemini/policies/gemini-guardrails.toml" ]; then
         rm -f "$HOME/.gemini/policies/gemini-guardrails.toml"
         echo "  removed $HOME/.gemini/policies/gemini-guardrails.toml"
@@ -203,4 +241,5 @@ for t in "${targets[@]}"; do
     *) echo "  unknown target: $t (use: claude codex cursor gemini antigravity)" >&2;;
   esac
 done
-echo "Done. Backups saved next to each file. Instruction files (and Gemini folderTrust) left in place."
+echo "Done. Backups saved next to each file. ~/AGENTS.md (and Gemini folderTrust) left in place;"
+echo "per-tool instruction pointers were restored from their newest backup where one existed."

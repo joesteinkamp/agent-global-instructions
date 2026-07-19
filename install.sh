@@ -6,7 +6,7 @@
 #   ./install.sh --yes           # same, but don't prompt to confirm the global render
 #   ./install.sh claude          # just Claude Code
 #   ./install.sh codex cursor    # instructions + commands + hooks + settings for those
-#   ./install.sh --design        # also install the design command group (else auto by persona)
+#   ./install.sh --design        # force the design command group on (auto: on unless INC_DESIGN=n)
 #
 # Layers (each applied to whichever targets you name):
 #   - instructions (customize.sh --global): all tools, always — the portable core.

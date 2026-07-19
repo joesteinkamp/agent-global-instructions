@@ -10,6 +10,48 @@ only after human approval (see the `changelog` instruction section and the
 ## [Unreleased]
 
 ### Added
+- **Personal layers that survive every render (2026-07-17/18, Claude).**
+  `extras.local.md` (gitignored) is spliced verbatim into every render at a new
+  `{{EXTRAS}}` placeholder — personal sections the shared template can't
+  express (e.g. machine-specific serving notes) no longer live as hand-edits
+  in rendered output. A committed `team-context.env` loads before
+  `my-context.env` (personal values win key by key) as a team fork's shared
+  answer baseline. Explicit shell env vars now outrank both context files.
+- **Recommended-setup quick path.** The interactive interview asks a handful
+  of identity/preview questions, then one "use the recommended setup?" prompt
+  (Enter accepts); "customize" drops into the full question-by-question flow.
+- Tests for the extras splice, env-var precedence, skills-tree parity, the
+  global-pointer layout (including render-failure and uninstall-restore
+  paths) — suite grew 92 → 97.
+
+### Changed
+- **Global install collapsed to one rendered `~/AGENTS.md` + per-tool
+  pointers.** `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md` are symlinks;
+  `~/.claude/CLAUDE.md` is a real pointer file holding `@~/AGENTS.md` (Claude
+  Code's documented import) so `#` memories and Claude-only additions
+  accumulate below the import instead of mutating the shared file. A failed
+  render never touches the pointers, and `uninstall.sh` restores each pointer
+  from its newest backup (or removes it). Verified against Claude Code,
+  Gemini CLI, and Codex docs.
+- **Design is on for everyone.** The "Design system & UI" section and the
+  design command group (`/audit`, `/critique`) now default on regardless of
+  persona (`INC_DESIGN=n` / `--no-design` opts out); `PERSONA` is accepted for
+  back-compat but no longer changes any default.
+- **`.claude/skills/` deduped to symlinks** into the canonical
+  `.agents/skills/` tree; CI asserts the links.
+- **Generated command ports untracked.** `commands/{codex,cursor,gemini}/` are
+  gitignored and re-rendered on every install (and before uninstall), so a
+  command change is a one-file diff.
+- **README split into a short pitch + `docs/GUIDE.md`**, with a promoted team
+  onboarding story; quick start now leads with `my-context.env` (the
+  interactive interview doesn't persist answers) and lists the `jq`
+  prerequisite. Examples re-rendered with the design section.
+
+### Removed
+- `sync.sh` and `sync-global.sh` — with the template as single source of truth
+  plus the extras layer and pointer layout, there is nothing left to hand-sync.
+
+### Added
 - **Ask-aware triggering for `/verify` and `/improve`, with consume-once skip
   markers.** Rewrote `template.md`'s improve section (now **"When to verify &
   improve"**) so the decision keys off the *ask*, not just the resulting diff:
