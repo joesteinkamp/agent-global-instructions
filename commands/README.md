@@ -14,29 +14,27 @@ Portable workflow shortcuts. Each top-level `.md` file is the canonical
 | `/improve` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities. No changes applied. |
 | `/verify` | Prove the change is correct & true to spec: build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (`PRODUCT`/`DESIGN`/`CODE.md`). Writes a served HTML report; no changes applied. |
 | `/audit` | *(design)* UX audit **from a screenshot**. On Claude Code with the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill installed it scores against 15 UX heuristic frameworks with annotated screenshots; on the other tools (no skill support) it runs the heuristic rubric inline. Writes + serves a self-contained HTML report. |
-| `/handoff` | *(design)* Developer handoff for a screen/route — component states, tokens used, a11y notes, and acceptance criteria — as a served HTML artifact. |
 | `/critique` | *(design)* Pre-pixel heuristic critique of a flow, spec, or idea (the complement to `/audit`=screenshot and `/verify`=running app). Severity-ranked findings with principle citations; served HTML. |
-| `/flow` | *(design)* Generate a user-flow / sitemap / journey-map artifact from a task or spec — inline diagram + journey table, served as HTML. |
 
 Most take optional arguments, e.g. `/ship fix login redirect` uses that as the
 commit message / PR title. In Codex, write `$ship fix login redirect`.
 
 **Command groups.** A command opts into a group with `group: <name>` in its
 frontmatter (absent ⇒ `core`, always installed). The **`design`** group above
-(`/audit`, `/handoff`, `/critique`, `/flow`) installs when you pass `--design` to
-`../install-commands.sh`, or automatically when your persona / `INC_DESIGN` wants
-it (it asks `customize.sh --design-group`); `--no-design` forces it off and prunes
-any already installed, so flipping your persona self-heals. Ports are always
-generated for every command — the group only decides what gets **installed**.
+(`/audit`, `/critique`) installs **by default for everyone** — everyone should
+design better; `--no-design` (or `INC_DESIGN=n`, asked of `customize.sh
+--design-group`) forces it off and prunes any already installed, so opting out
+self-heals. Ports are always generated for every command — the group only
+decides what gets **installed**.
 
 **Format:** the top-level `.md` files are Claude Code command files — frontmatter
 (`description`, `argument-hint`, `allowed-tools`, optional `group`) plus a prompt
 body that embeds shell output with `` !`cmd` `` and arguments with `$ARGUMENTS`.
 They are the **single source of truth** — edit here only.
 
-**Ports are generated, never hand-edited.** `../render-commands.sh` translates the
-canonical files into each tool's dialect under `codex/`, `cursor/`, `gemini/`
-(generated snapshots; `../install-commands.sh` re-renders on every install, so a
+**Ports are generated, never committed or hand-edited.** `../render-commands.sh`
+translates the canonical files into each tool's dialect under `codex/`, `cursor/`,
+`gemini/` (gitignored; `../install-commands.sh` re-renders on every install, so a
 hand-edit to a port never reaches your tools):
 
 - `codex/<name>/SKILL.md` → `~/.codex/skills/<name>/SKILL.md` (invoke

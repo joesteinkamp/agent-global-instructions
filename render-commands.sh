@@ -8,7 +8,7 @@
 #
 # The generated files are snapshots — NEVER hand-edit them (install-commands.sh
 # re-renders on every install). To change a command, edit commands/<name>.md and
-# re-render. The ports are committed so port diffs show up in review.
+# re-render. The ports are gitignored (generated locally, never committed).
 #
 # Translation rules (canonical -> port):
 #   - frontmatter: description kept everywhere; Codex receives skill-compatible
@@ -101,7 +101,6 @@ for f in "$SRC"/*.md; do
   name="${base%.md}"
   title="$(printf '%s' "${name:0:1}" | tr '[:lower:]' '[:upper:]')${name:1}"
   desc="$(fm_field "$f" description)"
-  arghint="$(fm_field "$f" argument-hint)"
   body="$(fm_body "$f")"
   has_args=0; printf '%s\n' "$body" | grep -q '\$ARGUMENTS' && has_args=1
 

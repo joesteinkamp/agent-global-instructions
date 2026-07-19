@@ -2,20 +2,26 @@
 my-context.env
 # Scanned MCP server rules (your personal service list) — never commit
 mcp-rules.local
+# Personal sections spliced into every render at {{EXTRAS}} — never commit
+extras.local.md
 
 # Tool-call audit logs — local, never commit
 *.jsonl
 .ai-logs/
 
+# Generated per-tool command ports — render-commands.sh regenerates them on
+# every install; only commands/*.md (the canonical Claude dialect) is committed
+/commands/codex/
+/commands/cursor/
+/commands/gemini/
+
 # Generated review/audit/verify + design-command artifacts — local, never commit
-# (anchored to repo root: unanchored patterns would also match the committed
-# commands/codex/verify/ and commands/codex/handoff/ skill port directories)
+# (anchored to repo root: unanchored patterns would also match the generated
+# commands/codex/verify/ skill port directory)
 /review/
 /audits/
 /verify/
-/handoff/
 /critiques/
-/flows/
 
 # Per-tool port research notes (agent scratch) — local, never commit
 /ports/

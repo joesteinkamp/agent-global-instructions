@@ -55,6 +55,15 @@ mktmp() {
   TMPFILES+=("$t"); printf '%s' "$t"
 }
 
+# Record which allow-listed keys arrived via the SHELL ENVIRONMENT before the
+# defaults below fill in the rest: an explicit `INC_DESIGN=n ./customize.sh`
+# must outrank team-context.env / my-context.env (the context files supply
+# defaults, not overrides). load_env skips these keys.
+ENV_SET=" "
+for _v in "${SUBST_VARS[@]}" "${CTRL_VARS[@]}" "${INC_VARS[@]}"; do
+  [ -n "${!_v+x}" ] && ENV_SET="$ENV_SET$_v "
+done
+
 # ---- generic defaults (override via env or my-context.env) -------------------
 # `: "${VAR:=default}"` keeps an inherited environment value if one is set.
 : "${NAME:=Your full name}"
@@ -67,15 +76,16 @@ mktmp() {
 : "${PREVIEW:=local}"          # tailscale | local | none
 : "${TS_HOST:=your-host.ts.net}"
 : "${AUTONOMY:=aggressive}"    # aggressive | balanced
-: "${PERSONA:=generic}"        # product-designer | engineer | generic — seeds design-leaning defaults
+: "${PERSONA:=generic}"        # accepted for back-compat; no longer changes any default
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
+: "${EXTRAS:=}"                # personal sections spliced in verbatim; filled from extras.local.md
 : "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
 : "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
-# INC_DESIGN starts UNSET (empty) on purpose: the PERSONA preset seeds it in
-# normalize_inputs() so "product-designer" turns the Design section on by default,
-# while an explicit y/n from the environment or my-context.env always wins.
-: "${INC_DESIGN:=}"            # y | n | "" (unset → seeded from PERSONA)
+# INC_DESIGN starts UNSET (empty) on purpose: normalize_inputs() seeds it to "y"
+# (design is on for everyone), while an explicit y/n from the environment or
+# my-context.env always wins.
+: "${INC_DESIGN:=}"            # y | n | "" (unset → y)
 
 # Where the user's memory / notes actually live. MEM_KIND drives which bullets
 # the memory-os section renders ({{MEMORY_PATHS}}); MEM_PATH / MEM_TOOL fill in
@@ -102,6 +112,7 @@ load_env() {
     [[ "$line" == *=* ]] || continue
     key="${line%%=*}"; key="${key//[[:space:]]/}"
     [[ "$allowed" == *" $key "* ]] || continue
+    [[ "${ENV_SET:-}" == *" $key "* ]] && continue   # explicit shell env wins over context files
     val="${line#*=}"
     case "$val" in
       \"*) val="${val#\"}"
@@ -128,18 +139,20 @@ load_env() {
 }
 
 if [ -z "${AIGI_NO_USER_ENV:-}" ]; then
+  # Team baseline first (committed by a team fork), personal answers second —
+  # so my-context.env overrides team-context.env key by key.
+  [ -f "$DIR/team-context.env" ] && load_env "$DIR/team-context.env"
   [ -f "$DIR/my-context.env" ] && load_env "$DIR/my-context.env"
   [ -f "$DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$DIR/mcp-rules.local")"
+  # Personal sections the shared template can't express (e.g. machine-specific
+  # serving notes) — spliced in verbatim at {{EXTRAS}}, so they survive every
+  # re-render instead of living as hand-edits in the rendered output.
+  [ -f "$DIR/extras.local.md" ] && EXTRAS="$(cat "$DIR/extras.local.md")"
 fi
 
 # Record whether MEM_BLOCK was supplied verbatim (env or my-context.env) BEFORE
 # we ever build one — build_mem_block honors that as a power-user escape hatch.
 MEM_BLOCK_EXPLICIT=""; [ -n "${MEM_BLOCK:-}" ] && MEM_BLOCK_EXPLICIT=1
-
-# Record whether INC_DESIGN was set explicitly (env or my-context.env) BEFORE the
-# first normalize_inputs seeds it from PERSONA — so the interactive prompt can
-# honor an explicit y/n instead of re-seeding from the persona (explicit wins).
-INC_DESIGN_EXPLICIT=""; [ -n "${INC_DESIGN:-}" ] && INC_DESIGN_EXPLICIT=1
 
 # Build the {{MEMORY_PATHS}} bullets from MEM_KIND/MEM_PATH/MEM_TOOL. Re-runnable:
 # it only short-circuits on an explicit MEM_BLOCK, so calling it after the
@@ -181,12 +194,10 @@ normalize_inputs() {
     gen*|'') PERSONA=generic;;
     *) echo "customize.sh: unknown PERSONA='$PERSONA' (expected product-designer/engineer/generic); using generic." >&2; PERSONA=generic;;
   esac
-  # Seed the Design section from the persona ONLY when the user left INC_DESIGN
-  # unset — an explicit y/n (env or my-context.env) always wins. Runs before the
-  # toggle loop below so the seeded value gets canonicalized like the rest.
-  if [ -z "$INC_DESIGN" ]; then
-    case "$PERSONA" in product-designer) INC_DESIGN=y;; *) INC_DESIGN=n;; esac
-  fi
+  # The Design section is ON by default for every persona — everyone should
+  # design better. Only an explicit INC_DESIGN=n (env or my-context.env) turns
+  # it off. Runs before the toggle loop so the value gets canonicalized.
+  [ -z "$INC_DESIGN" ] && INC_DESIGN=y
   for _v in "${INC_VARS[@]}"; do
     case "$(lc "${!_v}")" in y*|true|1|on) printf -v "$_v" y;; *) printf -v "$_v" n;; esac
   done
@@ -287,7 +298,7 @@ render() {
   # Pass values via the environment (ENVIRON[] does NO escape processing) using
   # `env`, so nothing leaks into the calling shell. SUBST_VARS drives both the
   # passthrough and the awk substitution loop.
-  local v envargs=(AIGI_KEEP="$keep" AIGI_MEMORY_PATHS="$MEM_BLOCK" AIGI_MCP_RULES="$MCP_RULES" "AIGI_SUBST_VARS=${SUBST_VARS[*]}")
+  local v envargs=(AIGI_KEEP="$keep" AIGI_MEMORY_PATHS="$MEM_BLOCK" AIGI_MCP_RULES="$MCP_RULES" AIGI_EXTRAS="$EXTRAS" "AIGI_SUBST_VARS=${SUBST_VARS[*]}")
   for v in "${SUBST_VARS[@]}"; do envargs+=("AIGI_$v=${!v}"); done
 
   env "${envargs[@]}" awk '
@@ -327,6 +338,7 @@ render() {
 
       if (line == "{{MEMORY_PATHS}}") { if (ENVIRON["AIGI_MEMORY_PATHS"] != "") printf "%s\n", ENVIRON["AIGI_MEMORY_PATHS"]; next }
       if (line == "{{MCP_RULES}}")    { if (ENVIRON["AIGI_MCP_RULES"]    != "") printf "%s\n", ENVIRON["AIGI_MCP_RULES"];    next }
+      if (line == "{{EXTRAS}}")       { if (ENVIRON["AIGI_EXTRAS"]       != "") printf "%s\n\n", ENVIRON["AIGI_EXTRAS"];     next }   # \n\n: blank line before the next section (the placeholder line has none after it)
 
       print render_line(line)
     }
@@ -361,14 +373,64 @@ write_project() {
   cp "$DIR/AGENTS.md" "$DIR/GEMINI.md"; echo "  wrote $DIR/GEMINI.md"
 }
 
-# Machine-wide files are precious (you may have hand-curated them), so back up
-# any existing copy before overwriting — mirroring install-commands/-hooks.sh.
+# Back up $1 to a collision-free .bak name, keeping only the 5 newest backups.
+backup_keep5() {
+  cp "$1" "$(mktemp "$1.bak.XXXXXX")" || return 1
+  local n=0 b
+  while IFS= read -r b; do n=$((n+1)); if [ "$n" -gt 5 ]; then rm -f -- "$b"; fi; done \
+    < <(ls -1t -- "$1".bak.* 2>/dev/null)
+  return 0
+}
+
+# Machine-wide install: ONE rendered file (~/AGENTS.md) + per-tool pointers, so
+# every tool reads the same bytes and there is nothing to keep in sync.
+#   - Codex & Gemini: symlinks — they only ever read their file.
+#   - Claude Code: a real pointer FILE holding `@~/AGENTS.md` (the documented
+#     import pattern). NOT a symlink, because Claude appends `#` memories and
+#     /memory edits to ~/.claude/CLAUDE.md — through a symlink those writes
+#     would mutate the shared ~/AGENTS.md and be wiped by the next render.
+#     Anything below the import line survives re-renders untouched.
+# A real (possibly hand-curated) file at a pointer path is backed up first;
+# a foreign symlink at a pointer path is replaced without backup (its target
+# file is untouched and still owns the content).
 write_global() {
   mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.gemini"
-  render_to "$HOME/.claude/CLAUDE.md" backup && echo "  wrote ~/.claude/CLAUDE.md"
-  render_to "$HOME/AGENTS.md"         backup && echo "  wrote ~/AGENTS.md"
-  render_to "$HOME/.codex/AGENTS.md"  backup && echo "  wrote ~/.codex/AGENTS.md"
-  render_to "$HOME/.gemini/GEMINI.md" backup && echo "  wrote ~/.gemini/GEMINI.md"
+  # If the render fails, stop before touching the pointers — otherwise we'd
+  # replace real per-tool files with pointers to a stale or missing target.
+  render_to "$HOME/AGENTS.md" backup || return 1
+  echo "  wrote ~/AGENTS.md"
+
+  local cf="$HOME/.claude/CLAUDE.md"
+  [ -L "$cf" ] && rm -f "$cf"   # migrate the old symlink layout; target keeps the content
+  if [ -f "$cf" ] && grep -qF '@~/AGENTS.md' "$cf"; then
+    echo "  ok $cf imports ~/AGENTS.md"
+  else
+    if [ -f "$cf" ]; then backup_keep5 "$cf" && echo "  backed up existing $cf"; fi
+    printf '%s\n%s\n\n%s\n' \
+      '<!-- Pointer file: the real instructions live in ~/AGENTS.md, rendered by agent-global-instructions.' \
+      '     Claude-specific additions and # memories accumulate below the import and survive re-renders. -->' \
+      '@~/AGENTS.md' > "$cf"
+    echo "  wrote $cf (imports ~/AGENTS.md)"
+  fi
+
+  local t
+  for t in "$HOME/.codex/AGENTS.md" "$HOME/.gemini/GEMINI.md"; do
+    if [ -L "$t" ] && [ "$(readlink "$t")" = "$HOME/AGENTS.md" ]; then
+      echo "  ok $t -> ~/AGENTS.md"; continue
+    fi
+    # Already-identical real file (e.g. the copy fallback on a prior run):
+    # nothing to back up or churn — try to upgrade it to a link in place.
+    if [ -e "$t" ] && [ ! -L "$t" ] && ! cmp -s "$HOME/AGENTS.md" "$t"; then
+      backup_keep5 "$t" && echo "  backed up existing $t"
+    fi
+    if ln -sf "$HOME/AGENTS.md" "$t" 2>/dev/null; then
+      echo "  linked $t -> ~/AGENTS.md"
+    else
+      # No symlink support (e.g. some Windows setups): fall back to a copy.
+      cmp -s "$HOME/AGENTS.md" "$t" 2>/dev/null \
+        || { cp "$HOME/AGENTS.md" "$t" && echo "  copied $t (symlinks unavailable)"; }
+    fi
+  done
   # Seed a Change Log into the global instruction folder so AI-made changes have a
   # machine-wide place to be logged. Seed-only: never overwrite an existing global
   # CHANGELOG.md, so accumulated entries survive re-installs.
@@ -393,14 +455,16 @@ for _a in "$@"; do case "$_a" in -y|--yes) ASSUME_YES=1;; esac; done
 case "${1:-}" in
   --print)    render; exit 0;;
   # Resolve whether the design command group is wanted, reusing the same
-  # precedence as everything else (explicit INC_DESIGN wins, else PERSONA seeds
-  # it — both already applied by normalize_inputs above). install-commands.sh
-  # queries this so it never has to re-parse my-context.env itself. Prints y|n.
+  # precedence as everything else (explicit INC_DESIGN wins, else the on-for-
+  # everyone default — both already applied by normalize_inputs above).
+  # install-commands.sh queries this so it never re-parses my-context.env. Prints y|n.
   --design-group) printf '%s\n' "$INC_DESIGN"; exit 0;;
   --project)  write_project; exit 0;;
   --global)
-    echo "This OVERWRITES your machine-wide instruction files (each is backed up first):"
-    echo "  ~/.claude/CLAUDE.md  ~/AGENTS.md  ~/.codex/AGENTS.md  ~/.gemini/GEMINI.md"
+    echo "This renders ~/AGENTS.md and points the per-tool files at it (any real"
+    echo "file at those paths is backed up first):"
+    echo "  ~/.claude/CLAUDE.md   -> imports ~/AGENTS.md (@import; your additions below it survive)"
+    echo "  ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md  ->  symlinks to ~/AGENTS.md"
     if [ -z "$ASSUME_YES" ]; then
       CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
       case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted (pass --yes to skip this prompt)."; exit 0;; esac
@@ -419,11 +483,6 @@ CALL_ME="$(ask 'What to call you' "$CALL_ME")"
 PRONOUNS="$(ask 'Pronouns' "$PRONOUNS")"
 ROLE="$(ask 'Role / title' "$ROLE")"
 TIMEZONE="$(ask 'Timezone & location' "$TIMEZONE")"
-CARES="$(ask 'What you care about (one line)' "$CARES")"
-
-echo ""
-echo "-- Your environment --"
-ENVIRONMENT="$(ask 'Describe your environment (optional; e.g. headless Linux server, or MacBook with browser)' "$ENVIRONMENT")"
 
 echo ""
 echo "-- How you preview / test web & HTML work --"
@@ -433,10 +492,24 @@ if [ "$PREVIEW" = "tailscale" ]; then
   TS_HOST="$(ask 'Tailscale MagicDNS hostname' "$TS_HOST")"
 fi
 
+# Quick path: everything else has a good default (every section on, aggressive
+# autonomy) — most people should press Enter here and be done. "customize"
+# drops into the full question-by-question flow.
+echo ""
+echo "Everything else has a recommended default: every instruction section on, and"
+echo "an autonomous assistant that finishes tasks without stopping to confirm."
+QUICK="$(ask_one 'Use the recommended setup? (Enter accepts; type c to customize each option)' "Y/customize" "Y")"
+case "$(lc "$QUICK")" in c*|n*) QUICK=customize;; *) QUICK=yes;; esac
+
+if [ "$QUICK" = "customize" ]; then
+
+echo ""
+echo "-- About you (optional detail) --"
+CARES="$(ask 'What you care about (one line)' "$CARES")"
+ENVIRONMENT="$(ask 'Describe your environment (optional; e.g. headless Linux server, or MacBook with browser)' "$ENVIRONMENT")"
+
 echo ""
 echo "-- How you like work done --"
-PERSONA="$(ask_one 'Primary focus (seeds sensible defaults)' "product-designer/engineer/generic" "$PERSONA")"
-case "$(lc "$PERSONA")" in prod*|design*|pd|ux|ui) PERSONA="product-designer";; eng*|dev*|swe|backend|frontend) PERSONA="engineer";; *) PERSONA="generic";; esac
 AUTONOMY="$(ask_one 'Autonomy posture' "aggressive/balanced" "$AUTONOMY")"
 case "$AUTONOMY" in bal*) AUTONOMY="balanced";; *) AUTONOMY="aggressive";; esac
 
@@ -472,15 +545,15 @@ if [ "$INC_MEMORY" = "y" ]; then
   esac
 fi
 INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y/n" "$INC_ARTIFACTS")"; INC_ARTIFACTS="${INC_ARTIFACTS:0:1}"
-# Design-section prompt default: honor an explicit env/my-context.env value;
-# otherwise follow the (possibly just-changed) persona. The typed answer wins.
-if [ -n "$INC_DESIGN_EXPLICIT" ]; then _dz="$INC_DESIGN"
-else case "$PERSONA" in product-designer) _dz=y;; *) _dz=n;; esac; fi
-INC_DESIGN="$(ask_one 'Include "design system & UI" section (build to design tokens, stay on scales, design accessibly)?' "y/n" "$_dz")"; INC_DESIGN="${INC_DESIGN:0:1}"
+# Design is on by default for everyone (everyone should design better); the
+# typed answer wins over the default shown.
+INC_DESIGN="$(ask_one 'Include "design system & UI" section (build to design tokens, stay on scales, design accessibly)?' "y/n" "${INC_DESIGN:-y}")"; INC_DESIGN="${INC_DESIGN:0:1}"
 INC_PROJECT="$(ask_one 'Include "project-specific instructions" section (encourages keeping/updating per-project AGENTS.md/CLAUDE.md)?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
 INC_DOCS="$(ask_one 'Include "documentation first" section (read official docs before using libraries; custom hacks as last resort)?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
 INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section (rules for capturing corrections/memories to prevent repeating mistakes)?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
 INC_CHANGELOG="$(ask_one 'Include "change log" section (tracks AI changes, proposes draft entry, requires approval before writing)?' "y/n" "$INC_CHANGELOG")"; INC_CHANGELOG="${INC_CHANGELOG:0:1}"
+
+fi  # end of the "customize" branch — the quick path keeps every default above
 
 # Canonicalize the answers just typed (so "Y", "Balanced", "Tailscale" all work).
 normalize_inputs
@@ -496,8 +569,10 @@ TARGET="$(ask_one 'Choose' "1/2/3/4" "1")"
 
 case "$TARGET" in
   2)
-    echo ""; echo "This OVERWRITES your machine-wide instructions:"
-    echo "  ~/.claude/CLAUDE.md  ~/AGENTS.md  ~/.codex/AGENTS.md  ~/.gemini/GEMINI.md"
+    echo ""; echo "This renders ~/AGENTS.md and points the per-tool files at it (any real"
+    echo "file at those paths is backed up first):"
+    echo "  ~/.claude/CLAUDE.md   -> imports ~/AGENTS.md (@import; your additions below it survive)"
+    echo "  ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md  ->  symlinks to ~/AGENTS.md"
     CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
     case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted."; exit 0;; esac
     write_global

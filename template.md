@@ -97,6 +97,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 <!--/SECTION:preview-local-->
 <!--/SECTION:artifacts-->
 
+{{EXTRAS}}
 <!--SECTION:design-->
 ## Design system & UI
 
