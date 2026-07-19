@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UX audit — mobile-small-targets-2026-06-11</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --panel2:#1f232d; --border:#2a2f3a; --text:#d7dce4;
+    --muted:#8b93a1; --accent:#6aa9ff; --good:#8fd3a8; --crit:#ff6b6b; --high:#ffa94d;
+    --med:#ffd43b; --low:#74c0fc; --mono:ui-monospace,Menlo,Consolas,monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:1240px; margin:0 auto; padding:40px 24px 80px; }
+  h1 { font-size:1.6rem; margin:0 0 2px; } h2 { font-size:1.2rem; margin:44px 0 10px; }
+  .meta { color:var(--muted); font-size:.85rem; margin-bottom:24px; }
+  .meta span { margin-right:14px; }
+  .hint { color:var(--muted); font-size:.82rem; margin:2px 0 10px; }
+  /* ---------- scorecard ---------- */
+  .scorehead { display:flex; gap:32px; background:var(--panel); border:1px solid var(--border);
+    border-radius:12px; padding:22px 26px; flex-wrap:wrap; }
+  .overall { text-align:center; min-width:170px; }
+  .overall .n { font-size:3rem; font-weight:700; line-height:1; }
+  .overall .band { color:var(--muted); font-size:.8rem; margin:4px 0 12px; }
+  .scale { position:relative; height:10px; border-radius:5px; overflow:visible; display:flex; }
+  .scale i { display:block; height:10px; }
+  .scale .seg1{width:49%;background:#5a2530;border-radius:5px 0 0 5px}
+  .scale .seg2{width:16%;background:#5a4a25}.scale .seg3{width:14%;background:#2d4a63}
+  .scale .seg4{width:11%;background:#2c5a45}.scale .seg5{width:10%;background:#8fd3a8;border-radius:0 5px 5px 0}
+  .scale .ptr { position:absolute; top:-7px; width:0; height:0; border-left:6px solid transparent;
+    border-right:6px solid transparent; border-top:8px solid #fff; transform:translateX(-50%); }
+  .scalelbl { display:flex; justify-content:space-between; font-size:.62rem; color:var(--muted); margin-top:3px; }
+  .scalenote { font-size:.72rem; color:var(--muted); margin-top:8px; max-width:200px; text-align:left; }
+  .bars { flex:1; min-width:340px; }
+  .bar { display:grid; grid-template-columns:150px 1fr 36px; gap:10px; align-items:center;
+    margin:7px 0; font-size:.84rem; }
+  .bar .lbl b { display:block; }
+  .bar .lbl small { color:var(--muted); font-size:.66rem; line-height:1.3; display:block; }
+  .bar .track { display:block; height:9px; background:var(--panel2); border-radius:5px; overflow:hidden; }
+  .bar .fill { display:block; height:100%; border-radius:5px; }
+  details.expl { margin:14px 0; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:10px 18px; font-size:.86rem; }
+  details.expl summary { cursor:pointer; color:var(--accent); font-weight:600; }
+  details.expl table { margin-top:10px; }
+  /* ---------- screenshots + markers ---------- */
+  .shot { position:relative; margin:10px 0 6px; border:1px solid var(--border);
+    border-radius:10px; overflow:visible; }
+  .shot img { display:block; width:100%; height:auto; border-radius:10px; }
+  .boxol { position:absolute; border:2.5px solid; border-radius:6px; pointer-events:none;
+    opacity:.45; transition:opacity .15s, box-shadow .15s; }
+  .boxol.on { opacity:1; box-shadow:0 0 0 6000px rgba(0,0,0,.45); }
+  .mark { position:absolute; width:34px; height:34px; border-radius:50%; transform:translate(-50%,-50%);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.86rem;
+    color:#111; cursor:pointer; border:2px solid rgba(0,0,0,.55); z-index:5;
+    box-shadow:0 2px 8px rgba(0,0,0,.5); -webkit-tap-highlight-color:transparent; }
+  @media (hover:none) { .boxol { opacity:.7; } .mark { width:38px; height:38px; } }
+  .mark:hover, .mark.pinned { z-index:20; }
+  .pop { display:none; position:absolute; top:125%; left:-12px; width:360px; max-width:74vw;
+    background:var(--panel2); border:1px solid #3a4150; border-radius:10px; padding:12px 15px;
+    font-weight:400; font-size:.84rem; line-height:1.55; color:var(--text); text-align:left;
+    box-shadow:0 12px 36px rgba(0,0,0,.55); z-index:30; cursor:default; }
+  .mark.flip .pop { left:auto; right:-12px; }
+  .mark.up .pop { top:auto; bottom:125%; }
+  .mark:hover .pop, .mark.pinned .pop { display:block; }
+  .pop .reco { color:var(--good); margin-top:5px; }
+  .pop .cite { font-family:var(--mono); font-size:.7rem; color:var(--accent); margin-top:6px; }
+  .pop .ev { color:var(--muted); font-size:.76rem; margin-top:3px; }
+  /* ---------- cards / table / misc ---------- */
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:10px; margin:10px 0; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    padding:11px 14px; font-size:.86rem; }
+  .card .reco { color:var(--good); margin-top:4px; }
+  .card .cite { font-family:var(--mono); font-size:.7rem; color:var(--accent); margin-top:5px; }
+  .pill { display:inline-block; padding:0 8px; border-radius:999px; font-size:.72rem; font-weight:600; }
+  .pill.critical { background:rgba(255,107,107,.18); color:var(--crit); }
+  .pill.high { background:rgba(255,169,77,.18); color:var(--high); }
+  .pill.medium { background:rgba(255,212,59,.18); color:var(--med); }
+  .pill.low { background:rgba(116,192,252,.18); color:var(--low); }
+  table { border-collapse:collapse; width:100%; font-size:.85rem; margin:12px 0; }
+  th,td { border:1px solid var(--border); padding:6px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--panel2); cursor:pointer; user-select:none; }
+  tr:nth-child(even) td { background:var(--panel); }
+  tbody tr { cursor:pointer; }
+  .empty { background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:18px 22px; color:var(--good); font-size:.95rem; }
+  .hyp { border-left:3px solid var(--high); }
+  .passgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr));
+    gap:6px 22px; font-size:.85rem; margin:8px 0; }
+  .passgrid div { color:var(--text); }
+  .passgrid b { color:var(--good); font-family:var(--mono); font-size:.78rem; }
+  .fwname { font-size:.86rem; color:var(--text); font-weight:600; margin:16px 0 4px; }
+  .covtab { margin:4px 0 10px; }
+  .covtab td { padding:4px 9px; font-size:.8rem; }
+  .covtab .st { white-space:nowrap; font-size:.74rem; font-weight:600; width:130px; }
+  .covtab .st.finding { color:var(--crit); } .covtab .st.hypo { color:var(--high); }
+  .covtab .st.pass { color:var(--good); } .covtab .st.okst { color:#79a98f; }
+  .covtab .st.nr { color:#5b6472; }
+  .covnote { color:var(--muted); font-size:.76rem; }
+  .foot { color:var(--muted); font-size:.8rem; margin-top:44px; border-top:1px solid var(--border);
+    padding-top:14px; }
+  ul { padding-left:22px; } li { margin:3px 0; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script id="data" type="application/json">{"meta": {"audit_id": "mobile-small-targets-2026-06-11", "date": "2026-06-11", "mode": "single", "screens": ["screen-0.png"], "goal": "Control playback of the current track (play/pause, skip, scrub) and reach lyrics, queue, share, and sleep timer", "persona": "first-time visitor", "platform": "mobile", "stage": "hifi", "frameworks_applied": ["wcag", "cognitive-laws", "gestalt", "gerhardt-powals", "content-design", "cialdini", "recurring-failures", "nielsen", "norman"], "tiers_run": [1], "issue_overflow": 0, "model": "claude-fable-5"}, "scores": {"overall": 75, "usability": 75, "cognitive_load": 88, "visual_layout": 86, "accessibility": 30, "content": 85, "trust_persuasion": 90}, "score_rationales": {"usability": "Conventional player layout with outcome-named actions and no dead ends, but the primary transport controls invite mis-taps \u2014 functional band, 75.", "cognitive_load": "One decision per moment with a single focal task and chunked metadata \u2014 top band, 88.", "visual_layout": "Grouping matches semantics and the squint test passes with one clear hierarchy \u2014 strong band, 86.", "accessibility": "Sub-20px touch targets on the main actions sit at the broken anchor despite every measured contrast passing \u2014 30.", "content": "Labels name outcomes in user language with one consistent voice \u2014 strong band, 85.", "trust_persuasion": "No dark patterns and no high-stakes asks on screen \u2014 top band, 90."}, "one_big_thing": "Hit areas were sized for a desktop cursor, not a thumb: every interactive element measures under half the 44px touch minimum while all static text passes its checks.", "findings": [{"id": "F-01", "category": "accessibility", "type": "observed", "severity": "high", "reach": 5, "importance": 6.0, "principles": ["WCAG-2.5.8", "FITTS-01"], "screen_index": 0, "box_2d": [705, 340, 740, 660], "element": "playback transport controls, five buttons center-screen", "issue": "All five playback controls are 19px squares, far below the 44px touch minimum.", "why_it_matters": "Tightly packed sub-thumb targets cause mis-taps at the product's most-used moment, so users skip tracks when they meant to pause.", "recommendation": "Enlarge each control to at least 44x44px and add spacing between them.", "evidence": "measured: single control 19x19px; all five controls span a 115x19px row"}, {"id": "F-02", "category": "accessibility", "type": "observed", "severity": "medium", "reach": 4, "importance": 4.0, "principles": ["WCAG-2.5.8", "FITTS-01"], "screen_index": 0, "box_2d": [815, 240, 840, 760], "element": "secondary action links row (Lyrics, Queue, Share, Sleep timer)", "issue": "The four secondary links are 10px-tall tap targets packed into a single row.", "why_it_matters": "Tap accuracy on targets this small is poor, sending users to the wrong feature or nowhere at all.", "recommendation": "Give each link a 44px-tall tap area with wider separation.", "evidence": "measured: 'Lyrics' link 10px tall; the four links span a 192x11px row; contrast 5.70:1 (passes)"}], "hypotheses": [], "measurements": {"screens": [{"file": "fixtures/mobile-small-targets/screen-0.png", "width": 390, "height": 844, "regions": [{"box_2d": [705, 340, 740, 660], "kind": "element", "fg": "#8b93a1", "bg": "#14161c", "contrast": 5.84, "height_px": 19, "width_px": 115}, {"box_2d": [705, 475, 740, 535], "kind": "element", "fg": "#8b93a1", "bg": "#14161c", "contrast": 5.84, "height_px": 19, "width_px": 19}, {"box_2d": [815, 240, 840, 760], "kind": "text", "fg": "#89919f", "bg": "#14161c", "contrast": 5.7, "height_px": 11, "width_px": 192}, {"box_2d": [815, 245, 840, 335], "kind": "element", "fg": "#88909d", "bg": "#14161c", "contrast": 5.62, "height_px": 10, "width_px": 29}, {"box_2d": [490, 256, 525, 744], "kind": "text", "fg": "#ffffff", "bg": "#14161c", "contrast": 18.08, "height_px": 22, "width_px": 180}, {"box_2d": [535, 370, 565, 630], "kind": "text", "fg": "#89919e", "bg": "#14161c", "contrast": 5.69, "height_px": 11, "width_px": 97}, {"box_2d": [635, 100, 660, 200], "kind": "text", "fg": "#868e9c", "bg": "#14161c", "contrast": 5.48, "height_px": 8, "width_px": 22}]}]}, "clean_checks": ["WCAG-1.4.3: every measured text region passes AA on the dark theme (title 18.08:1, artist 5.69:1, footer links 5.70:1, time labels 5.48:1)", "GST-01/GST-07: grouping matches semantics \u2014 artwork, track metadata, transport, and secondary links form distinct clusters", "HICK-01: few, conventional choices at each moment; no decision overload", "JAKOB-01: standard player layout (art, title, scrubber, transport) matches platform conventions", "CNT-01: secondary links name their outcomes (Lyrics, Queue, Share, Sleep timer)", "DARK-01..06: no dark patterns present"]}</script>
+<script id="imgs" type="application/json">["data:image/png;base64,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"]</script>
+<script id="reg" type="application/json">{"CLD-01": {"name": "Reciprocation", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "CLD-02": {"name": "Commitment & consistency", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "CLD-03": {"name": "Social proof", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "CLD-04": {"name": "Liking", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "CLD-05": {"name": "Authority", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "CLD-06": {"name": "Scarcity", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "DARK-01": {"name": "Fake scarcity/urgency", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "DARK-02": {"name": "Manufactured social proof", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "DARK-03": {"name": "Pre-checked commitment", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "DARK-04": {"name": "Confirmshaming", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "DARK-05": {"name": "Forced continuity / hidden exit", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "DARK-06": {"name": "Hidden costs", "framework": "Cialdini's Principles of Influence + dark-pattern checks", "tier": [1], "category": "trust_persuasion", "file": "cialdini.md"}, "HICK-01": {"name": "Hick's Law", "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)", "tier": [1, 2], "category": "cognitive_load", "file": "cognitive-laws.md"}, "FITTS-01": {"name": "Fitts's Law", "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)", "tier": [1, 2], "category": "cognitive_load", "file": "cognitive-laws.md"}, "MILL-01": {"name": "Miller's Law", "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)", "tier": [1, 2], "category": "cognitive_load", "file": "cognitive-laws.md"}, "JAKOB-01": {"name": "Jakob's Law", "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)", "tier": [1, 2], "category": "cognitive_load", "file": "cognitive-laws.md"}, "PEAK-01": {"name": "Peak-End Rule", "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)", "tier": [1, 2], "category": "cognitive_load", "file": "cognitive-laws.md"}, "CNT-01": {"name": "Visibility of system status (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-02": {"name": "Match the real world (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-03": {"name": "User control and freedom (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-04": {"name": "Consistency and standards (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-05": {"name": "Error prevention (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-06": {"name": "Recognition over recall (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-07": {"name": "Flexibility and efficiency (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-08": {"name": "Minimalist copy", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-09": {"name": "Error recovery (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "CNT-10": {"name": "Help and documentation (copy)", "framework": "10 Content Design Heuristics", "tier": [1, 2], "category": "content", "file": "content-design.md"}, "GP-01": {"name": "Automate unwanted workload", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-02": {"name": "Reduce uncertainty", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-03": {"name": "Fuse data", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-04": {"name": "Meaningful aids to interpretation", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-05": {"name": "Names conceptually related to function", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-06": {"name": "Group data in consistently meaningful ways", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-07": {"name": "Limit data-driven tasks", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-08": {"name": "Only information needed at a given time", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-09": {"name": "Multiple coding of data", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GP-10": {"name": "Judicious redundancy", "framework": "Gerhardt-Powals' Cognitive Engineering Principles", "tier": [1], "category": "cognitive_load", "file": "gerhardt-powals.md"}, "GST-01": {"name": "Proximity", "framework": "Gestalt Principles of Grouping", "tier": [1], "category": "visual_layout", "file": "gestalt.md"}, "GST-02": {"name": "Similarity", "framework": "Gestalt Principles of Grouping", "tier": [1], "category": "visual_layout", "file": "gestalt.md"}, "GST-03": {"name": "Closure", "framework": "Gestalt Principles of Grouping", "tier": [1], "category": "visual_layout", "file": "gestalt.md"}, "GST-04": {"name": "Continuity", "framework": "Gestalt Principles of Grouping", "tier": [1], "category": "visual_layout", "file": "gestalt.md"}, "GST-05": {"name": "Common fate", "framework": "Gestalt Principles of Grouping", "tier": [1], "category": "visual_layout", "file": "gestalt.md"}, "GST-06": {"name": "Pr\u00e4gnanz (good form)", "framework": "Gestalt Principles of Grouping", "tier": [1], "category": "visual_layout", "file": "gestalt.md"}, "GST-07": {"name": "Common region", "framework": "Gestalt Principles of Grouping", "tier": [1], "category": "visual_layout", "file": "gestalt.md"}, "NLS-01": {"name": "Visibility of system status", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-02": {"name": "Match between system and real world", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-03": {"name": "User control and freedom", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-04": {"name": "Consistency and standards", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-05": {"name": "Error prevention", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-06": {"name": "Recognition rather than recall", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-07": {"name": "Flexibility and efficiency of use", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-08": {"name": "Aesthetic and minimalist design", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-09": {"name": "Help users recognize, diagnose, recover from errors", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NLS-10": {"name": "Help and documentation", "framework": "Nielsen's 10 Usability Heuristics", "tier": [1, 2], "category": "usability", "file": "nielsen.md"}, "NRM-01": {"name": "Affordances", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "NRM-02": {"name": "Signifiers", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "NRM-03": {"name": "Mapping", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "NRM-04": {"name": "Feedback", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "NRM-05": {"name": "Conceptual model", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "NRM-06": {"name": "Visibility", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "NRM-07": {"name": "Constraints", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "NRM-GE": {"name": "Gulf of execution", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "NRM-GV": {"name": "Gulf of evaluation", "framework": "Norman's Design Principles (The Design of Everyday Things)", "tier": [1, 2], "category": "usability", "file": "norman.md"}, "RF-01": {"name": "False affordance", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-02": {"name": "Dead-end state", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-03": {"name": "Unguarded destructive action", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-04": {"name": "Vague CTA label", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-05": {"name": "Silent success", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-06": {"name": "Missing empty state", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-07": {"name": "Breadcrumb gap", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-08": {"name": "Choice paralysis", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-09": {"name": "Trust-signal gap", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-10": {"name": "Feedback latency", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-11": {"name": "Confirmation trap", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "RF-12": {"name": "Recall trap", "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)", "tier": [1, 2], "category": "usability", "file": "recurring-failures.md"}, "SHN-01": {"name": "Strive for consistency", "framework": "Shneiderman's 8 Golden Rules of Interface Design", "tier": [2], "category": "usability", "file": "shneiderman.md"}, "SHN-02": {"name": "Seek universal usability", "framework": "Shneiderman's 8 Golden Rules of Interface Design", "tier": [2], "category": "usability", "file": "shneiderman.md"}, "SHN-03": {"name": "Offer informative feedback", "framework": "Shneiderman's 8 Golden Rules of Interface Design", "tier": [2], "category": "usability", "file": "shneiderman.md"}, "SHN-04": {"name": "Design dialogs to yield closure", "framework": "Shneiderman's 8 Golden Rules of Interface Design", "tier": [2], "category": "usability", "file": "shneiderman.md"}, "SHN-05": {"name": "Prevent errors", "framework": "Shneiderman's 8 Golden Rules of Interface Design", "tier": [2], "category": "usability", "file": "shneiderman.md"}, "SHN-06": {"name": "Permit easy reversal of actions", "framework": "Shneiderman's 8 Golden Rules of Interface Design", "tier": [2], "category": "usability", "file": "shneiderman.md"}, "SHN-07": {"name": "Keep users in control", "framework": "Shneiderman's 8 Golden Rules of Interface Design", "tier": [2], "category": "usability", "file": "shneiderman.md"}, "SHN-08": {"name": "Reduce short-term memory load", "framework": "Shneiderman's 8 Golden Rules of Interface Design", "tier": [2], "category": "usability", "file": "shneiderman.md"}, "TOG-01": {"name": "Aesthetics", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-02": {"name": "Anticipation", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-03": {"name": "Autonomy", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-04": {"name": "Color", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-05": {"name": "Consistency", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-06": {"name": "Defaults", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-07": {"name": "Discoverability", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-08": {"name": "Efficiency of the user", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-09": {"name": "Explorable interfaces", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-10": {"name": "Fitts's Law", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-11": {"name": "Human-interface objects", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-12": {"name": "Latency reduction", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-13": {"name": "Learnability", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-14": {"name": "Metaphors", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-15": {"name": "Protect users' work", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-16": {"name": "Readability", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-17": {"name": "Simplicity", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-18": {"name": "State", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "TOG-19": {"name": "Visible navigation", "framework": "Tognazzini's First Principles of Interaction Design", "tier": [1, 2], "category": "usability", "file": "tognazzini.md"}, "WCAG-1.1.1": {"name": "Non-text Content (A)", "framework": "WCAG 2.1 \u2014 screenshot-auditable subset", "tier": [1], "category": "accessibility", "file": "wcag.md"}, "WCAG-1.3.1": {"name": "Info and Relationships (A)", "framework": "WCAG 2.1 \u2014 screenshot-auditable subset", "tier": [1], "category": "accessibility", "file": "wcag.md"}, "WCAG-1.4.1": {"name": "Use of Color (A)", "framework": "WCAG 2.1 \u2014 screenshot-auditable subset", "tier": [1], "category": "accessibility", "file": "wcag.md"}, "WCAG-1.4.3": {"name": "Contrast Minimum (AA)", "framework": "WCAG 2.1 \u2014 screenshot-auditable subset", "tier": [1], "category": "accessibility", "file": "wcag.md"}, "WCAG-1.4.4": {"name": "Resize Text (AA)", "framework": "WCAG 2.1 \u2014 screenshot-auditable subset", "tier": [1], "category": "accessibility", "file": "wcag.md"}, "WCAG-1.4.11": {"name": "Non-text Contrast (AA)", "framework": "WCAG 2.1 \u2014 screenshot-auditable subset", "tier": [1], "category": "accessibility", "file": "wcag.md"}, "WCAG-2.5.8": {"name": "Target Size Minimum (AA, 2.2)", "framework": "WCAG 2.1 \u2014 screenshot-auditable subset", "tier": [1], "category": "accessibility", "file": "wcag.md"}, "WCAG-3.3.2": {"name": "Labels or Instructions (A)", "framework": "WCAG 2.1 \u2014 screenshot-auditable subset", "tier": [1], "category": "accessibility", "file": "wcag.md"}}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const IMGS = JSON.parse(document.getElementById('imgs').textContent);
+const REG = (()=>{ try { return JSON.parse(document.getElementById('reg').textContent); }
+  catch(e){ return {}; } })();
+const CATS = ["usability","cognitive_load","visual_layout","accessibility","content","trust_persuasion"];
+const CATLBL = {usability:"Usability",cognitive_load:"Cognitive load",visual_layout:"Visual & layout",
+  accessibility:"Accessibility",content:"Content",trust_persuasion:"Trust & persuasion"};
+const CATWHAT = {
+  usability:"Nielsen's 10 heuristics, Shneiderman's 8 rules, Norman's principles, Tognazzini, recurring-failure checks (dead ends, false affordances, unguarded destructive actions)",
+  cognitive_load:"Gerhardt-Powals cognitive engineering, Hick's/Miller's/Jakob's/Peak-End laws — choice overload, mental math the UI could do, chunking",
+  visual_layout:"Gestalt grouping principles — does visual grouping, alignment, and hierarchy match meaning",
+  accessibility:"WCAG 2.1 visual subset, measured: contrast ratios, visible labels, target sizes, color-only signaling",
+  content:"10 content-design heuristics — outcome-named CTAs, plain language, consequences stated, one voice",
+  trust_persuasion:"Cialdini-based dark-pattern checks (fake urgency, pre-checked costs, confirmshaming, hidden fees) and trust-signal gaps"};
+const SEVC = {critical:"#ff6b6b",high:"#ffa94d",medium:"#ffd43b",low:"#74c0fc"};
+const SEVO = {critical:3,high:2,medium:1,low:0};
+const band = s => s>=90?"exceptional":s>=80?"strong — ship-ready":s>=66?"functional, unremarkable":s>=50?"broken flows":"fundamentally broken";
+const sCol = s => s>=80?"var(--good)":s>=66?"var(--low)":s>=50?"var(--med)":"var(--crit)";
+const esc = t => (t??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num = id => (id.match(/\d+/)||[id])[0];
+
+function popHTML(f){
+  return `<div class="pop"><span class="pill ${f.severity}">${f.severity}</span>
+    <strong> #${num(f.id)} ${esc(f.issue)}</strong>
+    <div>${esc(f.why_it_matters)}</div>
+    <div class="reco">→ ${esc(f.recommendation)}</div>
+    ${f.evidence?`<div class="ev">${esc(f.evidence)}</div>`:""}
+    ${f.validation?`<div class="ev">Validate: ${esc(f.validation)}</div>`:""}
+    <div class="cite">${(f.principles||[]).map(esc).join(" · ")} · ${esc(f.element||"")}</div></div>`;
+}
+function cardHTML(f){
+  return `<div class="card ${f.type==='hypothesis'?'hyp':''}">
+    <span class="pill ${f.severity}">${f.severity}</span> <strong>#${num(f.id)} ${esc(f.issue)}</strong>
+    <div>${esc(f.why_it_matters)}</div><div class="reco">→ ${esc(f.recommendation)}</div>
+    ${f.evidence?`<div class="ev" style="color:var(--muted);font-size:.78rem">${esc(f.evidence)}</div>`:""}
+    ${f.validation?`<div style="color:var(--muted);font-size:.78rem">Validate: ${esc(f.validation)}</div>`:""}
+    <div class="cite">${(f.principles||[]).map(esc).join(" · ")} · ${esc(f.element||"")}</div></div>`;
+}
+
+function render(){
+  const all = (D.findings||[]).concat(D.hypotheses||[]);
+  const m = D.meta||{}, sc = D.scores||{}, rat = D.score_rationales||{};
+  let h = `<h1>UX audit — ${esc(m.audit_id||"report")}</h1>
+  <div class="meta"><span>${esc(m.date||"")}</span><span>mode: ${esc(m.mode||"")}</span>
+    <span>goal: ${esc(m.goal||"")}</span><span>persona: ${esc(m.persona||"")}</span>
+    <span>platform: ${esc(m.platform||"")}</span><span>stage: ${esc(m.stage||"")}</span></div>`;
+
+  h += `<div class="scorehead"><div class="overall">
+    <div class="n" style="color:${sCol(sc.overall)}">${sc.overall}</div>
+    <div class="band">${band(sc.overall)}</div>
+    <div class="scale"><i class="seg1"></i><i class="seg2"></i><i class="seg3"></i><i class="seg4"></i><i class="seg5"></i>
+      <span class="ptr" style="left:${sc.overall}%"></span></div>
+    <div class="scalelbl"><span>0</span><span>50</span><span>66</span><span>80</span><span>90</span><span>100</span></div>
+    <div class="scalenote">80–89 is a strong, ship-ready result. 90+ is exceptional and rare —
+      100 is not the target. Below 50, the primary task itself is at risk.</div></div>
+    <div class="bars">` +
+    CATS.map(c=>`<div class="bar" title="${esc(rat[c]||"")}">
+      <span class="lbl"><b>${CATLBL[c]}</b></span>
+      <span class="track"><span class="fill" style="width:${sc[c]||0}%;background:${sCol(sc[c]||0)}"></span></span>
+      <span style="color:${sCol(sc[c]||0)};font-weight:600">${sc[c]??"—"}</span></div>`).join("") +
+    `<div class="hint">Hover a row for the scoring rationale.</div></div></div>`;
+
+  h += `<details class="expl"><summary>What each category checks &amp; why it scored this way</summary>
+    <table><tr><th style="cursor:default">Category</th><th style="cursor:default">Checks</th><th style="cursor:default">Why this score</th></tr>` +
+    CATS.map(c=>`<tr><td style="white-space:nowrap"><b>${CATLBL[c]}</b><br>
+      <span style="color:${sCol(sc[c]||0)};font-weight:700">${sc[c]??"—"}</span></td>
+      <td style="color:var(--muted)">${CATWHAT[c]}</td><td>${esc(rat[c]||"—")}</td></tr>`).join("") +
+    `</table></details>`;
+
+  h += `<div class="obt" style="background:var(--panel);border-left:3px solid var(--accent);
+    border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0">
+    <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);display:block;margin-bottom:4px">One big thing</span>
+    ${esc(D.one_big_thing)}</div>`;
+
+  (IMGS||[]).forEach((src,i)=>{
+    const sf = all.filter(f=>f.box_2d && (f.screen_index??0)===i);
+    const slf = all.filter(f=>!f.box_2d && f.screen_index===i || (!f.box_2d && f.screen_index==null && IMGS.length===1));
+    h += `<h2>Screen ${i}${(m.screens&&m.screens[i])?` — ${esc(m.screens[i])}`:""}</h2>`;
+    if(sf.length) h += `<div class="hint">Tap or hover a numbered marker to see the finding;
+      tap it again (or anywhere else) to close. Box colors = severity.</div>`;
+    h += `<div class="shot">
+      <img src="${src}">` +
+      sf.map(f=>{const[b0,b1,b2,b3]=f.box_2d;
+        return `<div class="boxol" id="hl-${esc(f.id)}" style="top:${b0/10}%;left:${b1/10}%;
+          height:${(b2-b0)/10}%;width:${(b3-b1)/10}%;border-color:${SEVC[f.severity]}"></div>`;}).join("") +
+      (()=>{const placed=[];
+       return sf.map(f=>{const[b0,b1]=f.box_2d;
+        let x=b1/10; const y=b0/10;
+        while(placed.some(p=>Math.abs(p.x-x)<3.1&&Math.abs(p.y-y)<3.6)) x+=3.3;
+        placed.push({x,y});
+        const cls = (x>62?"flip ":"")+(b0>720?"up":"");
+        return `<div class="mark ${cls}" id="mk-${esc(f.id)}" style="top:${y}%;left:${x}%;
+          background:${SEVC[f.severity]}" onclick="pin(event,this)"
+          onmouseenter="glow('${esc(f.id)}',1)" onmouseleave="glow('${esc(f.id)}',0)">${num(f.id)}${popHTML(f)}</div>`;}).join("");})() +
+    `</div>`;
+    if(slf.length) h += `<div class="hint">Screen-level findings (no single location):</div>
+      <div class="cards">${slf.map(cardHTML).join("")}</div>`;
+  });
+
+  const cross = all.filter(f=>f.screen_index==null && IMGS.length>1);
+  if(cross.length) h += `<h2>Cross-screen findings</h2><div class="cards">${cross.map(cardHTML).join("")}</div>`;
+
+  if(D.flow){ h += `<h2>Flow analysis</h2>`;
+    if((D.flow.transitions||[]).length) h += `<table><tr><th style="cursor:default">Transition</th><th style="cursor:default">Verdict</th><th style="cursor:default">Note</th></tr>`+
+      D.flow.transitions.map(t=>`<tr><td>${t.from} → ${t.to}</td><td>${esc(t.verdict)}</td><td>${esc(t.note)}</td></tr>`).join("")+`</table>`;
+    if((D.flow.missing_states||[]).length) h += `<p><strong>Missing states:</strong></p><ul>`+
+      D.flow.missing_states.map(s=>`<li>${esc(s)}</li>`).join("")+`</ul>`;
+    if(D.flow.peak_end) h += `<p><strong>Peak–end:</strong> ${esc(D.flow.peak_end)}</p>`; }
+
+  if(D.delta){ h += `<h2>Re-audit delta</h2><table><tr><th>Fixed</th><th>Regressed</th><th>New</th><th>Unchanged</th></tr>
+    <tr><td>${(D.delta.fixed||[]).join(", ")||"—"}</td><td>${(D.delta.regressed||[]).join(", ")||"—"}</td>
+    <td>${(D.delta.new||[]).join(", ")||"—"}</td><td>${(D.delta.unchanged||[]).join(", ")||"—"}</td></tr></table>`; }
+
+  h += `<h2>All findings</h2>`;
+  if((D.findings||[]).length){
+    h += `<table id="ftab"><thead><tr>
+      <th onclick="sortBy('importance')">Importance ↓</th><th onclick="sortBy('severity')">Severity</th>
+      <th onclick="sortBy('category')">Category</th><th style="cursor:default">Issue</th>
+      <th style="cursor:default">Recommendation</th><th style="cursor:default">Principles</th></tr></thead><tbody></tbody></table>
+      <div class="hint">Click a column header to sort; click a row to jump to its marker.</div>`;
+  } else {
+    h += `<div class="empty">✓ No issues found. Every check run on this screen passed —
+      see <strong>Coverage</strong> below for everything that was examined. A clean result
+      is a real result; this report never pads findings to look thorough.</div>`;
+  }
+
+  if((D.hypotheses||[]).length) h += `<h2>Hypotheses (not scored — require data to confirm)</h2>
+    <div class="cards">${D.hypotheses.map(cardHTML).join("")}</div>`;
+
+  // ---- coverage: every registry principle, comprehensively, with names + evidence ----
+  const cc = D.clean_checks||[];
+  const expand = t => t.replace(/([A-Z]+-)(\d+)\.\.(\d+)/g,(s,p,a,b)=>{const o=[];
+    for(let i=+a;i<=+b;i++)o.push(p+String(i).padStart(a.length,"0"));return o.join(" ");});
+  const obsIds = new Set((D.findings||[]).flatMap(f=>f.principles||[]));
+  const hypIds = new Set((D.hypotheses||[]).flatMap(f=>f.principles||[]));
+  const passIds = new Set(), noteById = {};
+  cc.forEach(c=>{ // evidence IDs live in the head, before the first dash/colon
+    const cut = Math.min(...["—",":"].map(x=>{const i=c.indexOf(x);return i<0?1e9:i;}));
+    if(cut===1e9) return;
+    const head=c.slice(0,cut), rest=c.slice(cut+1).trim();
+    (expand(head).match(/[A-Z]+-[A-Z0-9.]+/g)||[]).forEach(id=>{ if(REG[id]){
+      passIds.add(id); (noteById[id]=noteById[id]||[]).push(rest); } }); });
+  const isFlow = m.mode==="flow";
+  const status = id => { const r=REG[id];
+    if(obsIds.has(id)) return "finding";
+    if(hypIds.has(id)) return "hypo";
+    if(passIds.has(id)) return "pass";
+    if(r.tier.length===1&&r.tier[0]===3) return "tier3";
+    if(!r.tier.includes(1)&&!isFlow) return "notrun";
+    return "ok"; };
+  const ids = Object.keys(REG);
+  if(ids.length){
+    const counts={finding:0,hypo:0,pass:0,ok:0,notrun:0,tier3:0};
+    ids.forEach(id=>counts[status(id)]++);
+    const examined = counts.finding+counts.pass+counts.ok;
+    const segs=[`${counts.finding} raised findings`,
+      `${counts.pass} passed with documented evidence`,
+      `${counts.ok} examined with nothing to report`];
+    if(counts.notrun) segs.push(`${counts.notrun} not run (need a flow audit)`);
+    if(counts.tier3) segs.push(`${counts.tier3} hypothesis-only (Tier 3)`);
+    if(counts.hypo) segs.push(`${counts.hypo} hypotheses raised`);
+    h += `<h2>Coverage — ${examined} of ${ids.length} principles examined</h2>
+    <div class="hint">${segs.join(" · ")}</div>`;
+    const findsById={};
+    (D.findings||[]).concat(D.hypotheses||[]).forEach(f=>(f.principles||[]).forEach(p=>
+      (findsById[p]=findsById[p]||[]).push(f.id)));
+    const groups={};
+    ids.forEach(id=>{(groups[REG[id].framework]=groups[REG[id].framework]||[]).push(id);});
+    const STAT={finding:["⚠ finding","finding"],hypo:["? hypothesis","hypo"],
+      pass:["✓ pass — documented","pass"],ok:["✓ examined","okst"],
+      notrun:["– not run","nr"],tier3:["– hypothesis-only","nr"]};
+    h += `<details class="expl" open><summary>All ${ids.length} principles, by framework</summary>` +
+      Object.entries(groups).map(([fw,gids])=>`<div class="fwname">${esc(fw)}</div><table class="covtab">`+
+        gids.map(id=>{const st=status(id);
+          const note = (st==="finding"||st==="hypo") ? "→ "+(findsById[id]||[]).map(x=>"#"+num(x)).join(", ")
+            : st==="pass" ? (noteById[id]||[]).map(esc).join("<br>")
+            : st==="notrun" ? "needs a screen sequence — run a flow audit"
+            : st==="tier3" ? "needs behavioral data — never scored"
+            : "scanned against its symptom checklist; nothing to report";
+          return `<tr><td class="st ${STAT[st][1]}">${STAT[st][0]}</td>
+            <td style="font-family:var(--mono);font-size:.74rem;white-space:nowrap">${esc(id)}</td>
+            <td>${esc(REG[id].name)}</td><td class="covnote">${note}</td></tr>`;}).join("")
+        +`</table>`).join("") +
+      `<div class="hint">"Examined" means the screen(s) were scanned against that principle's
+       symptom checklist within static-screenshot limits; notable passes carry written evidence.</div></details>`;
+  }
+
+  h += `<div class="foot"><strong>Methodology.</strong> Frameworks: ${(m.frameworks_applied||[]).map(esc).join(", ")}.
+    Tiers run: ${(m.tiers_run||[]).join(", ")} (1 = static screenshot, 2 = flow, 3 = behavioral hypotheses).
+    ${m.issue_overflow?`Issue overflow (dropped by 5-per-category cap): ${m.issue_overflow}. `:""}
+    Not auditable from static screenshots: focus order, ARIA/alt text, keyboard access, real latency — verify in code or live.
+    Numeric claims carry <code>measured:</code> evidence from measure.py. Model: ${esc(m.model||"")}. ${esc(m.date||"")}.</div>`;
+
+  document.getElementById('app').innerHTML = h;
+  if((D.findings||[]).length)
+    fillTable(D.findings.slice().sort((a,b)=>(b.importance||0)-(a.importance||0)));
+}
+function fillTable(rows){
+  document.querySelector('#ftab tbody').innerHTML = rows.map(f=>
+    `<tr onclick="jump('${esc(f.id)}')"><td>${f.importance??""}</td>
+    <td><span class="pill ${f.severity}">${f.severity}</span></td><td>${CATLBL[f.category]||f.category}</td>
+    <td><strong>#${num(f.id)}</strong> ${esc(f.issue)}</td><td>${esc(f.recommendation)}</td>
+    <td style="font-family:var(--mono);font-size:.75rem">${(f.principles||[]).map(esc).join("<br>")}</td></tr>`).join("");
+}
+function sortBy(k){
+  const rows=(D.findings||[]).slice().sort((a,b)=> k==='severity'?(SEVO[b.severity]-SEVO[a.severity])
+    : k==='category'?String(a.category).localeCompare(b.category):(b[k]||0)-(a[k]||0));
+  fillTable(rows);
+}
+function glow(id,on){ const el=document.getElementById('hl-'+id); if(el) el.classList.toggle('on',!!on); }
+function pin(ev,el){ ev.stopPropagation();
+  document.querySelectorAll('.mark.pinned').forEach(x=>{ if(x!==el) x.classList.remove('pinned'); });
+  el.classList.toggle('pinned'); }
+function jump(id){ const mk=document.getElementById('mk-'+id);
+  if(mk){ mk.scrollIntoView({behavior:'smooth',block:'center'});
+    glow(id,1); setTimeout(()=>glow(id,0),2600); } }
+document.addEventListener('click',()=>document.querySelectorAll('.mark.pinned')
+  .forEach(x=>x.classList.remove('pinned')));
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --panel2:#1f232d; --border:#2a2f3a; --text:#d7dce4;
+    --muted:#8b93a1; --accent:#6aa9ff; --good:#8fd3a8; --crit:#ff6b6b; --high:#ffa94d;
+    --med:#ffd43b; --low:#74c0fc; --mono:ui-monospace,Menlo,Consolas,monospace; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.6 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  .wrap { max-width:1240px; margin:0 auto; padding:40px 24px 80px; }
+  h1 { font-size:1.6rem; margin:0 0 2px; } h2 { font-size:1.2rem; margin:44px 0 10px; }
+  .meta { color:var(--muted); font-size:.85rem; margin-bottom:24px; }
+  .meta span { margin-right:14px; }
+  .hint { color:var(--muted); font-size:.82rem; margin:2px 0 10px; }
+  /* ---------- scorecard ---------- */
+  .scorehead { display:flex; gap:32px; background:var(--panel); border:1px solid var(--border);
+    border-radius:12px; padding:22px 26px; flex-wrap:wrap; }
+  .overall { text-align:center; min-width:170px; }
+  .overall .n { font-size:3rem; font-weight:700; line-height:1; }
+  .overall .band { color:var(--muted); font-size:.8rem; margin:4px 0 12px; }
+  .scale { position:relative; height:10px; border-radius:5px; overflow:visible; display:flex; }
+  .scale i { display:block; height:10px; }
+  .scale .seg1{width:49%;background:#5a2530;border-radius:5px 0 0 5px}
+  .scale .seg2{width:16%;background:#5a4a25}.scale .seg3{width:14%;background:#2d4a63}
+  .scale .seg4{width:11%;background:#2c5a45}.scale .seg5{width:10%;background:#8fd3a8;border-radius:0 5px 5px 0}
+  .scale .ptr { position:absolute; top:-7px; width:0; height:0; border-left:6px solid transparent;
+    border-right:6px solid transparent; border-top:8px solid #fff; transform:translateX(-50%); }
+  .scalelbl { display:flex; justify-content:space-between; font-size:.62rem; color:var(--muted); margin-top:3px; }
+  .scalenote { font-size:.72rem; color:var(--muted); margin-top:8px; max-width:200px; text-align:left; }
+  .bars { flex:1; min-width:340px; }
+  .bar { display:grid; grid-template-columns:150px 1fr 36px; gap:10px; align-items:center;
+    margin:7px 0; font-size:.84rem; }
+  .bar .lbl b { display:block; }
+  .bar .lbl small { color:var(--muted); font-size:.66rem; line-height:1.3; display:block; }
+  .bar .track { display:block; height:9px; background:var(--panel2); border-radius:5px; overflow:hidden; }
+  .bar .fill { display:block; height:100%; border-radius:5px; }
+  details.expl { margin:14px 0; background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:10px 18px; font-size:.86rem; }
+  details.expl summary { cursor:pointer; color:var(--accent); font-weight:600; }
+  details.expl table { margin-top:10px; }
+  /* ---------- screenshots + markers ---------- */
+  .shot { position:relative; margin:10px 0 6px; border:1px solid var(--border);
+    border-radius:10px; overflow:visible; }
+  .shot img { display:block; width:100%; height:auto; border-radius:10px; }
+  .boxol { position:absolute; border:2.5px solid; border-radius:6px; pointer-events:none;
+    opacity:.45; transition:opacity .15s, box-shadow .15s; }
+  .boxol.on { opacity:1; box-shadow:0 0 0 6000px rgba(0,0,0,.45); }
+  .mark { position:absolute; width:34px; height:34px; border-radius:50%; transform:translate(-50%,-50%);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.86rem;
+    color:#111; cursor:pointer; border:2px solid rgba(0,0,0,.55); z-index:5;
+    box-shadow:0 2px 8px rgba(0,0,0,.5); -webkit-tap-highlight-color:transparent; }
+  @media (hover:none) { .boxol { opacity:.7; } .mark { width:38px; height:38px; } }
+  .mark:hover, .mark.pinned { z-index:20; }
+  .pop { display:none; position:absolute; top:125%; left:-12px; width:360px; max-width:74vw;
+    background:var(--panel2); border:1px solid #3a4150; border-radius:10px; padding:12px 15px;
+    font-weight:400; font-size:.84rem; line-height:1.55; color:var(--text); text-align:left;
+    box-shadow:0 12px 36px rgba(0,0,0,.55); z-index:30; cursor:default; }
+  .mark.flip .pop { left:auto; right:-12px; }
+  .mark.up .pop { top:auto; bottom:125%; }
+  .mark:hover .pop, .mark.pinned .pop { display:block; }
+  .pop .reco { color:var(--good); margin-top:5px; }
+  .pop .cite { font-family:var(--mono); font-size:.7rem; color:var(--accent); margin-top:6px; }
+  .pop .ev { color:var(--muted); font-size:.76rem; margin-top:3px; }
+  /* ---------- cards / table / misc ---------- */
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:10px; margin:10px 0; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    padding:11px 14px; font-size:.86rem; }
+  .card .reco { color:var(--good); margin-top:4px; }
+  .card .cite { font-family:var(--mono); font-size:.7rem; color:var(--accent); margin-top:5px; }
+  .pill { display:inline-block; padding:0 8px; border-radius:999px; font-size:.72rem; font-weight:600; }
+  .pill.critical { background:rgba(255,107,107,.18); color:var(--crit); }
+  .pill.high { background:rgba(255,169,77,.18); color:var(--high); }
+  .pill.medium { background:rgba(255,212,59,.18); color:var(--med); }
+  .pill.low { background:rgba(116,192,252,.18); color:var(--low); }
+  table { border-collapse:collapse; width:100%; font-size:.85rem; margin:12px 0; }
+  th,td { border:1px solid var(--border); padding:6px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--panel2); cursor:pointer; user-select:none; }
+  tr:nth-child(even) td { background:var(--panel); }
+  tbody tr { cursor:pointer; }
+  .empty { background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:18px 22px; color:var(--good); font-size:.95rem; }
+  .hyp { border-left:3px solid var(--high); }
+  .passgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr));
+    gap:6px 22px; font-size:.85rem; margin:8px 0; }
+  .passgrid div { color:var(--text); }
+  .passgrid b { color:var(--good); font-family:var(--mono); font-size:.78rem; }
+  .fwname { font-size:.86rem; color:var(--text); font-weight:600; margin:16px 0 4px; }
+  .covtab { margin:4px 0 10px; }
+  .covtab td { padding:4px 9px; font-size:.8rem; }
+  .covtab .st { white-space:nowrap; font-size:.74rem; font-weight:600; width:130px; }
+  .covtab .st.finding { color:var(--crit); } .covtab .st.hypo { color:var(--high); }
+  .covtab .st.pass { color:var(--good); } .covtab .st.okst { color:#79a98f; }
+  .covtab .st.nr { color:#5b6472; }
+  .covnote { color:var(--muted); font-size:.76rem; }
+  .foot { color:var(--muted); font-size:.8rem; margin-top:44px; border-top:1px solid var(--border);
+    padding-top:14px; }
+  ul { padding-left:22px; } li { margin:3px 0; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script id="data" type="application/json">{{FINDINGS_JSON}}</script>
+<script id="imgs" type="application/json">{{IMAGES_JSON}}</script>
+<script id="reg" type="application/json">{{REGISTRY_JSON}}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const IMGS = JSON.parse(document.getElementById('imgs').textContent);
+const REG = (()=>{ try { return JSON.parse(document.getElementById('reg').textContent); }
+  catch(e){ return {}; } })();
+const CATS = ["usability","cognitive_load","visual_layout","accessibility","content","trust_persuasion"];
+const CATLBL = {usability:"Usability",cognitive_load:"Cognitive load",visual_layout:"Visual & layout",
+  accessibility:"Accessibility",content:"Content",trust_persuasion:"Trust & persuasion"};
+const CATWHAT = {
+  usability:"Nielsen's 10 heuristics, Shneiderman's 8 rules, Norman's principles, Tognazzini, recurring-failure checks (dead ends, false affordances, unguarded destructive actions)",
+  cognitive_load:"Gerhardt-Powals cognitive engineering, Hick's/Miller's/Jakob's/Peak-End laws — choice overload, mental math the UI could do, chunking",
+  visual_layout:"Gestalt grouping principles — does visual grouping, alignment, and hierarchy match meaning",
+  accessibility:"WCAG 2.1 visual subset, measured: contrast ratios, visible labels, target sizes, color-only signaling",
+  content:"10 content-design heuristics — outcome-named CTAs, plain language, consequences stated, one voice",
+  trust_persuasion:"Cialdini-based dark-pattern checks (fake urgency, pre-checked costs, confirmshaming, hidden fees) and trust-signal gaps"};
+const SEVC = {critical:"#ff6b6b",high:"#ffa94d",medium:"#ffd43b",low:"#74c0fc"};
+const SEVO = {critical:3,high:2,medium:1,low:0};
+const band = s => s>=90?"exceptional":s>=80?"strong — ship-ready":s>=66?"functional, unremarkable":s>=50?"broken flows":"fundamentally broken";
+const sCol = s => s>=80?"var(--good)":s>=66?"var(--low)":s>=50?"var(--med)":"var(--crit)";
+const esc = t => (t??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num = id => (id.match(/\d+/)||[id])[0];
+
+function popHTML(f){
+  return `<div class="pop"><span class="pill ${f.severity}">${f.severity}</span>
+    <strong> #${num(f.id)} ${esc(f.issue)}</strong>
+    <div>${esc(f.why_it_matters)}</div>
+    <div class="reco">→ ${esc(f.recommendation)}</div>
+    ${f.evidence?`<div class="ev">${esc(f.evidence)}</div>`:""}
+    ${f.validation?`<div class="ev">Validate: ${esc(f.validation)}</div>`:""}
+    <div class="cite">${(f.principles||[]).map(esc).join(" · ")} · ${esc(f.element||"")}</div></div>`;
+}
+function cardHTML(f){
+  return `<div class="card ${f.type==='hypothesis'?'hyp':''}">
+    <span class="pill ${f.severity}">${f.severity}</span> <strong>#${num(f.id)} ${esc(f.issue)}</strong>
+    <div>${esc(f.why_it_matters)}</div><div class="reco">→ ${esc(f.recommendation)}</div>
+    ${f.evidence?`<div class="ev" style="color:var(--muted);font-size:.78rem">${esc(f.evidence)}</div>`:""}
+    ${f.validation?`<div style="color:var(--muted);font-size:.78rem">Validate: ${esc(f.validation)}</div>`:""}
+    <div class="cite">${(f.principles||[]).map(esc).join(" · ")} · ${esc(f.element||"")}</div></div>`;
+}
+
+function render(){
+  const all = (D.findings||[]).concat(D.hypotheses||[]);
+  const m = D.meta||{}, sc = D.scores||{}, rat = D.score_rationales||{};
+  let h = `<h1>UX audit — ${esc(m.audit_id||"report")}</h1>
+  <div class="meta"><span>${esc(m.date||"")}</span><span>mode: ${esc(m.mode||"")}</span>
+    <span>goal: ${esc(m.goal||"")}</span><span>persona: ${esc(m.persona||"")}</span>
+    <span>platform: ${esc(m.platform||"")}</span><span>stage: ${esc(m.stage||"")}</span></div>`;
+
+  h += `<div class="scorehead"><div class="overall">
+    <div class="n" style="color:${sCol(sc.overall)}">${sc.overall}</div>
+    <div class="band">${band(sc.overall)}</div>
+    <div class="scale"><i class="seg1"></i><i class="seg2"></i><i class="seg3"></i><i class="seg4"></i><i class="seg5"></i>
+      <span class="ptr" style="left:${sc.overall}%"></span></div>
+    <div class="scalelbl"><span>0</span><span>50</span><span>66</span><span>80</span><span>90</span><span>100</span></div>
+    <div class="scalenote">80–89 is a strong, ship-ready result. 90+ is exceptional and rare —
+      100 is not the target. Below 50, the primary task itself is at risk.</div></div>
+    <div class="bars">` +
+    CATS.map(c=>`<div class="bar" title="${esc(rat[c]||"")}">
+      <span class="lbl"><b>${CATLBL[c]}</b></span>
+      <span class="track"><span class="fill" style="width:${sc[c]||0}%;background:${sCol(sc[c]||0)}"></span></span>
+      <span style="color:${sCol(sc[c]||0)};font-weight:600">${sc[c]??"—"}</span></div>`).join("") +
+    `<div class="hint">Hover a row for the scoring rationale.</div></div></div>`;
+
+  h += `<details class="expl"><summary>What each category checks &amp; why it scored this way</summary>
+    <table><tr><th style="cursor:default">Category</th><th style="cursor:default">Checks</th><th style="cursor:default">Why this score</th></tr>` +
+    CATS.map(c=>`<tr><td style="white-space:nowrap"><b>${CATLBL[c]}</b><br>
+      <span style="color:${sCol(sc[c]||0)};font-weight:700">${sc[c]??"—"}</span></td>
+      <td style="color:var(--muted)">${CATWHAT[c]}</td><td>${esc(rat[c]||"—")}</td></tr>`).join("") +
+    `</table></details>`;
+
+  h += `<div class="obt" style="background:var(--panel);border-left:3px solid var(--accent);
+    border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0">
+    <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);display:block;margin-bottom:4px">One big thing</span>
+    ${esc(D.one_big_thing)}</div>`;
+
+  (IMGS||[]).forEach((src,i)=>{
+    const sf = all.filter(f=>f.box_2d && (f.screen_index??0)===i);
+    const slf = all.filter(f=>!f.box_2d && f.screen_index===i || (!f.box_2d && f.screen_index==null && IMGS.length===1));
+    h += `<h2>Screen ${i}${(m.screens&&m.screens[i])?` — ${esc(m.screens[i])}`:""}</h2>`;
+    if(sf.length) h += `<div class="hint">Tap or hover a numbered marker to see the finding;
+      tap it again (or anywhere else) to close. Box colors = severity.</div>`;
+    h += `<div class="shot">
+      <img src="${src}">` +
+      sf.map(f=>{const[b0,b1,b2,b3]=f.box_2d;
+        return `<div class="boxol" id="hl-${esc(f.id)}" style="top:${b0/10}%;left:${b1/10}%;
+          height:${(b2-b0)/10}%;width:${(b3-b1)/10}%;border-color:${SEVC[f.severity]}"></div>`;}).join("") +
+      (()=>{const placed=[];
+       return sf.map(f=>{const[b0,b1]=f.box_2d;
+        let x=b1/10; const y=b0/10;
+        while(placed.some(p=>Math.abs(p.x-x)<3.1&&Math.abs(p.y-y)<3.6)) x+=3.3;
+        placed.push({x,y});
+        const cls = (x>62?"flip ":"")+(b0>720?"up":"");
+        return `<div class="mark ${cls}" id="mk-${esc(f.id)}" style="top:${y}%;left:${x}%;
+          background:${SEVC[f.severity]}" onclick="pin(event,this)"
+          onmouseenter="glow('${esc(f.id)}',1)" onmouseleave="glow('${esc(f.id)}',0)">${num(f.id)}${popHTML(f)}</div>`;}).join("");})() +
+    `</div>`;
+    if(slf.length) h += `<div class="hint">Screen-level findings (no single location):</div>
+      <div class="cards">${slf.map(cardHTML).join("")}</div>`;
+  });
+
+  const cross = all.filter(f=>f.screen_index==null && IMGS.length>1);
+  if(cross.length) h += `<h2>Cross-screen findings</h2><div class="cards">${cross.map(cardHTML).join("")}</div>`;
+
+  if(D.flow){ h += `<h2>Flow analysis</h2>`;
+    if((D.flow.transitions||[]).length) h += `<table><tr><th style="cursor:default">Transition</th><th style="cursor:default">Verdict</th><th style="cursor:default">Note</th></tr>`+
+      D.flow.transitions.map(t=>`<tr><td>${t.from} → ${t.to}</td><td>${esc(t.verdict)}</td><td>${esc(t.note)}</td></tr>`).join("")+`</table>`;
+    if((D.flow.missing_states||[]).length) h += `<p><strong>Missing states:</strong></p><ul>`+
+      D.flow.missing_states.map(s=>`<li>${esc(s)}</li>`).join("")+`</ul>`;
+    if(D.flow.peak_end) h += `<p><strong>Peak–end:</strong> ${esc(D.flow.peak_end)}</p>`; }
+
+  if(D.delta){ h += `<h2>Re-audit delta</h2><table><tr><th>Fixed</th><th>Regressed</th><th>New</th><th>Unchanged</th></tr>
+    <tr><td>${(D.delta.fixed||[]).join(", ")||"—"}</td><td>${(D.delta.regressed||[]).join(", ")||"—"}</td>
+    <td>${(D.delta.new||[]).join(", ")||"—"}</td><td>${(D.delta.unchanged||[]).join(", ")||"—"}</td></tr></table>`; }
+
+  h += `<h2>All findings</h2>`;
+  if((D.findings||[]).length){
+    h += `<table id="ftab"><thead><tr>
+      <th onclick="sortBy('importance')">Importance ↓</th><th onclick="sortBy('severity')">Severity</th>
+      <th onclick="sortBy('category')">Category</th><th style="cursor:default">Issue</th>
+      <th style="cursor:default">Recommendation</th><th style="cursor:default">Principles</th></tr></thead><tbody></tbody></table>
+      <div class="hint">Click a column header to sort; click a row to jump to its marker.</div>`;
+  } else {
+    h += `<div class="empty">✓ No issues found. Every check run on this screen passed —
+      see <strong>Coverage</strong> below for everything that was examined. A clean result
+      is a real result; this report never pads findings to look thorough.</div>`;
+  }
+
+  if((D.hypotheses||[]).length) h += `<h2>Hypotheses (not scored — require data to confirm)</h2>
+    <div class="cards">${D.hypotheses.map(cardHTML).join("")}</div>`;
+
+  // ---- coverage: every registry principle, comprehensively, with names + evidence ----
+  const cc = D.clean_checks||[];
+  const expand = t => t.replace(/([A-Z]+-)(\d+)\.\.(\d+)/g,(s,p,a,b)=>{const o=[];
+    for(let i=+a;i<=+b;i++)o.push(p+String(i).padStart(a.length,"0"));return o.join(" ");});
+  const obsIds = new Set((D.findings||[]).flatMap(f=>f.principles||[]));
+  const hypIds = new Set((D.hypotheses||[]).flatMap(f=>f.principles||[]));
+  const passIds = new Set(), noteById = {};
+  cc.forEach(c=>{ // evidence IDs live in the head, before the first dash/colon
+    const cut = Math.min(...["—",":"].map(x=>{const i=c.indexOf(x);return i<0?1e9:i;}));
+    if(cut===1e9) return;
+    const head=c.slice(0,cut), rest=c.slice(cut+1).trim();
+    (expand(head).match(/[A-Z]+-[A-Z0-9.]+/g)||[]).forEach(id=>{ if(REG[id]){
+      passIds.add(id); (noteById[id]=noteById[id]||[]).push(rest); } }); });
+  const isFlow = m.mode==="flow";
+  const status = id => { const r=REG[id];
+    if(obsIds.has(id)) return "finding";
+    if(hypIds.has(id)) return "hypo";
+    if(passIds.has(id)) return "pass";
+    if(r.tier.length===1&&r.tier[0]===3) return "tier3";
+    if(!r.tier.includes(1)&&!isFlow) return "notrun";
+    return "ok"; };
+  const ids = Object.keys(REG);
+  if(ids.length){
+    const counts={finding:0,hypo:0,pass:0,ok:0,notrun:0,tier3:0};
+    ids.forEach(id=>counts[status(id)]++);
+    const examined = counts.finding+counts.pass+counts.ok;
+    const segs=[`${counts.finding} raised findings`,
+      `${counts.pass} passed with documented evidence`,
+      `${counts.ok} examined with nothing to report`];
+    if(counts.notrun) segs.push(`${counts.notrun} not run (need a flow audit)`);
+    if(counts.tier3) segs.push(`${counts.tier3} hypothesis-only (Tier 3)`);
+    if(counts.hypo) segs.push(`${counts.hypo} hypotheses raised`);
+    h += `<h2>Coverage — ${examined} of ${ids.length} principles examined</h2>
+    <div class="hint">${segs.join(" · ")}</div>`;
+    const findsById={};
+    (D.findings||[]).concat(D.hypotheses||[]).forEach(f=>(f.principles||[]).forEach(p=>
+      (findsById[p]=findsById[p]||[]).push(f.id)));
+    const groups={};
+    ids.forEach(id=>{(groups[REG[id].framework]=groups[REG[id].framework]||[]).push(id);});
+    const STAT={finding:["⚠ finding","finding"],hypo:["? hypothesis","hypo"],
+      pass:["✓ pass — documented","pass"],ok:["✓ examined","okst"],
+      notrun:["– not run","nr"],tier3:["– hypothesis-only","nr"]};
+    h += `<details class="expl" open><summary>All ${ids.length} principles, by framework</summary>` +
+      Object.entries(groups).map(([fw,gids])=>`<div class="fwname">${esc(fw)}</div><table class="covtab">`+
+        gids.map(id=>{const st=status(id);
+          const note = (st==="finding"||st==="hypo") ? "→ "+(findsById[id]||[]).map(x=>"#"+num(x)).join(", ")
+            : st==="pass" ? (noteById[id]||[]).map(esc).join("<br>")
+            : st==="notrun" ? "needs a screen sequence — run a flow audit"
+            : st==="tier3" ? "needs behavioral data — never scored"
+            : "scanned against its symptom checklist; nothing to report";
+          return `<tr><td class="st ${STAT[st][1]}">${STAT[st][0]}</td>
+            <td style="font-family:var(--mono);font-size:.74rem;white-space:nowrap">${esc(id)}</td>
+            <td>${esc(REG[id].name)}</td><td class="covnote">${note}</td></tr>`;}).join("")
+        +`</table>`).join("") +
+      `<div class="hint">"Examined" means the screen(s) were scanned against that principle's
+       symptom checklist within static-screenshot limits; notable passes carry written evidence.</div></details>`;
+  }
+
+  h += `<div class="foot"><strong>Methodology.</strong> Frameworks: ${(m.frameworks_applied||[]).map(esc).join(", ")}.
+    Tiers run: ${(m.tiers_run||[]).join(", ")} (1 = static screenshot, 2 = flow, 3 = behavioral hypotheses).
+    ${m.issue_overflow?`Issue overflow (dropped by 5-per-category cap): ${m.issue_overflow}. `:""}
+    Not auditable from static screenshots: focus order, ARIA/alt text, keyboard access, real latency — verify in code or live.
+    Numeric claims carry <code>measured:</code> evidence from measure.py. Model: ${esc(m.model||"")}. ${esc(m.date||"")}.</div>`;
+
+  document.getElementById('app').innerHTML = h;
+  if((D.findings||[]).length)
+    fillTable(D.findings.slice().sort((a,b)=>(b.importance||0)-(a.importance||0)));
+}
+function fillTable(rows){
+  document.querySelector('#ftab tbody').innerHTML = rows.map(f=>
+    `<tr onclick="jump('${esc(f.id)}')"><td>${f.importance??""}</td>
+    <td><span class="pill ${f.severity}">${f.severity}</span></td><td>${CATLBL[f.category]||f.category}</td>
+    <td><strong>#${num(f.id)}</strong> ${esc(f.issue)}</td><td>${esc(f.recommendation)}</td>
+    <td style="font-family:var(--mono);font-size:.75rem">${(f.principles||[]).map(esc).join("<br>")}</td></tr>`).join("");
+}
+function sortBy(k){
+  const rows=(D.findings||[]).slice().sort((a,b)=> k==='severity'?(SEVO[b.severity]-SEVO[a.severity])
+    : k==='category'?String(a.category).localeCompare(b.category):(b[k]||0)-(a[k]||0));
+  fillTable(rows);
+}
+function glow(id,on){ const el=document.getElementById('hl-'+id); if(el) el.classList.toggle('on',!!on); }
+function pin(ev,el){ ev.stopPropagation();
+  document.querySelectorAll('.mark.pinned').forEach(x=>{ if(x!==el) x.classList.remove('pinned'); });
+  el.classList.toggle('pinned'); }
+function jump(id){ const mk=document.getElementById('mk-'+id);
+  if(mk){ mk.scrollIntoView({behavior:'smooth',block:'center'});
+    glow(id,1); setTimeout(()=>glow(id,0),2600); } }
+document.addEventListener('click',()=>document.querySelectorAll('.mark.pinned')
+  .forEach(x=>x.classList.remove('pinned')));
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,1057 @@
+{
+ "CLD-01": {
+  "name": "Reciprocation",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "CLD-02": {
+  "name": "Commitment & consistency",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "CLD-03": {
+  "name": "Social proof",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "CLD-04": {
+  "name": "Liking",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "CLD-05": {
+  "name": "Authority",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "CLD-06": {
+  "name": "Scarcity",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "DARK-01": {
+  "name": "Fake scarcity/urgency",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "DARK-02": {
+  "name": "Manufactured social proof",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "DARK-03": {
+  "name": "Pre-checked commitment",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "DARK-04": {
+  "name": "Confirmshaming",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "DARK-05": {
+  "name": "Forced continuity / hidden exit",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "DARK-06": {
+  "name": "Hidden costs",
+  "framework": "Cialdini's Principles of Influence + dark-pattern checks",
+  "tier": [
+   1
+  ],
+  "category": "trust_persuasion",
+  "file": "cialdini.md"
+ },
+ "HICK-01": {
+  "name": "Hick's Law",
+  "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "cognitive_load",
+  "file": "cognitive-laws.md"
+ },
+ "FITTS-01": {
+  "name": "Fitts's Law",
+  "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "cognitive_load",
+  "file": "cognitive-laws.md"
+ },
+ "MILL-01": {
+  "name": "Miller's Law",
+  "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "cognitive_load",
+  "file": "cognitive-laws.md"
+ },
+ "JAKOB-01": {
+  "name": "Jakob's Law",
+  "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "cognitive_load",
+  "file": "cognitive-laws.md"
+ },
+ "PEAK-01": {
+  "name": "Peak-End Rule",
+  "framework": "Cognitive laws (Hick, Fitts, Miller, Jakob, Peak-End)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "cognitive_load",
+  "file": "cognitive-laws.md"
+ },
+ "CNT-01": {
+  "name": "Visibility of system status (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-02": {
+  "name": "Match the real world (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-03": {
+  "name": "User control and freedom (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-04": {
+  "name": "Consistency and standards (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-05": {
+  "name": "Error prevention (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-06": {
+  "name": "Recognition over recall (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-07": {
+  "name": "Flexibility and efficiency (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-08": {
+  "name": "Minimalist copy",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-09": {
+  "name": "Error recovery (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "CNT-10": {
+  "name": "Help and documentation (copy)",
+  "framework": "10 Content Design Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "content",
+  "file": "content-design.md"
+ },
+ "GP-01": {
+  "name": "Automate unwanted workload",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-02": {
+  "name": "Reduce uncertainty",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-03": {
+  "name": "Fuse data",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-04": {
+  "name": "Meaningful aids to interpretation",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-05": {
+  "name": "Names conceptually related to function",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-06": {
+  "name": "Group data in consistently meaningful ways",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-07": {
+  "name": "Limit data-driven tasks",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-08": {
+  "name": "Only information needed at a given time",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-09": {
+  "name": "Multiple coding of data",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GP-10": {
+  "name": "Judicious redundancy",
+  "framework": "Gerhardt-Powals' Cognitive Engineering Principles",
+  "tier": [
+   1
+  ],
+  "category": "cognitive_load",
+  "file": "gerhardt-powals.md"
+ },
+ "GST-01": {
+  "name": "Proximity",
+  "framework": "Gestalt Principles of Grouping",
+  "tier": [
+   1
+  ],
+  "category": "visual_layout",
+  "file": "gestalt.md"
+ },
+ "GST-02": {
+  "name": "Similarity",
+  "framework": "Gestalt Principles of Grouping",
+  "tier": [
+   1
+  ],
+  "category": "visual_layout",
+  "file": "gestalt.md"
+ },
+ "GST-03": {
+  "name": "Closure",
+  "framework": "Gestalt Principles of Grouping",
+  "tier": [
+   1
+  ],
+  "category": "visual_layout",
+  "file": "gestalt.md"
+ },
+ "GST-04": {
+  "name": "Continuity",
+  "framework": "Gestalt Principles of Grouping",
+  "tier": [
+   1
+  ],
+  "category": "visual_layout",
+  "file": "gestalt.md"
+ },
+ "GST-05": {
+  "name": "Common fate",
+  "framework": "Gestalt Principles of Grouping",
+  "tier": [
+   1
+  ],
+  "category": "visual_layout",
+  "file": "gestalt.md"
+ },
+ "GST-06": {
+  "name": "Pr\u00e4gnanz (good form)",
+  "framework": "Gestalt Principles of Grouping",
+  "tier": [
+   1
+  ],
+  "category": "visual_layout",
+  "file": "gestalt.md"
+ },
+ "GST-07": {
+  "name": "Common region",
+  "framework": "Gestalt Principles of Grouping",
+  "tier": [
+   1
+  ],
+  "category": "visual_layout",
+  "file": "gestalt.md"
+ },
+ "NLS-01": {
+  "name": "Visibility of system status",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-02": {
+  "name": "Match between system and real world",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-03": {
+  "name": "User control and freedom",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-04": {
+  "name": "Consistency and standards",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-05": {
+  "name": "Error prevention",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-06": {
+  "name": "Recognition rather than recall",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-07": {
+  "name": "Flexibility and efficiency of use",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-08": {
+  "name": "Aesthetic and minimalist design",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-09": {
+  "name": "Help users recognize, diagnose, recover from errors",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NLS-10": {
+  "name": "Help and documentation",
+  "framework": "Nielsen's 10 Usability Heuristics",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "nielsen.md"
+ },
+ "NRM-01": {
+  "name": "Affordances",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "NRM-02": {
+  "name": "Signifiers",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "NRM-03": {
+  "name": "Mapping",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "NRM-04": {
+  "name": "Feedback",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "NRM-05": {
+  "name": "Conceptual model",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "NRM-06": {
+  "name": "Visibility",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "NRM-07": {
+  "name": "Constraints",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "NRM-GE": {
+  "name": "Gulf of execution",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "NRM-GV": {
+  "name": "Gulf of evaluation",
+  "framework": "Norman's Design Principles (The Design of Everyday Things)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "norman.md"
+ },
+ "RF-01": {
+  "name": "False affordance",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-02": {
+  "name": "Dead-end state",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-03": {
+  "name": "Unguarded destructive action",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-04": {
+  "name": "Vague CTA label",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-05": {
+  "name": "Silent success",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-06": {
+  "name": "Missing empty state",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-07": {
+  "name": "Breadcrumb gap",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-08": {
+  "name": "Choice paralysis",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-09": {
+  "name": "Trust-signal gap",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-10": {
+  "name": "Feedback latency",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-11": {
+  "name": "Confirmation trap",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "RF-12": {
+  "name": "Recall trap",
+  "framework": "Recurring failures (custom named checks, seeded from Qualia's controlled list)",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "recurring-failures.md"
+ },
+ "SHN-01": {
+  "name": "Strive for consistency",
+  "framework": "Shneiderman's 8 Golden Rules of Interface Design",
+  "tier": [
+   2
+  ],
+  "category": "usability",
+  "file": "shneiderman.md"
+ },
+ "SHN-02": {
+  "name": "Seek universal usability",
+  "framework": "Shneiderman's 8 Golden Rules of Interface Design",
+  "tier": [
+   2
+  ],
+  "category": "usability",
+  "file": "shneiderman.md"
+ },
+ "SHN-03": {
+  "name": "Offer informative feedback",
+  "framework": "Shneiderman's 8 Golden Rules of Interface Design",
+  "tier": [
+   2
+  ],
+  "category": "usability",
+  "file": "shneiderman.md"
+ },
+ "SHN-04": {
+  "name": "Design dialogs to yield closure",
+  "framework": "Shneiderman's 8 Golden Rules of Interface Design",
+  "tier": [
+   2
+  ],
+  "category": "usability",
+  "file": "shneiderman.md"
+ },
+ "SHN-05": {
+  "name": "Prevent errors",
+  "framework": "Shneiderman's 8 Golden Rules of Interface Design",
+  "tier": [
+   2
+  ],
+  "category": "usability",
+  "file": "shneiderman.md"
+ },
+ "SHN-06": {
+  "name": "Permit easy reversal of actions",
+  "framework": "Shneiderman's 8 Golden Rules of Interface Design",
+  "tier": [
+   2
+  ],
+  "category": "usability",
+  "file": "shneiderman.md"
+ },
+ "SHN-07": {
+  "name": "Keep users in control",
+  "framework": "Shneiderman's 8 Golden Rules of Interface Design",
+  "tier": [
+   2
+  ],
+  "category": "usability",
+  "file": "shneiderman.md"
+ },
+ "SHN-08": {
+  "name": "Reduce short-term memory load",
+  "framework": "Shneiderman's 8 Golden Rules of Interface Design",
+  "tier": [
+   2
+  ],
+  "category": "usability",
+  "file": "shneiderman.md"
+ },
+ "TOG-01": {
+  "name": "Aesthetics",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-02": {
+  "name": "Anticipation",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-03": {
+  "name": "Autonomy",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-04": {
+  "name": "Color",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-05": {
+  "name": "Consistency",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-06": {
+  "name": "Defaults",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-07": {
+  "name": "Discoverability",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-08": {
+  "name": "Efficiency of the user",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-09": {
+  "name": "Explorable interfaces",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-10": {
+  "name": "Fitts's Law",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-11": {
+  "name": "Human-interface objects",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-12": {
+  "name": "Latency reduction",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-13": {
+  "name": "Learnability",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-14": {
+  "name": "Metaphors",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-15": {
+  "name": "Protect users' work",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-16": {
+  "name": "Readability",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-17": {
+  "name": "Simplicity",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-18": {
+  "name": "State",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "TOG-19": {
+  "name": "Visible navigation",
+  "framework": "Tognazzini's First Principles of Interaction Design",
+  "tier": [
+   1,
+   2
+  ],
+  "category": "usability",
+  "file": "tognazzini.md"
+ },
+ "WCAG-1.1.1": {
+  "name": "Non-text Content (A)",
+  "framework": "WCAG 2.1 \u2014 screenshot-auditable subset",
+  "tier": [
+   1
+  ],
+  "category": "accessibility",
+  "file": "wcag.md"
+ },
+ "WCAG-1.3.1": {
+  "name": "Info and Relationships (A)",
+  "framework": "WCAG 2.1 \u2014 screenshot-auditable subset",
+  "tier": [
+   1
+  ],
+  "category": "accessibility",
+  "file": "wcag.md"
+ },
+ "WCAG-1.4.1": {
+  "name": "Use of Color (A)",
+  "framework": "WCAG 2.1 \u2014 screenshot-auditable subset",
+  "tier": [
+   1
+  ],
+  "category": "accessibility",
+  "file": "wcag.md"
+ },
+ "WCAG-1.4.3": {
+  "name": "Contrast Minimum (AA)",
+  "framework": "WCAG 2.1 \u2014 screenshot-auditable subset",
+  "tier": [
+   1
+  ],
+  "category": "accessibility",
+  "file": "wcag.md"
+ },
+ "WCAG-1.4.4": {
+  "name": "Resize Text (AA)",
+  "framework": "WCAG 2.1 \u2014 screenshot-auditable subset",
+  "tier": [
+   1
+  ],
+  "category": "accessibility",
+  "file": "wcag.md"
+ },
+ "WCAG-1.4.11": {
+  "name": "Non-text Contrast (AA)",
+  "framework": "WCAG 2.1 \u2014 screenshot-auditable subset",
+  "tier": [
+   1
+  ],
+  "category": "accessibility",
+  "file": "wcag.md"
+ },
+ "WCAG-2.5.8": {
+  "name": "Target Size Minimum (AA, 2.2)",
+  "framework": "WCAG 2.1 \u2014 screenshot-auditable subset",
+  "tier": [
+   1
+  ],
+  "category": "accessibility",
+  "file": "wcag.md"
+ },
+ "WCAG-3.3.2": {
+  "name": "Labels or Instructions (A)",
+  "framework": "WCAG 2.1 \u2014 screenshot-auditable subset",
+  "tier": [
+   1
+  ],
+  "category": "accessibility",
+  "file": "wcag.md"
+ }
+}

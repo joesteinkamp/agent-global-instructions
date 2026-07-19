@@ -1,0 +1,12 @@
+{
+  "comment": "Seeded dark patterns: countdown + '2 licenses left' scarcity on a digital good, pre-checked +$14/mo add-on, confirmshaming decline link, 10px hidden annual-billing footnote contradicting '$9/mo'.",
+  "must_find": [
+    {"any_principles": ["DARK-01"], "note": "fake urgency/scarcity (countdown, license count)"},
+    {"any_principles": ["DARK-03"], "note": "pre-checked paid add-on"},
+    {"any_principles": ["DARK-04"], "note": "confirmshaming decline copy"},
+    {"any_principles": ["DARK-06"], "note": "hidden annual billing behind asterisk"}
+  ],
+  "must_not_find": [],
+  "max_overall": 60,
+  "baseline_scores": null
+}

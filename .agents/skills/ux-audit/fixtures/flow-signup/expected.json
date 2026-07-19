@@ -1,0 +1,45 @@
+{
+ "comment": "4-screen flow. Seeded: CTA renamed 'Create account'->'Register now' between screens 1 and 2; 4 equal-weight plans with no default/recommendation; final screen lacks signup confirmation; empty dashboard with no guidance.",
+ "must_find": [
+  {
+   "any_principles": [
+    "NLS-04",
+    "SHN-01",
+    "CNT-04"
+   ],
+   "note": "CTA label inconsistency across the flow"
+  },
+  {
+   "any_principles": [
+    "SHN-04",
+    "RF-05",
+    "NLS-01"
+   ],
+   "note": "no confirmation that the account was created"
+  },
+  {
+   "any_principles": [
+    "RF-08",
+    "HICK-01"
+   ],
+   "note": "plan choice has no default or recommendation"
+  },
+  {
+   "any_principles": [
+    "RF-06"
+   ],
+   "note": "dashboard is an empty box with no first-run guidance"
+  }
+ ],
+ "must_not_find": [],
+ "max_overall": 75,
+ "baseline_scores": {
+  "overall": 68,
+  "usability": 54,
+  "cognitive_load": 58,
+  "visual_layout": 85,
+  "accessibility": 86,
+  "content": 70,
+  "trust_persuasion": 72
+ }
+}

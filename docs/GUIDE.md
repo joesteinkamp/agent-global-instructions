@@ -61,7 +61,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
 | `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
 | `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, gitignored — regenerated on every install) → `install-commands.sh` installs Claude/Cursor/Gemini commands and Codex skills (`~/.codex/skills/`). |
-| `.agents/skills/` (+ `.claude/skills/` symlinks) + `skills-lock.json` | Third-party Skills vendored via [`npx skills`](https://skills.sh), project-scoped so they ship with the repo. `.agents/skills/` is the canonical Agent-Skills-standard tree (Codex, Cursor, Gemini CLI); `.claude/skills/` entries are symlinks into it, so Claude Code reads the same bytes. Currently: `grill-me` / `grill-with-docs` plus their primitives `grilling` and `domain-modeling`. Re-sync with `npx skills update`; the lockfile pins each skill's upstream source + hash. `grill-me` is also promoted to a globally-installed command (see `commands/grill-me.md` below) so `/grill-me` works in any project, not just this repo's checkout. |
+| `.agents/skills/` (+ `.claude/skills/` symlinks) + `skills-lock.json` | Third-party Skills vendored via [`npx skills`](https://skills.sh), project-scoped so they ship with the repo. `.agents/skills/` is the canonical Agent-Skills-standard tree (Codex, Cursor, Gemini CLI); `.claude/skills/` entries are symlinks into it, so Claude Code reads the same bytes. Currently: `grill-me` / `grill-with-docs` plus their primitives `grilling` and `domain-modeling`, and `ux-audit` (from [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill); skill-backed — `install-commands.sh` symlinks it globally for Claude/Codex in place of the `/ux-audit` wrapper). Re-sync with `npx skills update`; the lockfile pins each skill's upstream source + hash. `grill-me` is also promoted to a globally-installed command (see `commands/grill-me.md` below) so `/grill-me` works in any project, not just this repo's checkout. |
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Gemini). |
 | `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
@@ -127,17 +127,21 @@ it up.
 | `/grill-me` | A relentless interview to sharpen a plan or design before you build it — one question at a time, recommended answers offered, environment facts looked up rather than asked, nothing acted on until we reach a shared understanding. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
-| `/ux-audit` | *(design group)* UX audit **from a screenshot**. Uses the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill when available (Claude Code) — 15 heuristic frameworks, annotated screenshots; the other tools run the heuristic rubric inline. Writes + serves a self-contained HTML report. |
+| `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills` + `~/.codex/skills` at install — Claude/Codex run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots); Cursor/Gemini get the wrapper command's inline rubric. Writes + serves a self-contained HTML report. |
 
 **Command groups.** A command declares `group: <name>` in its frontmatter
 (absent ⇒ `core`, always installed). The **`design`** group
 (`/ux-audit`) installs **by default for everyone** — everyone should design
 better; `--no-design` (or `INC_DESIGN=n`) forces it off and prunes any already
-installed, so opting out self-heals. The design commands compose with the
+installed, so opting out self-heals. The design pack composes with the
 external [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack)
-(briefs + `DESIGN.json`) and
-[ux-audit](https://github.com/joesteinkamp/ux-audit-skill) — this harness
-doesn't duplicate them.
+(briefs + `DESIGN.json`); the
+[ux-audit skill](https://github.com/joesteinkamp/ux-audit-skill) itself is
+**vendored in-repo** at `.agents/skills/ux-audit` (pinned in
+`skills-lock.json`; re-sync with `npx skills update`) and this repo is its
+installer — `install-commands.sh` symlinks it into `~/.claude/skills` and
+`~/.codex/skills`, while Cursor/Gemini get the `/ux-audit` wrapper command
+(no skill support there).
 
 ## 3. Guardrails & observability (hooks)
 

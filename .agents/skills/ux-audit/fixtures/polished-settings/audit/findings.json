@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "audit_id": "polished-settings-2026-06-11", "date": "2026-06-11", "mode": "single",
+    "screens": ["screen-0.png"], "goal": "Update profile name and email",
+    "persona": "returning user", "platform": "desktop", "stage": "hifi",
+    "frameworks_applied": ["nielsen", "norman", "gestalt", "wcag", "cognitive-laws",
+      "gerhardt-powals", "content-design", "cialdini", "recurring-failures"],
+    "tiers_run": [1], "issue_overflow": 0, "model": "claude-fable-5"
+  },
+  "scores": {
+    "overall": 89, "usability": 90, "cognitive_load": 92, "visual_layout": 90,
+    "accessibility": 88, "content": 88, "trust_persuasion": 85
+  },
+  "score_rationales": {
+    "usability": "Band 90+: one clearly primary action, conventional layout, visible active nav state, nothing destructive unguarded.",
+    "cognitive_load": "Band 90+: two fields, one decision, no mental work the UI could do.",
+    "visual_layout": "Band 90+: grouping matches semantics; single hierarchy passes the squint test.",
+    "accessibility": "88, not higher, only because a static image can't verify focus indicators or keyboard order — everything measurable passed (CTA 6.7:1, helper text 5.31:1, all inputs labeled).",
+    "content": "88: every visible string passes; a single screen can't confirm voice consistency across the rest of the product, which is what 90+ asserts.",
+    "trust_persuasion": "85: zero dark patterns; this screen simply has no high-stakes ask, so there is little for the category to positively demonstrate."
+  },
+  "one_big_thing": "Nothing to fix: this screen passes every static check that was run. The scores below 90+ reflect what a single static screenshot cannot prove (save feedback, focus states, cross-screen consistency), not hidden problems.",
+  "findings": [],
+  "hypotheses": [],
+  "measurements": {
+    "screens": [{"file": "screen-0.png", "width": 1440, "height": 900, "regions": [
+      {"box_2d": [466, 222, 520, 333], "kind": "text", "fg": "#ffffff", "bg": "#1d4ed8", "contrast": 6.7, "height_px": 49},
+      {"box_2d": [395, 220, 418, 390], "kind": "text", "fg": "#636c79", "bg": "#ffffff", "contrast": 5.31, "height_px": 14}
+    ]}]
+  },
+  "clean_checks": [
+    "WCAG-3.3.2 — both inputs have persistent visible labels above the field",
+    "WCAG-1.4.3 — primary CTA white on #1d4ed8, measured 6.7:1 (needs 4.5:1)",
+    "WCAG-1.4.3 — helper text #636c79 on white, measured 5.31:1 (needs 4.5:1)",
+    "WCAG-1.4.1 — active nav item marked by weight + accent bar, not color alone",
+    "WCAG-2.5.8 — both buttons ~48px tall, double the 24px desktop minimum",
+    "NLS-02 — 'Full name', 'Email address', 'Save changes': plain user language, zero jargon",
+    "NLS-04 — header/sidebar/form layout follows settings-page convention",
+    "NLS-06 — current values shown in fields; nothing to remember or re-enter",
+    "NLS-08 — no promotional or irrelevant content competing with the task",
+    "NRM-02 — buttons look like buttons, fields like fields; no false affordances (RF-01)",
+    "NRM-06 — active nav state and enabled controls clearly distinguishable at a glance",
+    "GST-01/GST-07 — label, field, and helper text grouped tighter than unrelated items",
+    "GP-08 — only the two task-relevant fields on screen; no admin metadata",
+    "HICK-01/RF-08 — exactly one primary action; Cancel visibly secondary",
+    "CNT-01/RF-04 — 'Save changes' names its outcome, not its mechanism",
+    "CNT-08 — helper copy is one short purposeful sentence",
+    "CNT-10 — email field carries inline guidance ('only for receipts')",
+    "JAKOB-01 — matches the settings pattern of every familiar SaaS product",
+    "DARK-01..06 — no countdown, scarcity, pre-checked costs, confirmshaming, or hidden fees",
+    "Not statically auditable — save feedback (NLS-01), focus order, keyboard access: verify live"
+  ]
+}

@@ -10,6 +10,31 @@ only after human approval (see the `changelog` instruction section and the
 ## [Unreleased]
 
 ### Changed
+- **`/ux-audit` merged with its skill; this repo is now the installer
+  (2026-07-19, Claude).** Vendored
+  [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill)
+  at `.agents/skills/ux-audit` (pinned in `skills-lock.json`, re-sync via
+  `npx skills update`). New opt-in `skill-backed: true` frontmatter:
+  `install-commands.sh` symlinks the real skill into `~/.claude/skills` +
+  `~/.codex/skills` instead of the wrapper command — one `/ux-audit`, no
+  duplicate menu entry; Cursor/Gemini keep the wrapper's inline fallback.
+  Uninstall removes the links; retired names `audit`/`critique` now self-heal
+  on other machines (pruned **with a backup**, since a user could own an
+  identically-named command). Fixed a write-through-symlink clobber found
+  during the work and the SC2043 shellcheck warning that had CI red since the
+  `/critique` removal. A post-change multi-role review then hardened the
+  mechanism: dangling skill links of ours (skill renamed/dropped upstream) are
+  now pruned by both install and uninstall, the "is this symlink ours" safety
+  predicate is a single shared helper (`is_our_skill_link`, prefix-matched) in
+  both scripts, and the `commands/README.md` wording was corrected to match
+  the opt-in (not name-matched) design. Suite 100 → 104, including new
+  data-safety regression tests (user-owned skill dirs/links never touched,
+  vendored source never clobbered).
+
+### Added
+- **`/grill-me` promoted to a globally-installed command (2026-07-19, Claude).** Previously only worked as a project-scoped Skill inside this repo's own checkout (`.agents/skills/grill-me`, vendored via `npx skills`). Added `commands/grill-me.md` — a self-contained canonical command (inlines the `grilling` interview instructions rather than delegating to the `grilling` skill, since the per-tool render pipeline has no cross-skill invocation) — so `/grill-me` (`$grill-me` on Codex) now installs and works in any project via `render-commands.sh` + `install-commands.sh`, same as `/ship`/`/improve`. Documented in `commands/README.md`, `README.md`'s "What you get", and `docs/GUIDE.md`. The vendored project-scoped Skill is left in place (still `npx skills`-synced, still used by `grill-with-docs`) — note this means the interview wording now has two copies that could drift if upstream updates the vendored one.
+
+### Changed
 - **Rename `/audit` → `/ux-audit` (2026-07-19, Claude).** Clearer name for the
   screenshot UX audit command; design group is now `/ux-audit`. Docs,
   `install-commands.sh` comments, and `test.sh` updated; ports re-rendered and

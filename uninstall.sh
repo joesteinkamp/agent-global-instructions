@@ -135,9 +135,11 @@ remove_commands_dir() {  # $1 = dest dir  $2 = src dir  $3 = ext
       [ -f "$dest/$base" ] && { rm -f "$dest/$base"; n=$((n+1)); }
     done
   fi
-  local retired="validate"   # space-separated; keep in sync with install-commands.sh RETIRED
+  local retired="validate handoff flow tidy critique audit"   # space-separated; keep in sync with install-commands.sh RETIRED
   for old in $retired; do
-    [ -f "$dest/$old.$ext" ] && { rm -f "$dest/$old.$ext"; n=$((n+1)); }
+    # Backed up first: a retired name is generic enough (e.g. "audit") that the
+    # file could be the user's own, not our stale install.
+    [ -f "$dest/$old.$ext" ] && { backup_file "$dest/$old.$ext"; rm -f "$dest/$old.$ext"; n=$((n+1)); }
   done
   [ "$n" -gt 0 ] && echo "  removed $n command file(s) from $dest"
   return 0
@@ -150,9 +152,33 @@ remove_codex_skills() {  # $1 = destination skills dir  $2 = generated source di
     [ -f "$source" ] || continue
     skill="$(basename "$(dirname "$source")")"
     target="$dest/$skill/SKILL.md"
+    [ -L "$dest/$skill" ] && continue   # symlinked real skill — remove_skill_links owns it
     [ -f "$target" ] && { rm -f "$target"; rmdir "$dest/$skill" 2>/dev/null || true; n=$((n+1)); }
   done
   [ "$n" -gt 0 ] && echo "  removed $n Codex skill(s) from $dest"
+  return 0
+}
+
+# Is $1 a symlink install-commands.sh created — one resolving into THIS repo's
+# .agents/skills tree? Prefix match, so it also covers dangling links whose
+# vendored skill was since renamed/dropped. Keep in sync with
+# install-commands.sh's copy.
+is_our_skill_link() {  # $1 = path
+  [ -L "$1" ] || return 1
+  case "$(readlink "$1")" in "$DIR/.agents/skills/"*) return 0;; *) return 1;; esac
+}
+
+# Remove the skill-backed symlinks install-commands.sh created (including
+# dangling ones); a user's own skill (real dir, or a symlink to somewhere
+# else) is never touched.
+remove_skill_links() {  # $1 = destination skills dir
+  local dest="$1" link n=0
+  [ -d "$dest" ] || return 0
+  for link in "$dest"/*; do
+    is_our_skill_link "$link" || continue
+    rm -f "$link"; n=$((n+1))
+  done
+  [ "$n" -gt 0 ] && echo "  removed $n skill symlink(s) from $dest"
   return 0
 }
 
@@ -210,12 +236,14 @@ for t in "${targets[@]}"; do
   case "$t" in
     claude)
       remove_commands_dir "$HOME/.claude/commands" "$DIR/commands" md
+      remove_skill_links "$HOME/.claude/skills"
       strip_hooks "$HOME/.claude/settings.json"
       strip_permissions_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
       restore_global_pointer "$HOME/.claude/CLAUDE.md"
       ;;
     codex)
       remove_codex_skills "$HOME/.codex/skills" "$DIR/commands/codex"
+      remove_skill_links "$HOME/.codex/skills"
       strip_hooks "$HOME/.codex/hooks.json"
       strip_codex_block "$HOME/.codex/config.toml"
       restore_global_pointer "$HOME/.codex/AGENTS.md"

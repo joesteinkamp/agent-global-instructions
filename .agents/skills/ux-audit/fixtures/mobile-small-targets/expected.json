@@ -1,0 +1,11 @@
+{
+  "comment": "Seeded: 18x18px player controls 6px apart, 11px cramped text links. Platform: mobile touch (44px minimum). Audit intake must use platform=mobile.",
+  "must_find": [
+    {"any_principles": ["WCAG-2.5.8", "FITTS-01"], "note": "player controls measured below touch minimum"}
+  ],
+  "must_not_find": [
+    {"any_principles": ["WCAG-1.4.3"], "note": "white-on-dark title text passes; flagging the dark theme broadly is a false positive (gray metadata text is allowed only if measured failing)"}
+  ],
+  "max_overall": 79,
+  "baseline_scores": null
+}

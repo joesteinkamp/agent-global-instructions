@@ -1,0 +1,57 @@
+{
+ "comment": "Seeded flaws: placeholder-only labels, 3 equal mechanism-named CTAs, white-on-#a8c4f0 CTA contrast, no order total, #c9cdd4 delivery text, 11px Remove links.",
+ "must_find": [
+  {
+   "any_principles": [
+    "WCAG-3.3.2"
+   ],
+   "note": "all four inputs are placeholder-only labeled"
+  },
+  {
+   "any_principles": [
+    "WCAG-1.4.3"
+   ],
+   "note": "measured contrast failure (CTA text and/or delivery text)"
+  },
+  {
+   "any_principles": [
+    "RF-04",
+    "CNT-01"
+   ],
+   "note": "'Submit' names mechanism, not outcome, on the pay action"
+  },
+  {
+   "any_principles": [
+    "RF-08",
+    "HICK-01",
+    "NLS-08",
+    "GST-02"
+   ],
+   "note": "three identically weighted primary CTAs compete"
+  },
+  {
+   "any_principles": [
+    "GP-01"
+   ],
+   "note": "order summary has no total"
+  }
+ ],
+ "must_not_find": [
+  {
+   "any_principles": [
+    "NLS-10"
+   ],
+   "note": "checkout doesn't need help docs \u2014 would be a Standard-gate failure"
+  }
+ ],
+ "max_overall": 65,
+ "baseline_scores": {
+  "overall": 51,
+  "usability": 52,
+  "cognitive_load": 55,
+  "visual_layout": 72,
+  "accessibility": 28,
+  "content": 50,
+  "trust_persuasion": 50
+ }
+}

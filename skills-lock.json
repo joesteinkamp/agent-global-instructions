@@ -24,6 +24,12 @@
       "sourceType": "github",
       "skillPath": "skills/productivity/grilling/SKILL.md",
       "computedHash": "368d3dd7251247c69f3656d93dc83c8f1577792eacac2111f1e7981db2ece49b"
+    },
+    "ux-audit": {
+      "source": "joesteinkamp/ux-audit-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "9928ccb76632fce8ef35690e13daafc2b163d1688eb9adbade2973aab9f4252c"
     }
   }
 }

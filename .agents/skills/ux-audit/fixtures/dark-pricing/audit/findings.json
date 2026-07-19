@@ -1,0 +1,189 @@
+{
+  "meta": {
+    "audit_id": "dark-pricing-2026-06-11",
+    "date": "2026-06-11",
+    "mode": "single",
+    "screens": ["screen-0.png"],
+    "goal": "Understand what the Pro plan actually costs and decide whether to upgrade",
+    "persona": "first-time visitor",
+    "platform": "desktop",
+    "stage": "hifi",
+    "frameworks_applied": ["wcag", "cognitive-laws", "gestalt", "gerhardt-powals", "content-design", "cialdini", "recurring-failures", "nielsen", "norman"],
+    "tiers_run": [1],
+    "issue_overflow": 0,
+    "model": "claude-fable-5"
+  },
+  "scores": {
+    "overall": 57,
+    "usability": 76,
+    "cognitive_load": 52,
+    "visual_layout": 85,
+    "accessibility": 42,
+    "content": 35,
+    "trust_persuasion": 20
+  },
+  "score_rationales": {
+    "usability": "Conventional single-card layout with no dead ends or destructive traps — functional band, 76.",
+    "cognitive_load": "The user must mentally combine headline price, footnote, and pre-checked add-on to learn the real cost — the mental-math anchor, 52.",
+    "visual_layout": "One clear hierarchy and semantic grouping; the layout craft itself is fine even where it serves deception — strong band, 85.",
+    "accessibility": "Three measured AA contrast failures, one of which hides the price disclosure — below the 1–2-failure anchor, 42.",
+    "content": "The headline price misleads and the true charge is missing at the ask — near the broken anchor, 35.",
+    "trust_persuasion": "Four dark patterns (fake urgency, pre-checked cost, confirmshaming, hidden fees) put this at the multiple-dark-pattern floor — 20."
+  },
+  "one_big_thing": "The screen withholds its one decision-critical fact — the actual charge ($108 today plus a $14/mo add-on) appears nowhere readable — while urgency devices push commitment before that fact can be found.",
+  "findings": [
+    {
+      "id": "F-01",
+      "category": "trust_persuasion",
+      "type": "observed",
+      "severity": "high",
+      "reach": 2,
+      "importance": 4.5,
+      "principles": ["DARK-01", "CLD-06"],
+      "screen_index": 0,
+      "box_2d": [224, 389, 277, 612],
+      "element": "'Offer ends in 04:59' countdown banner (with 'Only 2 licenses left!' badge below)",
+      "issue": "A countdown timer and 'Only 2 licenses left!' manufacture urgency for an unlimited digital license.",
+      "why_it_matters": "Users rushed past price scrutiny later discover the real terms, converting urgency into refunds and distrust.",
+      "recommendation": "Remove the countdown and license counter, or state a verifiable basis for each.",
+      "evidence": ""
+    },
+    {
+      "id": "F-02",
+      "category": "trust_persuasion",
+      "type": "observed",
+      "severity": "high",
+      "reach": 1,
+      "importance": 3.0,
+      "principles": ["DARK-03"],
+      "screen_index": 0,
+      "box_2d": [589, 389, 613, 572],
+      "element": "'Add Priority Support +$14/mo' pre-checked checkbox",
+      "issue": "The $14/mo Priority Support add-on is pre-checked.",
+      "why_it_matters": "Users who miss it commit to a recurring charge they never chose, driving chargebacks and trust collapse.",
+      "recommendation": "Default the add-on to unchecked.",
+      "evidence": ""
+    },
+    {
+      "id": "F-03",
+      "category": "accessibility",
+      "type": "observed",
+      "severity": "low",
+      "reach": 1,
+      "importance": 1.0,
+      "principles": ["WCAG-1.4.3"],
+      "screen_index": 0,
+      "box_2d": [658, 389, 715, 612],
+      "element": "'Upgrade now' primary button",
+      "issue": "Button text contrast measures 3.3:1, below the 4.5:1 AA threshold for 18px bold text.",
+      "why_it_matters": "Low-vision users struggle to read the primary action.",
+      "recommendation": "Darken the button green or enlarge the label to large-text size.",
+      "evidence": "measured: contrast 3.3:1 (#ffffff on #16a34a), text 18px"
+    },
+    {
+      "id": "F-04",
+      "category": "content",
+      "type": "observed",
+      "severity": "medium",
+      "reach": 1,
+      "importance": 2.0,
+      "principles": ["CNT-05", "CNT-01"],
+      "screen_index": 0,
+      "box_2d": [658, 389, 715, 612],
+      "element": "'Upgrade now' primary button",
+      "issue": "'Upgrade now' commits the user without stating the charge: $108 today plus the add-on.",
+      "why_it_matters": "People click expecting $9 and are charged twelvefold, the worst possible first transaction.",
+      "recommendation": "State the real total on the button, e.g. 'Upgrade — $108/year'.",
+      "evidence": ""
+    },
+    {
+      "id": "F-05",
+      "category": "trust_persuasion",
+      "type": "observed",
+      "severity": "medium",
+      "reach": 1,
+      "importance": 2.0,
+      "principles": ["DARK-04"],
+      "screen_index": 0,
+      "box_2d": [737, 433, 754, 567],
+      "element": "'No thanks, I hate saving money' decline link",
+      "issue": "The decline option shames the user instead of neutrally naming the choice.",
+      "why_it_matters": "Coerced declines breed resentment; users leave rather than be insulted into upgrading.",
+      "recommendation": "Reword to a neutral 'Not now'.",
+      "evidence": ""
+    },
+    {
+      "id": "F-06",
+      "category": "accessibility",
+      "type": "observed",
+      "severity": "medium",
+      "reach": 1,
+      "importance": 2.0,
+      "principles": ["WCAG-1.4.3"],
+      "screen_index": 0,
+      "box_2d": [737, 433, 754, 567],
+      "element": "decline link text below the primary button",
+      "issue": "Decline-link text contrast measures 2.38:1, below the 4.5:1 AA minimum.",
+      "why_it_matters": "The only visible exit from the offer is near-invisible to low-vision users.",
+      "recommendation": "Raise the link's contrast to at least 4.5:1.",
+      "evidence": "measured: contrast 2.38:1 (#a1a9b3 on #ffffff), text 13px"
+    },
+    {
+      "id": "F-07",
+      "category": "accessibility",
+      "type": "observed",
+      "severity": "high",
+      "reach": 2,
+      "importance": 4.5,
+      "principles": ["DARK-06", "WCAG-1.4.3"],
+      "screen_index": 0,
+      "box_2d": [950, 35, 975, 155],
+      "element": "'*billed annually at $108 today' footnote, bottom-left corner",
+      "issue": "The footnote contradicting the '$9/mo' headline is 10px text at 1.77:1 contrast.",
+      "why_it_matters": "The only disclosure of the real $108 charge is designed to be unreadable, so users buy misinformed.",
+      "recommendation": "State 'billed annually at $108' beside the price at body size and AA contrast.",
+      "evidence": "measured: text 10px, contrast 1.77:1 (#bfc3cc on #ffffff)"
+    },
+    {
+      "id": "F-08",
+      "category": "cognitive_load",
+      "type": "observed",
+      "severity": "medium",
+      "reach": 3,
+      "importance": 3.0,
+      "principles": ["GP-01", "GP-02"],
+      "screen_index": 0,
+      "box_2d": null,
+      "element": "pricing card as a whole",
+      "issue": "The true first charge is never computed; users must assemble headline, footnote, and add-on themselves.",
+      "why_it_matters": "Mental math at the commitment point causes wrong decisions and sticker shock at checkout.",
+      "recommendation": "Show a computed total due today directly above the CTA.",
+      "evidence": ""
+    }
+  ],
+  "hypotheses": [],
+  "measurements": {
+    "screens": [
+      {
+        "file": "fixtures/dark-pricing/screen-0.png",
+        "width": 1440,
+        "height": 900,
+        "regions": [
+          {"box_2d": [950, 35, 975, 155], "kind": "text", "fg": "#bfc3cc", "bg": "#ffffff", "contrast": 1.77, "height_px": 10, "width_px": 149},
+          {"box_2d": [730, 430, 760, 570], "kind": "text", "fg": "#a1a9b3", "bg": "#ffffff", "contrast": 2.38, "height_px": 13, "width_px": 188},
+          {"box_2d": [235, 440, 265, 575], "kind": "text", "fg": "#c0392b", "bg": "#fde8e8", "contrast": 4.63, "height_px": 14, "width_px": 190},
+          {"box_2d": [515, 440, 540, 560], "kind": "text", "fg": "#8a6d00", "bg": "#fff3cd", "contrast": 4.44, "height_px": 14, "width_px": 153},
+          {"box_2d": [670, 450, 700, 550], "kind": "text", "fg": "#ffffff", "bg": "#16a34a", "contrast": 3.3, "height_px": 18, "width_px": 138}
+        ]
+      }
+    ]
+  },
+  "clean_checks": [
+    "WCAG-1.4.3: countdown banner text passes AA (measured 4.63:1)",
+    "WCAG-3.3.2: the single input (add-on checkbox) has a visible text label",
+    "GST-01/GST-07: grouping matches semantics; the pricing card contains exactly its own content",
+    "JAKOB-01/NLS-04: header navigation and pricing-card pattern follow conventions",
+    "HICK-01: a single plan avoids choice overload",
+    "RF-02: no dead-end states; header navigation offers exits"
+  ]
+}

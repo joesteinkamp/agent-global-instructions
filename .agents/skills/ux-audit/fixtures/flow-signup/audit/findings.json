@@ -1,0 +1,283 @@
+{
+ "meta": {
+  "audit_id": "flow-signup-2026-06-11",
+  "date": "2026-06-11",
+  "mode": "flow",
+  "screens": [
+   "landing",
+   "account form",
+   "plan selection",
+   "dashboard"
+  ],
+  "goal": "Sign up for Tripfolk and start planning a first trip",
+  "persona": "first-time visitor",
+  "platform": "desktop",
+  "stage": "hifi",
+  "frameworks_applied": [
+   "nielsen",
+   "shneiderman",
+   "norman",
+   "tognazzini",
+   "gestalt",
+   "wcag",
+   "cognitive-laws",
+   "gerhardt-powals",
+   "content-design",
+   "cialdini",
+   "recurring-failures"
+  ],
+  "tiers_run": [
+   1,
+   2
+  ],
+  "issue_overflow": 0,
+  "model": "claude-fable-5"
+ },
+ "scores": {
+  "overall": 68,
+  "usability": 54,
+  "cognitive_load": 58,
+  "visual_layout": 85,
+  "accessibility": 86,
+  "content": 70,
+  "trust_persuasion": 72
+ },
+ "score_rationales": {
+  "usability": "Band 50-65: three high-severity failures on the critical path \u2014 renamed CTA, unconfirmed signup, dead-end ending \u2014 erode confidence at every step.",
+  "cognitive_load": "Band 50-65: the commitment step asks users to choose among four options that the UI gives no basis to distinguish.",
+  "visual_layout": "Band 80-89: every screen individually is clean, grouped correctly, and passes the squint test.",
+  "accessibility": "Band 80-89: inputs labeled, measured contrast passes (CTA 5.17:1, helper 5.47:1); focus order and keyboard flow unverifiable statically.",
+  "content": "Band 66-79: copy is plain and helpful per screen, but the flow's key verb changes name mid-journey.",
+  "trust_persuasion": "Band 66-79: no dark patterns, but a paid commitment is requested with no reassurance about changing or cancelling the plan later."
+ },
+ "one_big_thing": "No step in this flow ever acknowledges that the previous step worked: the CTA rename, the unmarked plan selection, and the silent landing on an empty dashboard are three symptoms of the same missing-acknowledgement spine.",
+ "findings": [
+  {
+   "id": "F-01",
+   "category": "cognitive_load",
+   "type": "observed",
+   "severity": "high",
+   "reach": 1,
+   "importance": 3.0,
+   "principles": [
+    "RF-08",
+    "HICK-01"
+   ],
+   "screen_index": 2,
+   "box_2d": [
+    277,
+    75,
+    650,
+    950
+   ],
+   "element": "four plan cards",
+   "issue": "Four equally weighted plans offer no default or recommendation at the commitment point.",
+   "why_it_matters": "Choice paralysis lands exactly where hesitation is most expensive, inviting abandonment.",
+   "recommendation": "Mark one plan as recommended and preselect it."
+  },
+  {
+   "id": "F-02",
+   "category": "usability",
+   "type": "observed",
+   "severity": "medium",
+   "reach": 1,
+   "importance": 2.0,
+   "principles": [
+    "NRM-06",
+    "RF-01"
+   ],
+   "screen_index": 2,
+   "box_2d": [
+    277,
+    75,
+    650,
+    950
+   ],
+   "element": "plan cards (selection state)",
+   "issue": "No plan card shows a selectable or selected state, yet 'Register now' proceeds.",
+   "why_it_matters": "Users can't tell which plan they're committing to, or whether clicking a card did anything.",
+   "recommendation": "Make cards visibly selectable and disable Register until one is chosen."
+  },
+  {
+   "id": "F-03",
+   "category": "cognitive_load",
+   "type": "observed",
+   "severity": "medium",
+   "reach": 1,
+   "importance": 2.0,
+   "principles": [
+    "GP-02"
+   ],
+   "screen_index": 2,
+   "box_2d": [
+    505,
+    75,
+    555,
+    950
+   ],
+   "element": "feature line on each plan card",
+   "issue": "All four plans list the identical feature line, differing only in price.",
+   "why_it_matters": "Nothing explains what paying more buys, so the price ladder reads as arbitrary.",
+   "recommendation": "State the differentiating limit or feature on each card."
+  },
+  {
+   "id": "F-04",
+   "category": "usability",
+   "type": "observed",
+   "severity": "high",
+   "reach": 1,
+   "importance": 3.0,
+   "principles": [
+    "RF-06",
+    "RF-02"
+   ],
+   "screen_index": 3,
+   "box_2d": [
+    212,
+    67,
+    875,
+    933
+   ],
+   "element": "empty trips container",
+   "issue": "The dashboard greets new users with a large empty box and no next action.",
+   "why_it_matters": "The activation moment dead-ends; users who just committed have nothing to do.",
+   "recommendation": "Add a first-run state with a 'Plan your first trip' action."
+  },
+  {
+   "id": "F-05",
+   "category": "usability",
+   "type": "observed",
+   "severity": "high",
+   "reach": 2,
+   "importance": 4.5,
+   "principles": [
+    "SHN-04",
+    "NLS-01",
+    "RF-05"
+   ],
+   "screen_index": 3,
+   "box_2d": null,
+   "element": "dashboard arrival, whole screen",
+   "issue": "The flow ends with no confirmation that the account or plan was created.",
+   "why_it_matters": "Users can't tell whether signup succeeded, which drives duplicate signups and support contacts.",
+   "recommendation": "Acknowledge the created account and chosen plan before or on the dashboard."
+  },
+  {
+   "id": "F-06",
+   "category": "usability",
+   "type": "observed",
+   "severity": "high",
+   "reach": 4,
+   "importance": 6.0,
+   "principles": [
+    "NLS-04",
+    "SHN-01",
+    "CNT-04"
+   ],
+   "screen_index": null,
+   "box_2d": null,
+   "element": "primary CTA across screens 0-2",
+   "issue": "The flow's primary action renames itself from 'Create account' to 'Register now' mid-journey.",
+   "why_it_matters": "Users can't tell whether step 1 already created the account or 'Register' is something new, so they doubt the whole flow.",
+   "recommendation": "Use one verb for one commitment across all steps."
+  },
+  {
+   "id": "F-07",
+   "category": "usability",
+   "type": "observed",
+   "severity": "medium",
+   "reach": 4,
+   "importance": 4.0,
+   "principles": [
+    "NLS-01",
+    "TOG-19"
+   ],
+   "screen_index": null,
+   "box_2d": null,
+   "element": "flow chrome, screens 1-3",
+   "issue": "The multi-step signup shows no progress indication anywhere.",
+   "why_it_matters": "Users can't see how much commitment remains, which inflates perceived effort.",
+   "recommendation": "Add a step indicator to the form and plan screens."
+  }
+ ],
+ "hypotheses": [],
+ "flow": {
+  "transitions": [
+   {
+    "from": 0,
+    "to": 1,
+    "verdict": "ok",
+    "note": "Landing CTA leads to a matching form; label and intent stay consistent."
+   },
+   {
+    "from": 1,
+    "to": 2,
+    "verdict": "issue",
+    "note": "Primary CTA renames to 'Register now' and nothing acknowledges whether the account from step 1 exists yet."
+   },
+   {
+    "from": 2,
+    "to": 3,
+    "verdict": "issue",
+    "note": "No confirmation of account or plan; the flow lands silently on an empty dashboard."
+   }
+  ],
+  "missing_states": [
+   "Success/confirmation state after account creation",
+   "Selected state on plan cards before 'Register now'",
+   "First-run empty state with a primary action on the dashboard",
+   "Form validation/error states (absent from the provided sequence)"
+  ],
+  "peak_end": "The journey ends at its weakest moment: an empty, unexplained dashboard. The likely emotional peak \u2014 committing to a paid plan \u2014 is also its most ambiguous step."
+ },
+ "measurements": {
+  "screens": [
+   {
+    "file": "screen-1.png",
+    "width": 1200,
+    "height": 800,
+    "regions": [
+     {
+      "box_2d": [
+       575,
+       333,
+       640,
+       517
+      ],
+      "kind": "text",
+      "fg": "#ffffff",
+      "bg": "#2563eb",
+      "contrast": 5.17
+     },
+     {
+      "box_2d": [
+       505,
+       330,
+       535,
+       460
+      ],
+      "kind": "text",
+      "fg": "#616a77",
+      "bg": "#ffffff",
+      "contrast": 5.47
+     }
+    ]
+   }
+  ]
+ },
+ "clean_checks": [
+  "WCAG-3.3.2 \u2014 email and password fields have persistent visible labels",
+  "WCAG-1.4.3 \u2014 form CTA measured 5.17:1, helper text 5.47:1 (both pass)",
+  "WCAG-2.5.8 \u2014 all primary buttons ~50px tall, well above minimum",
+  "CNT-10 \u2014 password field carries inline guidance ('At least 12 characters.')",
+  "NLS-02 \u2014 plan names and copy use plain language throughout",
+  "NLS-08 \u2014 each screen holds a single focused task with no competing content",
+  "GST-01/GST-07 \u2014 labels, fields, and helper text grouped to match semantics on every screen",
+  "GP-06 \u2014 consistent header and page structure across all four screens",
+  "JAKOB-01 \u2014 landing/form/plan layout matches familiar signup conventions",
+  "MILL-01 \u2014 per-screen information volume is small and chunked",
+  "DARK-01..06 \u2014 no fake urgency, pre-checked options, confirmshaming, or hidden fees",
+  "SHN-02 \u2014 generous type sizes and targets throughout",
+  "Not statically auditable \u2014 form validation behavior, focus order, latency: verify live"
+ ]
+}

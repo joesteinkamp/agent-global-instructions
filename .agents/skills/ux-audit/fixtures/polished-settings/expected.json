@@ -1,0 +1,42 @@
+{
+ "comment": "Clean control. The must-NOT-find list is the point: no manufactured findings.",
+ "must_find": [],
+ "must_not_find": [
+  {
+   "any_principles": [
+    "WCAG-3.3.2"
+   ],
+   "note": "inputs ARE labeled \u2014 flagging them is a false positive"
+  },
+  {
+   "any_principles": [
+    "RF-08",
+    "HICK-01"
+   ],
+   "note": "one primary action; no choice paralysis here"
+  },
+  {
+   "any_principles": [
+    "DARK-01",
+    "DARK-02",
+    "DARK-03",
+    "DARK-04",
+    "DARK-05",
+    "DARK-06"
+   ],
+   "note": "no dark patterns present"
+  }
+ ],
+ "max_severity": "medium",
+ "max_findings": 4,
+ "min_overall": 80,
+ "baseline_scores": {
+  "overall": 89,
+  "usability": 90,
+  "cognitive_load": 92,
+  "visual_layout": 90,
+  "accessibility": 88,
+  "content": 88,
+  "trust_persuasion": 85
+ }
+}

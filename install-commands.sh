@@ -17,9 +17,24 @@
 # group only decides what gets INSTALLED, and an unwanted command already present
 # is pruned so flipping your persona self-heals.
 #
+# Skill-backed commands: a canonical command opts in with `skill-backed: true`
+# in its frontmatter, promising a vendored skill of the same name at
+# .agents/skills/<name> (pinned in skills-lock.json). Skill-capable tools
+# (claude, codex) then get a SYMLINK to the real skill instead of the thin
+# command wrapper — one /<name>, the full engine, no duplicate menu entry.
+# Cursor/Gemini have no skill support and keep the wrapper (its inline fallback
+# path). Opt-in, not name-matched: a same-named vendored skill may be a stub
+# that depends on other project-scoped skills (e.g. grill-me -> grilling),
+# while the command wrapper is the deliberately self-contained global version.
+# Currently: /ux-audit -> .agents/skills/ux-audit.
+#
 # Per-tool source + destination:
 #   claude  commands/*.md          -> ~/.claude/commands/   (project: ./.claude/commands/)
+#           skill-backed           -> ~/.claude/skills/<name> (symlink into .agents/skills/)
 #   codex   commands/codex/*/SKILL.md -> ~/.codex/skills/   (global only; invoke $<name>)
+#           skill-backed           -> ~/.codex/skills/<name>  (symlink into .agents/skills/;
+#                                     like all codex skills this is global even under
+#                                     --project — codex has no project-scoped install)
 #   cursor  commands/cursor/*.md   -> ~/.cursor/commands/   (project: ./.cursor/commands/)
 #   gemini  commands/gemini/*.toml -> ~/.gemini/commands/   (project: ./.gemini/commands/)
 #   antigravity                    -> skipped (separate tool; hooks-only, see install-hooks.sh)
@@ -97,6 +112,84 @@ cmd_wanted() {  # $1 = command basename without extension
   esac
 }
 
+# The safety predicate before every rm/replace of a skills-dir entry: is this
+# path a symlink WE created — one resolving into this repo's .agents/skills
+# tree? Anything else there (real dir, foreign symlink) is the user's own and
+# is never touched. Prefix match, so it also covers links whose skill has since
+# been renamed/dropped upstream (dangling but ours). Keep in sync with
+# uninstall.sh's copy.
+is_our_skill_link() {  # $1 = path
+  [ -L "$1" ] || return 1
+  case "$(readlink "$1")" in "$DIR/.agents/skills/"*) return 0;; *) return 1;; esac
+}
+
+# A canonical command with `skill-backed: true` frontmatter AND a same-named
+# vendored skill is "skill-backed": skill-capable tools get the real skill
+# (see install_skill_link), not the wrapper command.
+skill_backed() {  # $1 = command basename without extension
+  [ -d "$DIR/.agents/skills/$1" ] || return 1
+  [ -f "$SRC/$1.md" ] || return 1
+  awk '
+    { sub(/\r$/,"") }
+    NR==1 && $0=="---" { infm=1; next }
+    infm && $0=="---"  { exit }
+    infm && $0 ~ /^skill-backed:[[:space:]]*true[[:space:]]*$/ { found=1; exit }
+    END { exit !found }
+  ' "$SRC/$1.md"
+}
+
+# Symlink each skill-backed command's vendored skill into a tool's global skills
+# dir, honoring the same group gating as the command it replaces: wanted ->
+# symlink, replacing any prior SYMLINK (no data loss — the migration path from
+# a hand-made standalone-clone link) but never a real directory (the user's own
+# skill; a note is printed). Unwanted -> prune, but only a link that is ours
+# (is_our_skill_link). rc=2 (persona resolver failed) leaves things exactly as
+# they are. Ends with an orphan prune for dangling links of ours.
+install_skill_link() {  # $1 = destination skills dir (~/.claude/skills or ~/.codex/skills)
+  local dest="$1" src name rc link
+  for src in "$DIR/.agents/skills"/*/; do
+    [ -d "$src" ] || continue
+    name="$(basename "$src")"
+    if ! skill_backed "$name"; then
+      # Not (or no longer) skill-backed — remove a link WE created earlier so
+      # flipping the frontmatter self-heals; never touch anything else.
+      if is_our_skill_link "$dest/$name"; then
+        rm -f "$dest/$name"; echo "  removed skill link $name (no longer skill-backed)"
+      fi
+      continue
+    fi
+    rc=0; cmd_wanted "$name" || rc=$?
+    case "$rc" in
+      0)
+        # A real dir/file here is the user's own skill — never clobbered. Any
+        # SYMLINK is replaced (no data loss: only the link changes) — that's
+        # the migration path from a hand-made standalone-clone link.
+        if [ -e "$dest/$name" ] && [ ! -L "$dest/$name" ]; then
+          echo "  note: $dest/$name exists and is not a symlink — leaving it (remove it to let this repo manage the skill)"
+        else
+          mkdir -p "$dest"
+          ln -sfn "${src%/}" "$dest/$name"
+          echo "  skill $name -> $dest/$name (symlink)"
+        fi;;
+      1)
+        if is_our_skill_link "$dest/$name"; then
+          rm -f "$dest/$name"; echo "  removed skill $name (not in requested groups)"
+        fi;;
+    esac
+  done
+  # Orphan prune: the loop above only visits skills that still exist under
+  # .agents/skills, so a link we created for a skill later renamed/dropped
+  # upstream would dangle forever — the skills-side analog of RETIRED.
+  [ -d "$dest" ] || return 0
+  for link in "$dest"/*; do
+    is_our_skill_link "$link" || continue
+    if [ ! -e "$link" ]; then
+      rm -f "$link"; echo "  removed dangling skill link $(basename "$link") (vendored skill gone)"
+    fi
+  done
+  return 0
+}
+
 # Regenerate the per-tool ports from the canonical commands/*.md first, so what
 # gets installed always reflects the current canonical (hand-edits to a generated
 # port are overwritten here — edit commands/<name>.md instead). Abort on failure
@@ -109,7 +202,7 @@ fi
 
 # Command basenames we've renamed/dropped. Pruned on every install (per tool, in
 # that tool's extension) so a rename self-heals across `git pull && install`.
-RETIRED="validate handoff flow tidy"
+RETIRED="validate handoff flow tidy critique audit"
 
 # Back up to a collision-free name (mktemp), keeping only the 5 newest backups.
 # Sets BACKUP_PATH to the created backup so callers can point the user at it.
@@ -124,18 +217,36 @@ backup_file() {  # $1 = file to back up
 
 # Copy every <src>/*.<ext> into <dest>, backing up a differing prior copy first,
 # skipping README and pruning retired names.
-install_dir() {  # $1=label  $2=src dir  $3=ext  $4=dest dir
+install_dir() {  # $1=label  $2=src dir  $3=ext  $4=dest dir  $5=1 to skip skill-backed names
   local label="$1" src="$2" ext="$3" dest="$4" f base dst n=0 old rc prior
   if [ ! -d "$src" ]; then echo "  $label: no $src (skipped)"; return 0; fi
   mkdir -p "$dest"
   for old in $RETIRED; do
-    if [ -f "$dest/$old.$ext" ]; then rm -f "$dest/$old.$ext"; echo "  removed retired /$old"; fi
+    # Backed up before removal: a retired name is generic enough (e.g. "audit")
+    # that the file could be the user's own, not our stale install.
+    if [ -f "$dest/$old.$ext" ]; then
+      backup_file "$dest/$old.$ext"; rm -f "$dest/$old.$ext"
+      echo "  removed retired /$old (backup: $BACKUP_PATH)"
+    fi
   done
   for f in "$src"/*."$ext"; do
     [ -e "$f" ] || continue
     base="$(basename "$f")"
     [ "$base" = "README.$ext" ] && continue
     dst="$dest/$base"
+    # Skill-backed: this tool gets the real skill (install_skill_link), not the
+    # wrapper command — skip it, pruning an installed copy (backed up if edited).
+    if [ "${5:-0}" = 1 ] && skill_backed "${base%.*}"; then
+      if [ -f "$dst" ]; then
+        if cmp -s "$f" "$dst"; then
+          rm -f "$dst"; echo "  removed $base (the vendored skill installs instead)"
+        else
+          backup_file "$dst"; rm -f "$dst"
+          echo "  removed $base (the vendored skill installs instead; your edited copy: $BACKUP_PATH)"
+        fi
+      fi
+      continue
+    fi
     # Group filter: a command not in the requested groups is skipped, and pruned
     # from the destination if present (so turning a group off self-heals). rc=2
     # (persona resolver failed) skips the install but leaves an existing copy.
@@ -172,8 +283,24 @@ install_codex_skills() {
   for source in "$src"/*/SKILL.md; do
     [ -f "$source" ] || continue
     skill="$(basename "$(dirname "$source")")"
+    # Skill-backed: the real skill is symlinked in by install_skill_link; by not
+    # marking the generated port as ours here, the GENERATED-marker prune below
+    # removes a previously installed wrapper (a symlinked real skill has no
+    # marker, so it is never touched by that prune).
+    skill_backed "$skill" && continue
     gen="$gen$skill "
     target="$dest/$skill/SKILL.md"
+    # Never write through a symlinked skill dir (cp would clobber the vendored
+    # source in the repo). A link WE created (a formerly skill-backed name)
+    # is removed so the wrapper installs fresh; a foreign link is left alone.
+    if [ -L "$dest/$skill" ]; then
+      if is_our_skill_link "$dest/$skill"; then
+        rm -f "$dest/$skill"
+      else
+        echo "  note: $dest/$skill is a symlink not managed by this repo; skipped"
+        continue
+      fi
+    fi
     rc=0; cmd_wanted "$skill" || rc=$?
     if [ "$rc" != 0 ]; then
       if [ "$rc" = 1 ] && [ -f "$target" ]; then
@@ -207,9 +334,12 @@ for t in "${targets[@]}"; do
   case "$t" in
     claude)
       if [ "$PROJECT" = 1 ]; then d="$DIR/.claude/commands"; else d="$HOME/.claude/commands"; fi
-      install_dir claude "$SRC" md "$d";;
+      install_dir claude "$SRC" md "$d" 1
+      # --project: the repo's own .claude/skills/ symlinks already cover it.
+      [ "$PROJECT" = 1 ] || install_skill_link "$HOME/.claude/skills";;
     codex)
       install_codex_skills
+      install_skill_link "$HOME/.codex/skills"
       [ "$PROJECT" = 1 ] && echo "  (Codex skills are global; --project has no effect for codex)";;
     cursor)
       if [ "$PROJECT" = 1 ]; then d="$DIR/.cursor/commands"; else d="$HOME/.cursor/commands"; fi

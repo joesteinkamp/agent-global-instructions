@@ -1,0 +1,314 @@
+{
+ "meta": {
+  "audit_id": "flawed-checkout-2026-06-11",
+  "date": "2026-06-11",
+  "mode": "single",
+  "screens": [
+   "screen-0.png"
+  ],
+  "goal": "Complete checkout and pay for the cart",
+  "persona": "first-time visitor",
+  "platform": "desktop",
+  "stage": "hifi",
+  "frameworks_applied": [
+   "nielsen",
+   "norman",
+   "gestalt",
+   "wcag",
+   "cognitive-laws",
+   "gerhardt-powals",
+   "content-design",
+   "cialdini",
+   "recurring-failures"
+  ],
+  "tiers_run": [
+   1
+  ],
+  "issue_overflow": 0,
+  "model": "claude-fable-5"
+ },
+ "scores": {
+  "overall": 51,
+  "usability": 52,
+  "cognitive_load": 55,
+  "visual_layout": 72,
+  "accessibility": 28,
+  "content": 50,
+  "trust_persuasion": 50
+ },
+ "score_rationales": {
+  "usability": "Band 50-65: the commitment point offers three equal mechanism-named actions, so the path to paying is ambiguous.",
+  "cognitive_load": "Band 50-65: users must mentally total the order and resolve a three-way button choice unaided.",
+  "visual_layout": "Band 66-79: grouping and hierarchy read correctly; the only focal-point conflict is the CTA row.",
+  "accessibility": "Band 20-49: the primary CTA fails contrast badly (1.78:1) and all four inputs are unlabeled.",
+  "content": "Band 50: several mechanism labels at the decision point and a dangling asterisk.",
+  "trust_persuasion": "Band 50: card-entry form with no trust or security signals."
+ },
+ "one_big_thing": "The commitment moment is undecidable: three identical, washed-out, mechanism-named buttons with no visible order total mean a first-time buyer cannot tell which action takes their money or how much it will take.",
+ "findings": [
+  {
+   "id": "F-01",
+   "category": "accessibility",
+   "type": "observed",
+   "severity": "high",
+   "reach": 4,
+   "importance": 6.0,
+   "principles": [
+    "WCAG-3.3.2",
+    "NRM-06"
+   ],
+   "screen_index": 0,
+   "box_2d": [
+    189,
+    56,
+    489,
+    486
+   ],
+   "element": "all four checkout inputs, left column",
+   "issue": "All four payment inputs rely on placeholder text as their only label.",
+   "why_it_matters": "Labels vanish once users type, so field identity is lost mid-entry and after autofill, causing card-entry errors.",
+   "recommendation": "Add persistent visible labels above each input."
+  },
+  {
+   "id": "F-02",
+   "category": "accessibility",
+   "type": "observed",
+   "severity": "high",
+   "reach": 3,
+   "importance": 4.5,
+   "principles": [
+    "WCAG-1.4.3",
+    "TOG-16"
+   ],
+   "screen_index": 0,
+   "box_2d": [
+    533,
+    56,
+    589,
+    500
+   ],
+   "element": "Submit / Continue / Apply button row",
+   "issue": "Button text contrast is 1.78:1, far below the 4.5:1 minimum.",
+   "why_it_matters": "The actions that complete the purchase are barely legible, so many users cannot read them at all.",
+   "recommendation": "Darken the button fill to reach at least 4.5:1 against white text.",
+   "evidence": "measured: contrast 1.78:1 (#ffffff on #a8c4f0)"
+  },
+  {
+   "id": "F-03",
+   "category": "usability",
+   "type": "observed",
+   "severity": "high",
+   "reach": 3,
+   "importance": 4.5,
+   "principles": [
+    "RF-08",
+    "NRM-06",
+    "GST-02"
+   ],
+   "screen_index": 0,
+   "box_2d": [
+    533,
+    56,
+    589,
+    500
+   ],
+   "element": "Submit / Continue / Apply button row",
+   "issue": "Three identically styled primary buttons compete at the single commitment point.",
+   "why_it_matters": "Equal visual weight gives no cue which action pays, so users hesitate or click the wrong one.",
+   "recommendation": "Keep one primary payment button; demote the others to secondary styles."
+  },
+  {
+   "id": "F-04",
+   "category": "content",
+   "type": "observed",
+   "severity": "medium",
+   "reach": 3,
+   "importance": 3.0,
+   "principles": [
+    "RF-04",
+    "CNT-01"
+   ],
+   "screen_index": 0,
+   "box_2d": [
+    533,
+    56,
+    589,
+    194
+   ],
+   "element": "Submit button",
+   "issue": "The paying action is labeled 'Submit' instead of naming its outcome.",
+   "why_it_matters": "Users expecting a review step get charged unexpectedly, creating disputes and abandoned carts.",
+   "recommendation": "Rename to 'Pay $242.00' once the total is computed."
+  },
+  {
+   "id": "F-05",
+   "category": "cognitive_load",
+   "type": "observed",
+   "severity": "medium",
+   "reach": 1,
+   "importance": 2.0,
+   "principles": [
+    "GP-01"
+   ],
+   "screen_index": 0,
+   "box_2d": [
+    122,
+    556,
+    622,
+    944
+   ],
+   "element": "order summary card, right column",
+   "issue": "The order summary lists item prices but no total.",
+   "why_it_matters": "Users must mentally sum three prices to decide, slowing commitment and inviting sticker shock later.",
+   "recommendation": "Add a computed total row directly above the payment action."
+  },
+  {
+   "id": "F-06",
+   "category": "accessibility",
+   "type": "observed",
+   "severity": "medium",
+   "reach": 3,
+   "importance": 3.0,
+   "principles": [
+    "WCAG-1.4.3"
+   ],
+   "screen_index": 0,
+   "box_2d": [
+    233,
+    576,
+    383,
+    615
+   ],
+   "element": "Remove links under each order item",
+   "issue": "Remove links render at 1.85:1 contrast and roughly 8px text height.",
+   "why_it_matters": "Users who want to drop an item cannot find the control, so they abandon instead of editing the cart.",
+   "recommendation": "Restyle remove links to at least 4.5:1 contrast and 13px.",
+   "evidence": "measured: contrast 1.85:1 (#b9bfc8 on #ffffff), height 8px"
+  },
+  {
+   "id": "F-07",
+   "category": "content",
+   "type": "observed",
+   "severity": "low",
+   "reach": 1,
+   "importance": 1.0,
+   "principles": [
+    "CNT-06"
+   ],
+   "screen_index": 0,
+   "box_2d": [
+    444,
+    576,
+    467,
+    764
+   ],
+   "element": "shipping note in order summary",
+   "issue": "The shipping note ends in an asterisk that references no footnote.",
+   "why_it_matters": "An unexplained asterisk on cost information reads as hidden fees.",
+   "recommendation": "Remove the asterisk or state the shipping terms inline."
+  },
+  {
+   "id": "F-08",
+   "category": "usability",
+   "type": "observed",
+   "severity": "low",
+   "reach": 1,
+   "importance": 1.0,
+   "principles": [
+    "NLS-08"
+   ],
+   "screen_index": 0,
+   "box_2d": [
+    667,
+    556,
+    778,
+    944
+   ],
+   "element": "promo banner below order summary",
+   "issue": "A high-attention promo banner competes with the payment task.",
+   "why_it_matters": "Mid-checkout promotion pulls focus from completing payment toward a detour.",
+   "recommendation": "Replace the banner with a plain promo-code field."
+  },
+  {
+   "id": "F-09",
+   "category": "trust_persuasion",
+   "type": "observed",
+   "severity": "medium",
+   "reach": 1,
+   "importance": 2.0,
+   "principles": [
+    "RF-09",
+    "CLD-05"
+   ],
+   "screen_index": 0,
+   "box_2d": null,
+   "element": "whole checkout screen",
+   "issue": "Card details are requested with no security cue or policy link anywhere.",
+   "why_it_matters": "First-time buyers at an unknown shop need credibility signals before typing a card number.",
+   "recommendation": "Add a payment-security indicator and policy links near the card fields."
+  }
+ ],
+ "hypotheses": [],
+ "measurements": {
+  "screens": [
+   {
+    "file": "screen-0.png",
+    "width": 1440,
+    "height": 900,
+    "regions": [
+     {
+      "box_2d": [
+       533,
+       56,
+       589,
+       194
+      ],
+      "kind": "text",
+      "fg": "#ffffff",
+      "bg": "#a8c4f0",
+      "contrast": 1.78,
+      "height_px": 50
+     },
+     {
+      "box_2d": [
+       615,
+       50,
+       650,
+       270
+      ],
+      "kind": "text",
+      "fg": "#cbcfd6",
+      "bg": "#ffffff",
+      "contrast": 1.56,
+      "height_px": 14
+     },
+     {
+      "box_2d": [
+       232,
+       572,
+       252,
+       620
+      ],
+      "kind": "text",
+      "fg": "#b9bfc8",
+      "bg": "#ffffff",
+      "contrast": 1.85,
+      "height_px": 8
+     }
+    ]
+   }
+  ]
+ },
+ "clean_checks": [
+  "GST-01/GST-04 \u2014 form fields and summary rows aligned and grouped to match semantics",
+  "GST-07 \u2014 order items correctly contained in the summary card boundary",
+  "JAKOB-01 \u2014 form-left / summary-right checkout layout follows convention",
+  "NLS-02 \u2014 item names and prices use plain user language",
+  "NLS-06 \u2014 cart contents stay visible beside the form; nothing to recall",
+  "NRM-02 \u2014 inputs and buttons are recognizably interactive; no false affordances (RF-01)",
+  "GP-06 \u2014 payment fields grouped in conventional order (card, expiry, CVC)",
+  "WCAG-2.5.8 \u2014 primary buttons ~50px tall, above the 24px desktop minimum",
+  "MILL-01 \u2014 three line items, well within working-memory limits",
+  "DARK-01..06 \u2014 no fake urgency, pre-checked costs, or confirmshaming (the dangling asterisk is filed as CNT-06)"
+ ]
+}
