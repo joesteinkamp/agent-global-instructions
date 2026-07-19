@@ -38,6 +38,10 @@ if [ "${files:-0}" -lt "$minf" ] && [ "$lines" -lt "$minl" ]; then exit 0; fi
 fp="$(git -C "$cwd" diff HEAD 2>/dev/null | cksum | tr -d ' ')-${files}-${lines}"
 state_dir="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; mkdir -p "$state_dir" 2>/dev/null || true
 key="$(printf '%s' "$cwd" | cksum | cut -d' ' -f1)"
+# Suppression: the agent drops this marker when applying changes I already
+# approved (a prior review's fixes), so the backstop doesn't re-nag. Consume-once.
+skip="$state_dir/.nudge-skip-improve.$key"
+[ -f "$skip" ] && { rm -f "$skip" 2>/dev/null || true; exit 0; }
 marker="$state_dir/.improve-nudge.$key"
 [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$fp" ] && exit 0
 printf '%s' "$fp" > "$marker" 2>/dev/null || true

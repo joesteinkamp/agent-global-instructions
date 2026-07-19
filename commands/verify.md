@@ -1,63 +1,82 @@
 ---
-description: Prove a change works and is true to spec — run it, drive it in a browser, check it against the project briefs
-argument-hint: [optional route/url, focus, or acceptance note]
+description: Product-grade evaluation of recent work — prove it runs, then grade how well it serves this session's goal, briefs held as reference (and flag docs the code has outgrown)
+argument-hint: [optional route/url, the goal, or a focus]
 allowed-tools: Bash, Read, Grep, Glob, Skill, Task
 ---
 
 Changed files: !`git --no-pager diff --stat HEAD 2>/dev/null`
 Untracked: !`git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
+Recent commits: !`git --no-pager log --oneline -10 2>/dev/null`
 Project briefs: !`ls PRODUCT.md DESIGN.md DESIGN.json CODE.md AGENT.md guardrails 2>/dev/null || true`
 Prior runs: !`ls -dt verify/*/ 2>/dev/null | head -3 || true`
 
-**Verify** the recent change — don't review it for taste (that's `/improve`), **prove** it does what it
-should and is true to the design and the briefs. This is evidence, not opinion: run it, drive it,
-screenshot it, diff it. $ARGUMENTS
+**Verify** grades the recent work as a **product increment** — not "does the diff compile" (that's the
+floor) and not code taste (that's `/improve`), but *how well does this actually serve the user's goal for
+this session?* Evidence is the foundation, the briefs are reference, and the honest yardstick is the goal
+this piece of work set out to hit. $ARGUMENTS
 
-Run the lenses below. Each emits **PASS / FAIL / N/A** with attached evidence. A lens with no reference or
-no capability is **N/A** — skip it, never block on it. For long or independent lenses, fan out with
-subagents (Task) and integrate; otherwise run them in order.
+This project is built **bit by bit across sessions**, and the code often runs ahead of the docs — briefs
+get updated *after* the code lands. Treat the briefs as context, not gospel: where the work diverges from
+them, decide whether it's **intentional evolution** (the docs need to catch up) or **drift** (a real
+regression) — never blindly fail against stale documentation.
 
-1. **Builds & runs.** Detect the project's tooling (reuse `/tidy`'s detection — `package.json` scripts,
-   prettier/eslint/ruff/go/Makefile…). Run build → typecheck → tests, then boot the app and confirm it
-   comes up clean. If it doesn't build, stop here and report — nothing downstream is meaningful.
-2. **Renders in a real browser.** For any UI/route change, serve it the way I preview web work (bind
-   `0.0.0.0`, never `127.0.0.1`; verify 200) and drive the changed route(s) headless with Playwright
-   (install it if absent; if it can't be installed here, mark this lens N/A — don't fake it).
-   - Capture **console + network**; treat any uncaught error or 4xx/5xx as a FAIL.
-   - **Responsive matrix** — screenshot each touched route at the project's breakpoints (from `DESIGN.json`'s
-     `breakpoints` if present, else mobile 390px / tablet 768px / desktop 1280px); lay them out as a contact
-     sheet in the report.
-   - Run an **axe-core a11y** pass and a contrast check in the same session (skip if axe can't be loaded).
-   - **Reduced motion** — re-render each touched route with `page.emulateMedia({ reducedMotion: 'reduce' })`; **FAIL if non-essential motion still plays** — this behavioral re-render is the authoritative test. Don't FAIL merely on a missing CSS `@media (prefers-reduced-motion: reduce)` block: JS/WAAPI, Framer Motion, and GSAP honor the preference via `matchMedia` without one. **N/A** when nothing on the route animates. Relates to WCAG 2.2.2 Pause/Stop/Hide (AA); the preference itself is named by SC 2.3.3 (AAA). axe won't catch this — it's a separate, deterministic check in the same session.
-3. **Visual regression.** Diff this run's screenshots **pixel-by-pixel** (Playwright `toHaveScreenshot`,
-   `pixelmatch`, or ImageMagick `compare`) against a baseline — the prior `verify/` run, or the same routes
-   built from the default branch. Surface any unintended visual change (per-route, per breakpoint) with a
-   before/after and the diff image. If there's no baseline yet, save these as the baseline and mark N/A.
-   (The baseline is machine-local — `verify/` is gitignored — so cross-machine, the default-branch rebuild
-   is the real reference.)
-4. **Matches the design.** Compare the screenshots to the reference — Figma node (via MCP) or a
-   `DESIGN.json` token file (with `DESIGN.md` for intent). Report drift as expected-vs-actual, not vibes.
-   The `DESIGN.json` contract this lens reads (all keys optional; check whatever is present) —
-   its canonical source is the [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack),
-   which generates `DESIGN.json` alongside the briefs:
-   - `color` — named roles → hex/rgb (e.g. `bg`, `fg`, `primary`, `border`).
-   - `type` — `family`, and named `size` / `leading` (line-height) / `weight` scales.
-   - `space` — the spacing scale (e.g. `{ "1": "4px", "2": "8px", … }`).
-   - `radius`, `shadow` — named scales.
-   - `breakpoints` — named widths; **feed these to the responsive matrix in lens 2** instead of the 390/768/1280 defaults when present.
-   - `motion` — `duration` and `easing` scales, and named `transition` specs (duration + easing).
-   Drift = a rendered computed value (color, font-size, padding, radius, transition-duration/easing) that isn't on the corresponding scale.
-5. **Conforms to the briefs.** Check the diff against `PRODUCT.md` / `DESIGN.md` / `CODE.md` and any
-   `guardrails/` — stack & conventions, security, accessibility, and the anti-pattern registries. The
-   brief is the contract; the diff is the claim.
-6. **Does what it claimed.** Re-run the acceptance criteria from the task / PR / issue against the running
-   app. Flag any “verified” step that wasn't actually exercised — the honesty gate.
+### 1. Establish the goal for this session
+Reconstruct what this increment was *supposed* to achieve — from the task/PR/issue and my request (the
+arguments above), the acceptance criteria, and the recent commits. Read `PRODUCT.md` / `DESIGN.md` /
+`CODE.md` and `guardrails/` for the product's intent and standards, holding them as supporting context that
+may lag the code. **State the goal in a line or two before grading** — that's the yardstick everything else
+is measured against.
 
-**Output is an artifact.** Write `verify/<slug>-YYYY-MM-DD/` — `report.html` (self-contained: pass/fail table,
-the responsive contact sheet, visual-regression before/afters, design diffs, console logs) plus the raw
-`screenshots/`. Serve the report per my preview method (headless → static server on `0.0.0.0`, verify 200,
-hand me the URL; keep it running). Inline, give me only the **verdict + the link** — don't dump
-findings in chat.
+### 2. Prove it runs (the floor — evidence, not opinion)
+This gates everything: a great idea that doesn't run isn't a product.
+- **Builds & runs.** Detect the tooling (reuse `/tidy`'s detection — `package.json` scripts,
+  prettier/eslint/ruff/go/Makefile…). Run build → typecheck → tests, then boot the app and confirm it comes
+  up clean. If it doesn't build, stop and report — the grade is blocked until it runs.
+- **Renders in a real browser.** For any UI/route change, serve it the way I preview web work (bind
+  `0.0.0.0`, never `127.0.0.1`; verify 200) and drive the changed route(s) headless with Playwright (install
+  if absent; if it can't be installed here, say so and grade the UX from the code instead — don't fake
+  evidence). Capture **console + network** — any uncaught error or 4xx/5xx is a real defect that drags the
+  grade down.
 
-This is a verification pass — **report what passed, what failed, and what was N/A.** Don't fix things
-unless I ask; if something failed, point at `file:line` and what the evidence shows.
+### 3. Grade the increment as a product
+Score each dimension that applies (skip N/A) with the **evidence** behind it and the **gap to the next grade
+up**. Grade A–F; an **A** means you'd ship it proudly, not merely that it works.
+- **Goal fit** *(heaviest weight)* — does it accomplish what this session set out to do, end to end? Re-run
+  the acceptance criteria against the running app; flag any "done" step that wasn't actually exercised (the
+  honesty gate).
+- **Experience quality** — the real user journey: friction, clarity, and the states that get skipped —
+  empty, loading, error, first-run, no-permission, long-content. Would the user it's for get their job done
+  without confusion?
+- **Design & accessibility** — where a reference exists, compare rendered values to `DESIGN.json` tokens (or
+  a Figma node via MCP); drift = a computed value (color, type, spacing, radius, motion) off the scale.
+  Screenshot the touched routes at the project's breakpoints (`DESIGN.json` `breakpoints` if present, else
+  390 / 768 / 1280) as a contact sheet. Run **axe-core** + contrast, and a **reduced-motion** behavioral
+  re-render (`page.emulateMedia({ reducedMotion: 'reduce' })` — non-essential motion still playing is a
+  defect; JS/WAAPI/Framer/GSAP honor the preference without a CSS `@media` block, so test the behavior, not
+  the stylesheet). *(`DESIGN.json` contract — all keys optional — is generated by the
+  [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack): `color`, `type`, `space`,
+  `radius`, `shadow`, `breakpoints`, `motion`.)*
+- **Product fit** — does it cohere with the rest of the product and hold to `CODE.md` / `guardrails`
+  conventions? Confirm it didn't **regress adjacent flows**: pixel-diff the screenshots against a baseline
+  (prior `verify/` run, or the same routes rebuilt from the default branch) and surface any unintended change
+  with a before/after.
+
+### 4. Reconcile with the docs
+List where the work **diverges from the briefs**, and for each call it: **intentional evolution** (the code
+advanced past the docs → name the doc + section to update) or **drift** (an unintended regression against
+still-valid intent → a defect). This is how the project stays honest as code outruns documentation.
+
+### 5. Report inline, offer the artifact
+Inline by default: the **overall product grade**, the per-dimension grades each with one line of evidence,
+the top gaps holding the grade down, and the docs-to-update list. Keep it tight — the scorecard, not a
+screenshot dump.
+Offer the **HTML artifact** — the visual evidence (responsive contact sheet, visual-regression
+before/afters, design diffs, console logs) doesn't fit in chat, so offer to write
+`verify/<slug>-YYYY-MM-DD/` (`report.html`, self-contained, plus the raw `screenshots/`) and serve it per my
+preview method (headless → static server on `0.0.0.0`, verify 200, hand me the URL; keep it running).
+Produce it only if I say yes, or right away if I asked for the report up front.
+
+### 6. Prepare to act
+Turn the gaps into a prioritized, ready-to-apply plan — each with `file:line` (or the doc to update), the
+concrete change, and which grade it lifts. **Don't edit anything yet** — ask which items to apply and, on my
+go-ahead, make exactly those changes and re-grade the affected dimensions to confirm.
