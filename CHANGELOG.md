@@ -29,7 +29,9 @@ only after human approval (see the `changelog` instruction section and the
   both scripts, and the `commands/README.md` wording was corrected to match
   the opt-in (not name-matched) design. Suite 100 → 104, including new
   data-safety regression tests (user-owned skill dirs/links never touched,
-  vendored source never clobbered).
+  vendored source never clobbered). Documented the one-way sync: the skill is
+  developed in its own checkout of the GitHub repo and flows GitHub → here via
+  `npx skills update`; the vendored copy is never edited in place.
 
 ### Added
 - **`/grill-me` promoted to a globally-installed command (2026-07-19, Claude).** Previously only worked as a project-scoped Skill inside this repo's own checkout (`.agents/skills/grill-me`, vendored via `npx skills`). Added `commands/grill-me.md` — a self-contained canonical command (inlines the `grilling` interview instructions rather than delegating to the `grilling` skill, since the per-tool render pipeline has no cross-skill invocation) — so `/grill-me` (`$grill-me` on Codex) now installs and works in any project via `render-commands.sh` + `install-commands.sh`, same as `/ship`/`/improve`. Documented in `commands/README.md`, `README.md`'s "What you get", and `docs/GUIDE.md`. The vendored project-scoped Skill is left in place (still `npx skills`-synced, still used by `grill-with-docs`) — note this means the interview wording now has two copies that could drift if upstream updates the vendored one.

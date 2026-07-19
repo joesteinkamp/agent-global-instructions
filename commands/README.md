@@ -37,7 +37,9 @@ self-contained global version. Cursor/Gemini keep the wrapper (its inline
 fallback path).
 Currently: `/ux-audit` → `.agents/skills/ux-audit`, synced from
 [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill)
-via `npx skills update`.
+via `npx skills update`. That skill is a **separate project** with its own
+working checkout — improve it there and push to GitHub, then sync here;
+never edit the vendored copy in place (the next update overwrites it).
 
 **Format:** the top-level `.md` files are Claude Code command files — frontmatter
 (`description`, `argument-hint`, `allowed-tools`, optional `group`) plus a prompt

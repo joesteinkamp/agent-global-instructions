@@ -143,6 +143,14 @@ installer — `install-commands.sh` symlinks it into `~/.claude/skills` and
 `~/.codex/skills`, while Cursor/Gemini get the `/ux-audit` wrapper command
 (no skill support there).
 
+**Improving the ux-audit skill — one-way sync.** The skill is a **separate
+project** developed in its own working checkout of the GitHub repo (e.g.
+`~/projects/ux-audit-skill`); that checkout is not part of this harness and
+nothing here reads from it. Improvements are made there and **pushed to
+GitHub**; this repo then pulls the released state with `npx skills update`
+(hash-pinned in `skills-lock.json`). Never edit `.agents/skills/ux-audit/`
+in place — it's a synced vendor copy and the next update overwrites it.
+
 ## 3. Guardrails & observability (hooks)
 
 One set of scripts serves **Claude Code, Codex, Cursor, Gemini (CLI), and
