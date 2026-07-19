@@ -33,7 +33,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 1. **Instructions** (model-facing) — a customizable `template.md` rendered into
    per-tool instruction files. *Advice* the assistant should follow.
 2. **Commands** — slash-command shortcuts (`/ship`, `/sync`, `/worktrees`,
-   `/improve`, `/verify`, `/audit`) for repeatable
+   `/improve`, `/verify`, `/ux-audit`) for repeatable
    workflows.
 3. **Guardrails & observability** (hooks) — auto-format, block edits to
    generated/sensitive paths, trip on catastrophic shell, log every tool call to
@@ -126,11 +126,11 @@ it up.
 | `/worktrees` | One worktree per parallel agent (`ai/<agent>`), converged into a single integration tree a lone dev server watches — several models, near-live. Pairs with `converge.sh`. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
-| `/audit` | *(design group)* UX audit **from a screenshot**. Uses the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill when available (Claude Code) — 15 heuristic frameworks, annotated screenshots; the other tools run the heuristic rubric inline. Writes + serves a self-contained HTML report. |
+| `/ux-audit` | *(design group)* UX audit **from a screenshot**. Uses the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill when available (Claude Code) — 15 heuristic frameworks, annotated screenshots; the other tools run the heuristic rubric inline. Writes + serves a self-contained HTML report. |
 
 **Command groups.** A command declares `group: <name>` in its frontmatter
 (absent ⇒ `core`, always installed). The **`design`** group
-(`/audit`) installs **by default for everyone** — everyone should design
+(`/ux-audit`) installs **by default for everyone** — everyone should design
 better; `--no-design` (or `INC_DESIGN=n`) forces it off and prunes any already
 installed, so opting out self-heals. The design commands compose with the
 external [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack)

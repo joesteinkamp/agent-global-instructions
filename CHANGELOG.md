@@ -9,6 +9,13 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
+### Changed
+- **Rename `/audit` → `/ux-audit` (2026-07-19, Claude).** Clearer name for the
+  screenshot UX audit command; design group is now `/ux-audit`. Docs,
+  `install-commands.sh` comments, and `test.sh` updated; ports re-rendered and
+  reinstalled across all four tools. Note: in Claude Code the name now matches
+  the `ux-audit` skill the command delegates to — intentional overlap.
+
 ### Removed
 - **`/critique` (2026-07-19, Claude).** Dropped the pre-pixel critique command
   (`commands/critique.md`) and its generated ports (Codex skill, Cursor,

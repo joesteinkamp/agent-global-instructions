@@ -12,14 +12,14 @@ Portable workflow shortcuts. Each top-level `.md` file is the canonical
 | `/worktrees` | Set up one git worktree per parallel agent (`ai/<agent>` branches) and converge them into a single integration tree a lone dev server watches — so several models' changes show up near-live. Pairs with `converge.sh`. |
 | `/improve` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities inline (HTML report on request), then tee them up as a ready-to-apply plan and offer to make the changes on your go-ahead. Nothing is edited until you approve. |
 | `/verify` | Product-grade evaluation of the recent work: prove it runs (build/test, headless browser with console/a11y/visual-regression evidence), then **grade how well it serves this session's goal** across goal-fit, experience quality, design/a11y, and product fit. Holds the briefs (`PRODUCT`/`DESIGN`/`CODE.md`) as reference — not gospel — and separates intentional evolution (docs to update) from real regressions as the code outruns the docs. Inline scorecard by default (HTML report on request), then a ready-to-apply fix plan on your go-ahead. Nothing is edited until you approve. |
-| `/audit` | *(design)* UX audit **from a screenshot**. On Claude Code with the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill installed it scores against 15 UX heuristic frameworks with annotated screenshots; on the other tools (no skill support) it runs the heuristic rubric inline. Writes + serves a self-contained HTML report. |
+| `/ux-audit` | *(design)* UX audit **from a screenshot**. On Claude Code with the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill installed it scores against 15 UX heuristic frameworks with annotated screenshots; on the other tools (no skill support) it runs the heuristic rubric inline. Writes + serves a self-contained HTML report. |
 
 Most take optional arguments, e.g. `/ship fix login redirect` uses that as the
 commit message / PR title. In Codex, write `$ship fix login redirect`.
 
 **Command groups.** A command opts into a group with `group: <name>` in its
 frontmatter (absent ⇒ `core`, always installed). The **`design`** group above
-(`/audit`) installs **by default for everyone** — everyone should
+(`/ux-audit`) installs **by default for everyone** — everyone should
 design better; `--no-design` (or `INC_DESIGN=n`, asked of `customize.sh
 --design-group`) forces it off and prunes any already installed, so opting out
 self-heals. Ports are always generated for every command — the group only

@@ -33,7 +33,7 @@ left in place).
   file: who you are, how you like to work, design standards (on for everyone),
   memory, artifacts.
 - **Commands** — the same slash commands in all four tools: `/ship`, `/sync`,
-  `/improve`, `/verify`, `/audit`, `/worktrees`.
+  `/improve`, `/verify`, `/ux-audit`, `/worktrees`.
 - **Guardrails** — hooks that block edits to generated/sensitive paths, trip on
   catastrophic shell, auto-format edits, and log every tool call.
 - **Permissions** — each tool's native enforcement (deny rules, sandbox,

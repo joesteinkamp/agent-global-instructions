@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the portable commands into each tool's command/prompt directory so they
-# work as /ship, /sync, /improve, /audit everywhere.
+# work as /ship, /sync, /improve, /ux-audit everywhere.
 #
 #   ./install-commands.sh                     # all tools, global
 #   ./install-commands.sh --project           # all tools, into ./ (this repo)
@@ -11,7 +11,7 @@
 #
 # Command groups: a canonical command opts into a group with `group: <name>` in
 # its frontmatter (absent => "core", always installed). The "design" group
-# (/audit) installs when --design is passed, or automatically when
+# (/ux-audit) installs when --design is passed, or automatically when
 # INC_DESIGN wants it (asked of customize.sh; on by default for everyone);
 # --no-design forces it off. Ports are always generated for every command; the
 # group only decides what gets INSTALLED, and an unwanted command already present
