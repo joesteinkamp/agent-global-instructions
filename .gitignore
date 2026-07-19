@@ -21,7 +21,6 @@ extras.local.md
 /review/
 /audits/
 /verify/
-/critiques/
 
 # Per-tool port research notes (agent scratch) — local, never commit
 /ports/

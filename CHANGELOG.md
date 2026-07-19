@@ -9,6 +9,16 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
+### Removed
+- **`/critique` (2026-07-19, Claude).** Dropped the pre-pixel critique command
+  (`commands/critique.md`) and its generated ports (Codex skill, Cursor,
+  Gemini) plus the installed copies in all four tools' global dirs. The design
+  command group is now just `/audit`. Updated docs (`README.md`,
+  `commands/README.md`, `docs/GUIDE.md`), `install-commands.sh` comments,
+  `.gitignore` (`/critiques/` entry), and `test.sh` (design-group counts 2→1,
+  prune-safety test now uses `audit.md`). Reason: per Joe's request — command
+  removed from the harness.
+
 ### Added
 - **Personal layers that survive every render (2026-07-17/18, Claude).**
   `extras.local.md` (gitignored) is spliced verbatim into every render at a new

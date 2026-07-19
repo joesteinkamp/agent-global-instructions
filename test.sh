@@ -385,7 +385,7 @@ if command -v jq >/dev/null 2>&1; then
   if HOME="$SMOKE2" bash "$DIR/install.sh" --yes --no-design claude >/dev/null 2>&1 </dev/null \
      && jq -e '.permissions.deny and .hooks.SessionStart' "$SMOKE2/.claude/settings.json" >/dev/null 2>&1 \
      && [ -f "$SMOKE2/.claude/commands/ship.md" ] \
-     && [ ! -f "$SMOKE2/.claude/commands/critique.md" ] \
+     && [ ! -f "$SMOKE2/.claude/commands/audit.md" ] \
      && [ -f "$SMOKE2/AGENTS.md" ] \
      && [ ! -L "$SMOKE2/.claude/CLAUDE.md" ] && grep -qF '@~/AGENTS.md' "$SMOKE2/.claude/CLAUDE.md" \
      && [ -L "$SMOKE2/.codex/AGENTS.md" ] && [ -L "$SMOKE2/.gemini/GEMINI.md" ] \
@@ -502,7 +502,7 @@ if command -v jq >/dev/null 2>&1; then
   # Explicit flags gate the design commands and prune them when turned off.
   count_design() {  # $1 = commands dir -> number of design commands present
     local d="$1" f n=0
-    for f in critique audit; do [ -f "$d/$f.md" ] && n=$((n+1)); done
+    for f in audit; do [ -f "$d/$f.md" ] && n=$((n+1)); done
     printf '%s' "$n"
   }
   GT="$(mktemp -d)"; GC="$GT/.claude/commands"
@@ -513,8 +513,8 @@ if command -v jq >/dev/null 2>&1; then
   des_on=$(count_design "$GC")
   HOME="$GT" "$DIR/install-commands.sh" --no-design claude >/dev/null 2>&1
   des_pruned=$(count_design "$GC")
-  { [ "$core_ok" = 1 ] && [ "$des_off" = 0 ] && [ "$des_on" = 2 ] && [ "$des_pruned" = 0 ]; } \
-    && ok "design group: core installs, --design adds 2, --no-design prunes them" \
+  { [ "$core_ok" = 1 ] && [ "$des_off" = 0 ] && [ "$des_on" = 1 ] && [ "$des_pruned" = 0 ]; } \
+    && ok "design group: core installs, --design adds 1, --no-design prunes it" \
     || bad "design group gating (core=$core_ok off=$des_off on=$des_on pruned=$des_pruned)"
   rm -rf "$GT"
 
@@ -525,14 +525,14 @@ if command -v jq >/dev/null 2>&1; then
   GT="$(mktemp -d)"; GC="$GT/.claude/commands"
   HOME="$GT" "$DIR/install-commands.sh" --design claude >/dev/null 2>&1
   echo "my own command" > "$GC/mycustom.md"
-  echo "hand-edited" >> "$GC/critique.md"
+  echo "hand-edited" >> "$GC/audit.md"
   HOME="$GT" "$DIR/install-commands.sh" --no-design claude >/dev/null 2>&1
   # shellcheck disable=SC2012  # counting mktemp-named backups; no exotic filenames
-  bak_n=$(ls -1 "$GC"/critique.md.bak.* 2>/dev/null | wc -l | tr -d ' ')
-  { [ -f "$GC/mycustom.md" ] && [ ! -f "$GC/critique.md" ] && [ "$bak_n" = 1 ] \
-    && grep -q "hand-edited" "$GC"/critique.md.bak.*; } \
+  bak_n=$(ls -1 "$GC"/audit.md.bak.* 2>/dev/null | wc -l | tr -d ' ')
+  { [ -f "$GC/mycustom.md" ] && [ ! -f "$GC/audit.md" ] && [ "$bak_n" = 1 ] \
+    && grep -q "hand-edited" "$GC"/audit.md.bak.*; } \
     && ok "prune safety: user's own command survives, edited design command backed up" \
-    || bad "prune safety (mycustom=$([ -f "$GC/mycustom.md" ] && echo kept || echo LOST) critique-baks=$bak_n)"
+    || bad "prune safety (mycustom=$([ -f "$GC/mycustom.md" ] && echo kept || echo LOST) audit-baks=$bak_n)"
   rm -rf "$GT"
 
   # The auto path end-to-end (the real-world default): no explicit flag — the
@@ -543,8 +543,8 @@ if command -v jq >/dev/null 2>&1; then
   auto_def=$(count_design "$GC")
   HOME="$GT" AIGI_NO_USER_ENV=1 INC_DESIGN=n "$DIR/install-commands.sh" claude >/dev/null 2>&1
   auto_off=$(count_design "$GC")
-  { [ "$auto_def" = 2 ] && [ "$auto_off" = 0 ]; } \
-    && ok "design group auto path (default installs 2, INC_DESIGN=n prunes)" \
+  { [ "$auto_def" = 1 ] && [ "$auto_off" = 0 ]; } \
+    && ok "design group auto path (default installs 1, INC_DESIGN=n prunes)" \
     || bad "design group auto path (default=$auto_def explicit-n=$auto_off)"
   rm -rf "$GT"
 
@@ -559,20 +559,20 @@ if command -v jq >/dev/null 2>&1; then
   HOME="$GT/home" "$GT/install-commands.sh" --design claude >/dev/null 2>&1
   HOME="$GT/home" "$GT/install-commands.sh" claude >/dev/null 2>&1   # auto + broken resolver
   fail_kept=$(count_design "$GC")
-  [ "$fail_kept" = 2 ] \
+  [ "$fail_kept" = 1 ] \
     && ok "design group survives a resolver failure (no silent prune on customize.sh error)" \
-    || bad "resolver failure pruned design commands (kept=$fail_kept of 2)"
+    || bad "resolver failure pruned design commands (kept=$fail_kept of 1)"
   rm -rf "$GT"
 
   # Group gating isn't claude-only: the gemini port maps <name>.toml back to the
   # canonical commands/<name>.md group (${base%.*} across a different extension).
   GT="$(mktemp -d)"; GG="$GT/.gemini/commands"
-  count_design_toml() { local f2 n2=0; for f2 in critique audit; do [ -f "$GG/$f2.toml" ] && n2=$((n2+1)); done; printf '%s' "$n2"; }
+  count_design_toml() { local f2 n2=0; for f2 in audit; do [ -f "$GG/$f2.toml" ] && n2=$((n2+1)); done; printf '%s' "$n2"; }
   HOME="$GT" "$DIR/install-commands.sh" --no-design gemini >/dev/null 2>&1
   g_off=$(count_design_toml)
   HOME="$GT" "$DIR/install-commands.sh" --design gemini >/dev/null 2>&1
   g_on=$(count_design_toml)
-  { [ "$g_off" = 0 ] && [ "$g_on" = 2 ]; } \
+  { [ "$g_off" = 0 ] && [ "$g_on" = 1 ]; } \
     && ok "design group gating works for the gemini .toml dialect" \
     || bad "gemini design gating (off=$g_off on=$g_on)"
   rm -rf "$GT"

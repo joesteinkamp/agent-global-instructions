@@ -11,7 +11,7 @@
 #
 # Command groups: a canonical command opts into a group with `group: <name>` in
 # its frontmatter (absent => "core", always installed). The "design" group
-# (/critique, /audit) installs when --design is passed, or automatically when
+# (/audit) installs when --design is passed, or automatically when
 # INC_DESIGN wants it (asked of customize.sh; on by default for everyone);
 # --no-design forces it off. Ports are always generated for every command; the
 # group only decides what gets INSTALLED, and an unwanted command already present
