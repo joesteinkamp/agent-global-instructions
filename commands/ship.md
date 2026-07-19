@@ -21,7 +21,7 @@ Steps:
 1. If there are no changes and nothing unpushed, say so and stop.
 2. **Tidy gate.** Detect the project's tooling — `package.json` scripts, or
    configs like prettier/eslint/ruff/black/gofmt/rubocop, a `Makefile`, etc.
-   (same detection as `/tidy`). Run, in order: formatter → linter → tests.
+   Run, in order: formatter → linter → tests.
    Auto-fix what's safe (formatting, lint autofixes). If linting or tests still
    fail after autofix, **stop here** and report what failed — do not commit
    broken code. (No project tooling detected → skip this step.)

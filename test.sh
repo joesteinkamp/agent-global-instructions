@@ -449,7 +449,7 @@ if command -v jq >/dev/null 2>&1; then
     && ok "render-commands is idempotent" || bad "render-commands is idempotent"
   rm -rf "$RC1"
   # Faithful dialect transforms — ship-specific positives plus invariants across
-  # ALL ports (so a regression on sync/tidy/verify/... is caught, not just ship).
+  # ALL ports (so a regression on sync/verify/... is caught, not just ship).
   ft=1
   grep -q '^name: "ship"'  "$DIR/commands/codex/ship/SKILL.md" || ft=0 # Codex skill metadata
   grep -q 'run `git branch' "$DIR/commands/codex/ship/SKILL.md" || ft=0 # !`cmd` -> run `cmd`

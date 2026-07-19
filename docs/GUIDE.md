@@ -33,7 +33,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 1. **Instructions** (model-facing) — a customizable `template.md` rendered into
    per-tool instruction files. *Advice* the assistant should follow.
 2. **Commands** — slash-command shortcuts (`/ship`, `/sync`, `/worktrees`,
-   `/tidy`, `/improve`, `/verify`, `/audit`, `/critique`) for repeatable
+   `/improve`, `/verify`, `/audit`, `/critique`) for repeatable
    workflows.
 3. **Guardrails & observability** (hooks) — auto-format, block edits to
    generated/sensitive paths, trip on catastrophic shell, log every tool call to
@@ -124,7 +124,6 @@ it up.
 | `/ship` | Tidy gate (format/lint/test, stop if broken) → stage → commit → push, and on a feature branch open + **merge** the PR/MR (squash, delete branch), then return to default. Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/worktrees` | One worktree per parallel agent (`ai/<agent>`), converged into a single integration tree a lone dev server watches — several models, near-live. Pairs with `converge.sh`. |
-| `/tidy` | Run the project's formatter/linter/tests and fix what's safe. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
 | `/audit` | *(design group)* UX audit **from a screenshot**. Uses the [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill when available (Claude Code) — 15 heuristic frameworks, annotated screenshots; the other tools run the heuristic rubric inline. Writes + serves a self-contained HTML report. |
@@ -206,7 +205,7 @@ point polishing a change that doesn't render).
   front-end, and a UI/UX lens when UI changed — each returning concrete,
   prioritized fixes with `file:line`, then deduped into one summary.
 - **`/verify`** runs a lens stack, each emitting **PASS / FAIL / N/A** with
-  evidence: ① builds & runs (reuses `/tidy` detection); ② renders in a headless
+  evidence: ① builds & runs (detects the project's tooling); ② renders in a headless
   browser (Playwright) — responsive screenshots, console & network gates,
   axe-core a11y; ③ visual regression vs the last run or the default branch;
   ④ matches the design (Figma via MCP, or `DESIGN.md` + `DESIGN.json` tokens);

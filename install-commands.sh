@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the portable commands into each tool's command/prompt directory so they
-# work as /ship, /sync, /tidy, /improve, /audit everywhere.
+# work as /ship, /sync, /improve, /audit everywhere.
 #
 #   ./install-commands.sh                     # all tools, global
 #   ./install-commands.sh --project           # all tools, into ./ (this repo)
@@ -109,7 +109,7 @@ fi
 
 # Command basenames we've renamed/dropped. Pruned on every install (per tool, in
 # that tool's extension) so a rename self-heals across `git pull && install`.
-RETIRED="validate handoff flow"
+RETIRED="validate handoff flow tidy"
 
 # Back up to a collision-free name (mktemp), keeping only the 5 newest backups.
 # Sets BACKUP_PATH to the created backup so callers can point the user at it.

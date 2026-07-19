@@ -29,7 +29,7 @@ is measured against.
 
 ### 2. Prove it runs (the floor — evidence, not opinion)
 This gates everything: a great idea that doesn't run isn't a product.
-- **Builds & runs.** Detect the tooling (reuse `/tidy`'s detection — `package.json` scripts,
+- **Builds & runs.** Detect the tooling (`package.json` scripts,
   prettier/eslint/ruff/go/Makefile…). Run build → typecheck → tests, then boot the app and confirm it comes
   up clean. If it doesn't build, stop and report — the grade is blocked until it runs.
 - **Renders in a real browser.** For any UI/route change, serve it the way I preview web work (bind
