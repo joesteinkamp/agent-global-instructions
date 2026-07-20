@@ -9,6 +9,24 @@ only after human approval (see the `changelog` instruction section and the
 
 ## [Unreleased]
 
+### Added
+- **Cross-tool orchestration: one session can delegate to the machine's other
+  AI CLIs (2026-07-20, Claude).** New `cross-tool-orchestration` template
+  section (toggle `INC_ORCHESTRATION`, on by default) teaching any host tool
+  to hand subtasks to the other installed CLIs headless (`codex exec`,
+  `agy -p`, `claude -p`, `agent -p`) — for parallel speed and for
+  cross-vendor review, since a model must never be the sole checker of its
+  own work. Delegation is coordinated through a shared temp context dir
+  (`~/.ai-context/<repo>-<task-slug>/`: `TASK.md` / `STATE.md` /
+  `agents/<name>.md`), with one-writer-per-file ownership, sandboxed
+  never-bypass execution, one-level-only delegation, and all confirmation
+  gates inherited. `customize.sh --global` now also records the installed-CLI
+  roster at `~/.ai-logs/ai-clis` so sessions read a file instead of
+  re-probing. `/improve` and `/verify` gained a cross-vendor pass that
+  spreads review lenses / second-opinion grading across the other vendors,
+  reading their full findings from the context dir rather than stdout.
+  Examples and GUIDE regenerated; suite 104 → 107.
+
 ### Changed
 - **`/ux-audit` merged with its skill; this repo is now the installer
   (2026-07-19, Claude).** Vendored
