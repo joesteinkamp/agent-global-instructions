@@ -28,6 +28,15 @@ only after human approval (see the `changelog` instruction section and the
   Examples and GUIDE regenerated; suite 104 → 107.
 
 ### Changed
+- **Verify/improve are now nudge-only (2026-07-20, Claude).** The "When to
+  verify & improve" template section no longer tells agents to auto-run
+  `/verify`/`/improve` on large asks or ask about mid-size ones — models were
+  running full review passes on trivial changes (Codex especially). The Stop
+  hooks (`verify-nudge`/`improve-nudge`) are now the sole trigger, with their
+  existing size/UI thresholds; explicit user requests still work at any size.
+  Also removed the Design section's standalone "run `/verify` before handoff"
+  (a second auto-run trigger) and updated the installer prompt wording.
+  Examples re-rendered.
 - **`/ux-audit` merged with its skill; this repo is now the installer
   (2026-07-19, Claude).** Vendored
   [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill)
