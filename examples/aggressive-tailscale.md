@@ -62,17 +62,13 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 ## When to verify & improve
 
-Size the work to the **ask** (my opening request), not just the diff it produces, and set the default before you start:
+**Nudge-only — never run `/verify` or `/improve` unprompted.** Run them only when I explicitly ask, or when the `verify-nudge` / `improve-nudge` Stop hook fires at the end of a turn. The hooks own the "is this big enough?" judgment (`/improve` past ~8 files / ~200 lines; `/verify` on UI/route changes with no fresh report) — don't pre-empt them by reviewing small changes "to be safe," and don't treat a quiet hook as something to second-guess.
 
-- **Large / greenfield** — project setup or first build-out, a new feature, or a big refactor: when the work is done, **automatically run `/verify` (prove it works + product-grade evaluation) and `/improve` (multi-role review)**, then hand me the results and a ready-to-apply plan. Don't wait for me to ask — and don't apply fixes without my go-ahead.
-- **Applying changes I already approved** — the fixes/improvements from a prior verify or improve pass ("yes, do those"): just make them and confirm. **Don't re-run** verify/improve on the result — that review already happened, and re-running loops. Before finishing, drop the backstop's skip markers so the Stop-hook nudges don't re-fire:
-  `d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"; mkdir -p "$d"; touch "$d/.nudge-skip-verify.$k" "$d/.nudge-skip-improve.$k"`
-- **Mid-size iteration** — changing or extending existing behavior: **ask me up front** — "when this is done, want me to run `/verify` and/or `/improve`?" — and honor the answer.
-- **Trivial** — a typo, one-liner, or docs-only change: neither, unless I ask.
+- **When a nudge fires:** run the requested pass once and hand me the results — don't apply fixes without my go-ahead. If you're confident the change genuinely doesn't warrant it, skip it, tell me plainly, and drop the skip marker below so the nudge doesn't re-fire.
+- **Applying changes I already approved** — the fixes/improvements from a prior verify or improve pass ("yes, do those"): just make them and confirm. **Don't re-run** verify/improve on the result — that review already happened, and re-running loops. Drop the skip markers before finishing.
+- **Skip markers:** `d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"; mkdir -p "$d"; touch "$d/.nudge-skip-verify.$k" "$d/.nudge-skip-improve.$k"`
 
 **The review itself (`/improve`):** default panel — technical architect, back-end engineer, front-end engineer, plus a UI/UX lens when UI changed. Run them in parallel as subagents; each returns concrete, prioritized suggestions (`file:line` + fix). Whichever tool is running the review, spread the lenses across the *other* installed AI CLIs as delegates (per the orchestration rules) — more independent vendors is better, and a model checking its own work is not a check. Then dedupe and summarize, top impact first. It's a review pass — surface opportunities and any real bugs; don't apply changes unless I say so.
-
-**Backstop:** even on a smaller ask, if the change grows past ~8 files / ~200 lines or touches UI, treat it as large and verify/improve before calling it done — the `improve-nudge` / `verify-nudge` Stop hooks enforce this if you forget.
 
 ## Tools & MCP servers
 
@@ -93,7 +89,7 @@ Size the work to the **ask** (my opening request), not just the diff it produces
 - **Build to the system — don't reinvent it.** When the project ships design tokens (a `DESIGN.json`, a Figma library over MCP, or a `DESIGN.md`), treat them as the source of truth: pull real color, type, spacing, radius, shadow, and motion values instead of inventing hex codes and pixel values.
 - **Stay on the scales.** Use the defined type, spacing, and color scales and the project's breakpoints; don't introduce one-off values a component or two later has to reconcile.
 - **Accessible by default.** Meet WCAG 2.2 AA contrast, keep focus states visible and hit targets adequate, and honor `prefers-reduced-motion` for any animation.
-- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — fix the drift (or update the tokens), and run `/verify` before handoff.
+- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — and fix the drift (or update the tokens); the `verify-nudge` hook will call for `/verify` when it's warranted.
 
 ## Project-specific instructions
 
