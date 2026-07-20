@@ -24,6 +24,9 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 # installer. HOOK_RE matches /<our-script>.sh on the dir slash.
 HOOK_NAMES=()
 for f in "$DIR"/hooks/*.sh; do HOOK_NAMES+=("$(basename "$f" .sh)"); done
+# Also remove entries from the pre-quality-nudge installer if uninstall runs on
+# a machine that has not yet performed the upgrade install.
+HOOK_NAMES+=(improve-nudge verify-nudge changelog-nudge)
 HOOK_RE="/($(IFS='|'; echo "${HOOK_NAMES[*]}"))\\.sh"
 
 TMPFILES=()

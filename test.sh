@@ -289,88 +289,77 @@ if command -v jq >/dev/null 2>&1; then
   fi
   rm -rf "$PCDIR"
 
-  # install-hooks wires the changelog-nudge Stop hook.
-  if jq -e '[.hooks.Stop[].hooks[].command] | any(test("changelog-nudge"))' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
-    ok "install-hooks wires the changelog-nudge Stop hook"
+  # One conservative advisory replaces the three blocking Stop hooks.
+  if jq -e '[.hooks.Stop[].hooks[].command] as $c
+            | ($c|length)==1 and ($c[0]|test("quality-nudge"))
+              and ([$c[]|select(test("verify-nudge|improve-nudge|changelog-nudge"))]|length)==0' \
+      "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+    ok "install-hooks consolidates Stop into one quality advisory"
   else
-    bad "install-hooks wires the changelog-nudge Stop hook"
+    bad "install-hooks consolidates Stop into one quality advisory"
   fi
 
-  # changelog-nudge prompts for an entry once per diff, then stays quiet (state
-  # dir kept OUTSIDE the work tree so it doesn't perturb the diff fingerprint).
-  CG="$(mktemp -d)"; CST="$(mktemp -d)"
-  ( cd "$CG" && git init -q && git config user.email t@t && git config user.name t \
-      && echo a > f && git add -A && git commit -qm init && echo b >> f ) >/dev/null 2>&1
-  cg1="$(printf '{"cwd":"%s","stop_hook_active":false}' "$CG" | AI_NUDGE_STATE="$CST" HOOK_PLATFORM=claude bash "$DIR/hooks/changelog-nudge.sh" 2>/dev/null)"
-  cg2="$(printf '{"cwd":"%s","stop_hook_active":false}' "$CG" | AI_NUDGE_STATE="$CST" HOOK_PLATFORM=claude bash "$DIR/hooks/changelog-nudge.sh" 2>/dev/null)"
-  if printf '%s' "$cg1" | jq -e '.decision=="block" and (.reason|test("Change Log"))' >/dev/null 2>&1 && [ -z "$cg2" ]; then
-    ok "changelog-nudge prompts for an entry once per diff, then stays quiet"
-  else
-    bad "changelog-nudge prompts for an entry once per diff, then stays quiet"
-  fi
-  rm -rf "$CG" "$CST"
-
-  # Stop hooks wire verify-nudge BEFORE improve-nudge (verify-first ordering).
-  if jq -e '.hooks.Stop[0].hooks[0].command | test("verify-nudge")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
-     && jq -e '.hooks.Stop[0].hooks[1].command | test("improve-nudge")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
-    ok "install-hooks wires verify-nudge before improve-nudge on Stop"
-  else
-    bad "install-hooks wires verify-nudge before improve-nudge on Stop"
-  fi
-
-  # verify-nudge: fires on an unverified UI change; quiet once verified or for non-UI diffs.
   if command -v git >/dev/null 2>&1; then
-    VN="$(mktemp -d)"
-    ( cd "$VN" && git init -q && git config user.email t@t.t && git config user.name t \
-      && echo base > README.md && git add -A && git commit -qm init ) >/dev/null 2>&1
-    mkdir -p "$VN/src/components"; echo ".x{}" > "$VN/src/components/Button.css"
-    vn_ui="$(printf '{"cwd":"%s"}' "$VN" | AI_NUDGE_STATE="$VN/s1" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
-    printf '%s' "$vn_ui" | jq -e '.decision=="block"' >/dev/null 2>&1 \
-      && ok "verify-nudge fires on an unverified UI change" \
-      || bad "verify-nudge fires on an unverified UI change"
-    # A verify report newer than the change silences it.
-    mkdir -p "$VN/verify/run"; touch "$VN/verify/run/report.html"
-    vn_fresh="$(printf '{"cwd":"%s"}' "$VN" | AI_NUDGE_STATE="$VN/s2" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
-    [ -z "$vn_fresh" ] && ok "verify-nudge stays quiet once a fresh verify report exists" \
-                       || bad "verify-nudge stays quiet once a fresh verify report exists"
-    # A non-UI-only diff does not fire (README/docs no longer match the UI gate).
-    VN2="$(mktemp -d)"
-    ( cd "$VN2" && git init -q && git config user.email t@t.t && git config user.name t \
-      && echo base > notes.txt && git add -A && git commit -qm init && echo more >> notes.txt ) >/dev/null 2>&1
-    vn_none="$(printf '{"cwd":"%s"}' "$VN2" | AI_NUDGE_STATE="$VN2/s" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
-    [ -z "$vn_none" ] && ok "verify-nudge stays quiet for a non-UI change" \
-                      || bad "verify-nudge stays quiet for a non-UI change"
-
-    # Skip marker: applying changes I already approved suppresses the backstop
-    # nudge (consume-once, per-hook), then the next turn nudges normally again.
-    VN3="$(mktemp -d)"; VN3S="$(mktemp -d)"
-    ( cd "$VN3" && git init -q && git config user.email t@t.t && git config user.name t \
-      && echo base > README.md && git add -A && git commit -qm init ) >/dev/null 2>&1
-    mkdir -p "$VN3/src/components"; echo ".x{}" > "$VN3/src/components/Button.css"
-    vk="$(printf '%s' "$VN3" | cksum | cut -d' ' -f1)"; touch "$VN3S/.nudge-skip-verify.$vk"
-    vn_skip="$(printf '{"cwd":"%s"}' "$VN3" | AI_NUDGE_STATE="$VN3S" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
-    if [ -z "$vn_skip" ] && [ ! -f "$VN3S/.nudge-skip-verify.$vk" ]; then
-      ok "verify-nudge honors + consumes the skip marker"
+    # Material UI diff: non-blocking JSON, optional verify mention, de-duped.
+    QN="$(mktemp -d)"; QNS="$(mktemp -d)"
+    ( cd "$QN" && git init -q && git config user.email t@t.t && git config user.name t \
+      && printf 'base\n' > base.js && git add -A && git commit -qm init ) >/dev/null 2>&1
+    mkdir -p "$QN/src/components"
+    for i in 1 2 3 4; do
+      j=0; while [ "$j" -lt 35 ]; do printf '.c%s-%s { color: green; }\n' "$i" "$j"; j=$((j+1)); done > "$QN/src/components/C$i.css"
+    done
+    q1="$(printf '{"cwd":"%s"}' "$QN" | AI_NUDGE_STATE="$QNS" HOOK_PLATFORM=claude bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"; q1rc=$?
+    q2="$(printf '{"cwd":"%s"}' "$QN" | AI_NUDGE_STATE="$QNS" HOOK_PLATFORM=claude bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+    if [ "$q1rc" = 0 ] \
+       && printf '%s' "$q1" | jq -e '.continue==true and (.systemMessage|test("Advisory only")) and (.systemMessage|test("verification pass")) and (.systemMessage|test("Do not auto-run")) and (has("decision")|not)' >/dev/null 2>&1 \
+       && [ -z "$q2" ]; then
+      ok "quality-nudge is advisory, non-blocking, and once per diff"
     else
-      bad "verify-nudge honors + consumes the skip marker"
+      bad "quality-nudge is advisory, non-blocking, and once per diff"
     fi
-    vn_after="$(printf '{"cwd":"%s"}' "$VN3" | AI_NUDGE_STATE="$VN3S" HOOK_PLATFORM=claude bash "$DIR/hooks/verify-nudge.sh" 2>/dev/null)"
-    printf '%s' "$vn_after" | jq -e '.decision=="block"' >/dev/null 2>&1 \
-      && ok "verify-nudge nudges again after the skip marker is consumed" \
-      || bad "verify-nudge nudges again after the skip marker is consumed"
 
-    IN="$(mktemp -d)"; INS="$(mktemp -d)"
-    ( cd "$IN" && git init -q && git config user.email t@t.t && git config user.name t \
-      && echo base > README.md && git add -A && git commit -qm init \
-      && for i in 1 2 3 4 5 6 7 8; do echo "x" > "f$i.txt"; done ) >/dev/null 2>&1
-    ik="$(printf '%s' "$IN" | cksum | cut -d' ' -f1)"; touch "$INS/.nudge-skip-improve.$ik"
-    in_skip="$(printf '{"cwd":"%s"}' "$IN" | AI_NUDGE_STATE="$INS" HOOK_PLATFORM=claude bash "$DIR/hooks/improve-nudge.sh" 2>/dev/null)"
-    if [ -z "$in_skip" ] && [ ! -f "$INS/.nudge-skip-improve.$ik" ]; then
-      ok "improve-nudge honors + consumes the skip marker"
+    # A verify report newer than all UI files removes only the verify suggestion;
+    # the material-change advisory can still mention the Change Log gate.
+    QNF="$(mktemp -d)"; mkdir -p "$QN/verify/run"; touch "$QN/verify/run/report.html"
+    qfresh="$(printf '{"cwd":"%s"}' "$QN" | AI_NUDGE_STATE="$QNF" HOOK_PLATFORM=codex bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+    if printf '%s' "$qfresh" | jq -e '.continue==true and (.systemMessage|contains("verification pass")|not)' >/dev/null 2>&1; then
+      ok "quality-nudge respects fresh verify evidence"
     else
-      bad "improve-nudge honors + consumes the skip marker"
+      bad "quality-nudge respects fresh verify evidence"
     fi
-    rm -rf "$VN" "$VN2" "$VN3" "$VN3S" "$IN" "$INS"
+
+    # Small UI, documentation-only, and artifact-only work should stay silent.
+    QS="$(mktemp -d)"; QSS="$(mktemp -d)"
+    ( cd "$QS" && git init -q && git config user.email t@t.t && git config user.name t \
+      && printf 'base\n' > base.js && git add -A && git commit -qm init \
+      && mkdir -p src && printf '.x{}\n' > src/x.css ) >/dev/null 2>&1
+    qsmall="$(printf '{"cwd":"%s"}' "$QS" | AI_NUDGE_STATE="$QSS" HOOK_PLATFORM=claude bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+
+    QD="$(mktemp -d)"; QDS="$(mktemp -d)"
+    ( cd "$QD" && git init -q && git config user.email t@t.t && git config user.name t \
+      && printf 'base\n' > base.js && git add -A && git commit -qm init \
+      && mkdir -p docs && j=0; while [ "$j" -lt 200 ]; do printf 'documentation\n'; j=$((j+1)); done > docs/guide.md ) >/dev/null 2>&1
+    qdocs="$(printf '{"cwd":"%s"}' "$QD" | AI_NUDGE_STATE="$QDS" HOOK_PLATFORM=claude bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+
+    QA="$(mktemp -d)"; QAS="$(mktemp -d)"
+    ( cd "$QA" && git init -q && git config user.email t@t.t && git config user.name t \
+      && printf 'base\n' > base.js && git add -A && git commit -qm init \
+      && mkdir -p audits/run && j=0; while [ "$j" -lt 200 ]; do printf '<p>evidence</p>\n'; j=$((j+1)); done > audits/run/report.html ) >/dev/null 2>&1
+    qart="$(printf '{"cwd":"%s"}' "$QA" | AI_NUDGE_STATE="$QAS" HOOK_PLATFORM=claude bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+    [ -z "$qsmall$qdocs$qart" ] \
+      && ok "quality-nudge ignores small, docs-only, and artifact-only diffs" \
+      || bad "quality-nudge ignores small, docs-only, and artifact-only diffs"
+
+    # Consume-once suppression for applying previously approved review fixes.
+    QNK="$(mktemp -d)"; qkey="$(printf '%s' "$QN" | cksum | cut -d' ' -f1)"; touch "$QNK/.nudge-skip-quality.$qkey"
+    qskip="$(printf '{"cwd":"%s"}' "$QN" | AI_NUDGE_STATE="$QNK" HOOK_PLATFORM=claude bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+    if [ -z "$qskip" ] && [ ! -f "$QNK/.nudge-skip-quality.$qkey" ]; then
+      ok "quality-nudge honors and consumes its skip marker"
+    else
+      bad "quality-nudge honors and consumes its skip marker"
+    fi
+
+    rm -rf "$QN" "$QNS" "$QNF" "$QS" "$QSS" "$QD" "$QDS" "$QA" "$QAS" "$QNK"
   fi
 
   # uninstall reverses hooks, permissions, and commands cleanly.
@@ -729,19 +718,21 @@ PY
   HOME="$MT" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
   c2="$(jq '[.hooks[]|length]|add' "$MT/.cursor/hooks.json" 2>/dev/null)"
   if [ "$(jq '.version' "$MT/.cursor/hooks.json" 2>/dev/null)" = "1" ] \
-     && [ -n "$c1" ] && [ "$c1" = "$c2" ]; then
-    ok "install-hooks cursor sets version:1 and is idempotent"
+     && [ -n "$c1" ] && [ "$c1" = "$c2" ] \
+     && ! jq -e '.hooks | has("stop")' "$MT/.cursor/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks cursor is idempotent and omits auto-continuing Stop hooks"
   else
-    bad "install-hooks cursor sets version:1 and is idempotent"
+    bad "install-hooks cursor is idempotent and omits auto-continuing Stop hooks"
   fi
 
   # Codex hooks: file edits wired via the apply_patch matcher (path-guard + format).
   HOME="$MT" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
   if jq -e '[.hooks.PreToolUse[].matcher]  | any(test("apply_patch"))' "$MT/.codex/hooks.json" >/dev/null 2>&1 \
-     && jq -e '[.hooks.PostToolUse[].matcher] | any(test("apply_patch"))' "$MT/.codex/hooks.json" >/dev/null 2>&1; then
-    ok "install-hooks codex wires apply_patch edit hooks"
+     && jq -e '[.hooks.PostToolUse[].matcher] | any(test("apply_patch"))' "$MT/.codex/hooks.json" >/dev/null 2>&1 \
+     && jq -e '[.hooks.Stop[].hooks[].command] | length==1 and (.[0]|test("quality-nudge"))' "$MT/.codex/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks codex wires edit guards and one quality advisory"
   else
-    bad "install-hooks codex wires apply_patch edit hooks"
+    bad "install-hooks codex wires edit guards and one quality advisory"
   fi
 
   # Hook dialects: cursor blocks a secret read via {permission:deny}; codex

@@ -55,7 +55,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Build to the system — don't reinvent it.** When the project ships design tokens (a `DESIGN.json`, a Figma library over MCP, or a `DESIGN.md`), treat them as the source of truth: pull real color, type, spacing, radius, shadow, and motion values instead of inventing hex codes and pixel values.
 - **Stay on the scales.** Use the defined type, spacing, and color scales and the project's breakpoints; don't introduce one-off values a component or two later has to reconcile.
 - **Accessible by default.** Meet WCAG 2.2 AA contrast, keep focus states visible and hit targets adequate, and honor `prefers-reduced-motion` for any animation.
-- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — and fix the drift (or update the tokens); the `verify-nudge` hook will call for `/verify` when it's warranted.
+- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — and fix the drift (or update the tokens). After a material UI change, `quality-nudge` may mention `/verify` as an optional follow-up; it never runs it.
 
 ## Project-specific instructions
 

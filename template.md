@@ -84,11 +84,11 @@ The profile above is the minimum. At session start, **scan for a memory store an
 <!--SECTION:improve-->
 ## When to verify & improve
 
-**Nudge-only — never run `/verify` or `/improve` unprompted.** Run them only when I explicitly ask, or when the `verify-nudge` / `improve-nudge` Stop hook fires at the end of a turn. The hooks own the "is this big enough?" judgment (`/improve` past ~8 files / ~200 lines; `/verify` on UI/route changes with no fresh report) — don't pre-empt them by reviewing small changes "to be safe," and don't treat a quiet hook as something to second-guess.
+**Explicit-only — never run `/verify` or `/improve` unprompted.** Run them only when I explicitly ask. The `quality-nudge` Stop hook is a conservative advisory, never a request: it may mention relevant optional follow-ups after a material code change, but it must not auto-continue the turn or cause either workflow to run.
 
-- **When a nudge fires:** run the requested pass once and hand me the results — don't apply fixes without my go-ahead. If you're confident the change genuinely doesn't warrant it, skip it, tell me plainly, and drop the skip marker below so the nudge doesn't re-fire.
-- **Applying changes I already approved** — the fixes/improvements from a prior verify or improve pass ("yes, do those"): just make them and confirm. **Don't re-run** verify/improve on the result — that review already happened, and re-running loops. Drop the skip markers before finishing.
-- **Skip markers:** `d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"; mkdir -p "$d"; touch "$d/.nudge-skip-verify.$k" "$d/.nudge-skip-improve.$k"`
+- **When an advisory appears:** mention only the relevant option in the handoff. Don't run it, block completion, or make me dismiss it. A quiet hook is not something to second-guess.
+- **Applying changes I already approved** — the fixes/improvements from a prior verify or improve pass ("yes, do those"): just make them and confirm. **Don't re-run** verify/improve on the result — that review already happened, and re-running loops. Suppress the one advisory turn with the marker below.
+- **Skip marker:** `d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"; mkdir -p "$d"; touch "$d/.nudge-skip-quality.$k"`
 
 **The review itself (`/improve`):** default panel — technical architect, back-end engineer, front-end engineer, plus a UI/UX lens when UI changed. Run them in parallel as subagents; each returns concrete, prioritized suggestions (`file:line` + fix). Whichever tool is running the review, spread the lenses across the *other* installed AI CLIs as delegates (per the orchestration rules) — more independent vendors is better, and a model checking its own work is not a check. Then dedupe and summarize, top impact first. It's a review pass — surface opportunities and any real bugs; don't apply changes unless I say so.
 <!--/SECTION:improve-->
@@ -124,7 +124,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Build to the system — don't reinvent it.** When the project ships design tokens (a `DESIGN.json`, a Figma library over MCP, or a `DESIGN.md`), treat them as the source of truth: pull real color, type, spacing, radius, shadow, and motion values instead of inventing hex codes and pixel values.
 - **Stay on the scales.** Use the defined type, spacing, and color scales and the project's breakpoints; don't introduce one-off values a component or two later has to reconcile.
 - **Accessible by default.** Meet WCAG 2.2 AA contrast, keep focus states visible and hit targets adequate, and honor `prefers-reduced-motion` for any animation.
-- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — and fix the drift (or update the tokens); the `verify-nudge` hook will call for `/verify` when it's warranted.
+- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — and fix the drift (or update the tokens). After a material UI change, `quality-nudge` may mention `/verify` as an optional follow-up; it never runs it.
 
 <!--/SECTION:design-->
 <!--SECTION:project-instructions-->

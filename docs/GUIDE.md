@@ -42,8 +42,9 @@ Independent parts — use any subset; `./install.sh` wires them all:
 4. **Validation & verification** — two complementary passes: a multi-role review
    team for *taste* (`/improve`, "could it be better?") and an evidence-based
    *verification* pass (`/verify`, "is it correct & true to spec?") that runs the
-   change, drives it in a browser, and checks it against your project briefs —
-   each with a Stop hook that nudges you.
+   change, drives it in a browser, and checks it against your project briefs.
+   Both are explicit-only; one conservative Stop hook can mention them as
+   optional follow-ups after a material code change, but never runs them.
 5. **Settings** (per tool) — a client-enforced permissions layer mapped to each
    tool's native model (Claude & Cursor deny rules, Codex sandbox + approval,
    Gemini Policy Engine) that backs up the guard hooks with rules the model
@@ -180,9 +181,7 @@ separate tool from the Gemini CLI with its own hooks schema — it's **opt-in**
 | `guard-bash` | before shell | Trip on catastrophic `rm -r` (root/home/parent) and force-pushes. Best-effort tripwire, not a sandbox. |
 | `format-edited` | after edits | Auto-format the edited file with the project's Prettier/ESLint. |
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
-| `improve-nudge` | turn end | When a turn ends with a large diff, nudge you to run `/improve` (once per distinct diff). |
-| `verify-nudge` | turn end | When a turn ends with a UI/route change and no fresh `verify/` report, nudge you to run `/verify` (self-silences once verified). |
-| `changelog-nudge` | turn end | When a session ends with changes, remind you to **propose a Change Log entry and approve it before it's written** (never auto-writes). |
+| `quality-nudge` | turn end | Emit at most one **non-blocking advisory** for a material code diff (default ≥4 files or ≥120 lines). Small, docs-only, and artifact-only diffs stay quiet. The note may mention relevant optional verification/review and the Change Log gate, but cannot auto-run a workflow or continue the turn. Claude + Codex only. |
 | `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude + Cursor; silent when none exist. |
 | `precompact-archive` | before compaction | Archive the raw transcript to `~/.ai-logs/transcripts/` before Claude compacts, plus a `PreCompact` audit record. Claude only; never blocks. |
 | `log-session-end` | session end | Append a `SessionEnd` record (with the end reason) to the audit log, closing the trail. Claude only. |
@@ -234,10 +233,11 @@ point polishing a change that doesn't render).
   ⑥ does what it claimed (re-runs the PR/task acceptance criteria). It writes a
   self-contained `verify/<slug>-<date>/report.html` and serves it over your
   preview method — verdict + link inline, findings in the artifact.
-- **`improve-nudge`** / **`verify-nudge`** (Stop hooks — Claude, Codex, Cursor)
-  remind you to run each pass when a turn ends with a qualifying diff
-  (`IMPROVE_MIN_FILES`/`IMPROVE_MIN_LINES`, `VERIFY_UI_RE`), once per distinct
-  diff.
+- **`quality-nudge`** (Stop hook — Claude + Codex) emits one advisory after a
+  material code diff. It stays silent for small, documentation-only, and
+  artifact-only work; never auto-runs either pass; and never blocks or continues
+  a turn. Cursor gets no Stop advisory because its follow-up mechanism
+  auto-continues.
 
 ## Customize the wording
 
