@@ -32,6 +32,12 @@ INC_DOCS=n render
 assert_no "INC_DOCS=n removes the Documentation-first heading" 'Documentation first'
 assert_no "INC_DOCS=n leaves no marker leak" 'SECTION:'
 
+INC_ORCHESTRATION=n render
+assert_no "INC_ORCHESTRATION=n removes the cross-tool orchestration heading" 'Orchestrating other AI CLIs'
+assert_no "INC_ORCHESTRATION=n leaves no marker leak" 'SECTION:'
+render
+assert_has "default render includes cross-tool orchestration" 'Orchestrating other AI CLIs'
+
 # 3. Nested sections: artifacts off removes the nested preview-* blocks too.
 INC_ARTIFACTS=n render
 assert_no "INC_ARTIFACTS=n removes Output artifacts" 'Output artifacts'

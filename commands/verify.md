@@ -61,6 +61,17 @@ up**. Grade A–F; an **A** means you'd ship it proudly, not merely that it work
   (prior `verify/` run, or the same routes rebuilt from the default branch) and surface any unintended change
   with a before/after.
 
+**Second opinion — a model must not solely grade its own work.** Read the installed-CLI roster
+(`~/.ai-logs/ai-clis`, else `command -v codex agy claude agent cursor-agent gemini`), drop the one you are running
+as, and have each of the others — the more independent vendors the better — take the stated goal + the diff
+and independently
+grade **Goal fit** headless, with writes scoped to a context dir it reports into — the repo stays read-only
+to it (e.g. `codex exec "…" --sandbox workspace-write --cd ~/.ai-context/<repo>-verify`, `agy -p "…" --mode
+accept-edits --add-dir ~/.ai-context/<repo>-verify`; read its full verdict from the file it writes there,
+not just stdout), prompted to find where the
+work falls short. Where its grade differs from yours, report both and say why — don't average the
+disagreement away.
+
 ### 4. Reconcile with the docs
 List where the work **diverges from the briefs**, and for each call it: **intentional evolution** (the code
 advanced past the docs → name the doc + section to update) or **drift** (an unintended regression against

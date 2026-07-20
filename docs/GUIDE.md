@@ -77,7 +77,7 @@ generated; produce them locally. Want to see finished output first? Read
 [`examples/aggressive-tailscale.md`](../examples/aggressive-tailscale.md)
 (aggressive autonomy, Tailscale serving, all sections on) or
 [`examples/balanced-local.md`](../examples/balanced-local.md) (balanced
-autonomy, local serving, improve + tools + worktrees off).
+autonomy, local serving, improve + tools + worktrees + orchestration off).
 
 ## 1. The instruction set
 
@@ -99,6 +99,14 @@ every option:
   generic. Set non-interactively with `MEM_KIND` + `MEM_PATH` / `MEM_TOOL` (or
   override the bullets via `MEM_BLOCK`).
 - **Which sections to include** — memory-OS discovery, agent teams,
+  parallel worktrees, **orchestrating other AI CLIs** (one session delegating
+  headless subtasks to the other installed CLIs — `codex exec`, `agy -p`
+  (Antigravity), `claude -p` — for parallel speed and cross-vendor review
+  (a model never solely checks its own work). The install records the machine's
+  CLI roster at `~/.ai-logs/ai-clis` so sessions read it instead of re-probing;
+  delegation is coordinated through
+  a shared temporary context dir `~/.ai-context/<repo>-<task-slug>/`; set
+  `INC_ORCHESTRATION=n` to opt out),
   improve-after-larger-changes, tools & MCP servers, output artifacts,
   **design system & UI** (build to the tokens, stay on the scales, WCAG AA,
   honor reduced-motion — **on by default for everyone**; set `INC_DESIGN=n` to

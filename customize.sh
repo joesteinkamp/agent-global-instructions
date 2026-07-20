@@ -41,7 +41,7 @@ TEMPLATE="$DIR/template.md"
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST)  # {{VAR}} <-> $VAR
 CTRL_VARS=(PREVIEW AUTONOMY PERSONA MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                     # control render, not substituted
-INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
+INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_ORCHESTRATION INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
 TMPFILES=()
@@ -80,7 +80,7 @@ done
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
 : "${EXTRAS:=}"                # personal sections spliced in verbatim; filled from extras.local.md
-: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
+: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_ORCHESTRATION:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
 : "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
 # INC_DESIGN starts UNSET (empty) on purpose: normalize_inputs() seeds it to "y"
 # (design is on for everyone), while an explicit y/n from the environment or
@@ -282,7 +282,8 @@ render() {
   [ "$AUTONOMY" = "aggressive" ] && keep="${keep}autonomy-aggressive:" || keep="${keep}autonomy-balanced:"
   [ "$INC_TEAMS" = "y" ]         && keep="${keep}agent-teams:"
   [ "$INC_WORKTREES" = "y" ]     && keep="${keep}parallel-worktrees:"
-  [ "$INC_IMPROVE" = "y" ]      && keep="${keep}improve:"
+  [ "$INC_ORCHESTRATION" = "y" ] && keep="${keep}cross-tool-orchestration:"
+  [ "$INC_IMPROVE" = "y" ]       && keep="${keep}improve:"
   [ "$INC_TOOLS" = "y" ]         && keep="${keep}tools-mcp:"
   [ "$INC_ARTIFACTS" = "y" ]     && keep="${keep}artifacts:"
   case "$PREVIEW" in
@@ -431,6 +432,25 @@ write_global() {
         || { cp "$HOME/AGENTS.md" "$t" && echo "  copied $t (symlinks unavailable)"; }
     fi
   done
+  # Record which AI CLIs exist right now, so sessions read one file instead of
+  # re-probing every time (the cross-tool delegation roster). Regenerable
+  # metadata — refreshed on every install/--global, left in place on uninstall.
+  # Bare names only, one per line — no header, so `cat` output is pure roster
+  # (a comment line would be fed to the model as if it were an entry).
+  local mf="$HOME/.ai-logs/ai-clis" c
+  mkdir -p "$HOME/.ai-logs"
+  if { for c in codex agy claude gemini; do
+         command -v "$c" >/dev/null 2>&1 && printf '%s\n' "$c"
+       done
+       # Cursor's CLI brands itself `agent` (older installs: `cursor-agent`) —
+       # emit whichever name this machine can invoke, once.
+       for c in agent cursor-agent; do
+         command -v "$c" >/dev/null 2>&1 && { printf '%s\n' "$c"; break; }
+       done; } > "$mf" 2>/dev/null; then
+    echo "  wrote $mf (installed AI CLI roster)"
+  else
+    echo "  (could not write $mf — roster skipped)"
+  fi
   # Seed a Change Log into the global instruction folder so AI-made changes have a
   # machine-wide place to be logged. Seed-only: never overwrite an existing global
   # CHANGELOG.md, so accumulated entries survive re-installs.
@@ -519,6 +539,8 @@ if [ "$INC_TEAMS" = "y" ]; then
 fi
 
 INC_WORKTREES="$(ask_one 'Include "parallel AI models on one repo" (worktrees) section?' "y/n" "$INC_WORKTREES")"; INC_WORKTREES="${INC_WORKTREES:0:1}"
+
+INC_ORCHESTRATION="$(ask_one 'Include "orchestrating other AI CLIs" section (cross-tool delegation + shared temp-context dir)?' "y/n" "$INC_ORCHESTRATION")"; INC_ORCHESTRATION="${INC_ORCHESTRATION:0:1}"
 
 INC_IMPROVE="$(ask_one 'Include "when to verify & improve (auto-run on larger asks)" section?' "y/n" "$INC_IMPROVE")"; INC_IMPROVE="${INC_IMPROVE:0:1}"
 INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n" "$INC_TOOLS")"; INC_TOOLS="${INC_TOOLS:0:1}"
