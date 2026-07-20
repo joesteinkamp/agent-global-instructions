@@ -28,6 +28,11 @@ only after human approval (see the `changelog` instruction section and the
   Examples and GUIDE regenerated; suite 104 → 107.
 
 ### Changed
+- **`/ship` no longer auto-merges (2026-07-20, Claude).** The feature-branch
+  path went straight from `gh pr create` to `gh pr merge --squash` in one
+  shot. It now opens the PR/MR, hands over the URL, and stops to ask before
+  merging — an explicit confirmation gate (invoking `/ship` is not merge
+  approval). Ports re-rendered and reinstalled for all four tools.
 - **Verify/improve are now nudge-only (2026-07-20, Claude).** The "When to
   verify & improve" template section no longer tells agents to auto-run
   `/verify`/`/improve` on large asks or ask about mid-size ones — models were

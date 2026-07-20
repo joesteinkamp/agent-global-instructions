@@ -1,5 +1,5 @@
 ---
-description: Commit, push, and (on a feature branch) merge the PR/MR — all in one go
+description: Commit, push, and (on a feature branch) open the PR/MR — merging only on explicit go-ahead
 argument-hint: [optional commit message / PR title]
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(glab:*)
 ---
@@ -35,10 +35,15 @@ Steps:
    `origin/` prefix), falling back to `git remote show origin` ("HEAD branch").
    - **If the current branch IS the default branch:** stop here — committed and pushed.
    - **If it's a feature branch:** open the change (reuse the existing one if there
-     is one) with a generated title/body, then merge it:
-     - GitHub: `gh pr create …`, then `gh pr merge --squash --delete-branch`.
-     - GitLab: `glab mr create …`, then `glab mr merge --squash --remove-source-branch`.
-     After merge, `git checkout` the default branch and `git pull`.
-7. If the merge is blocked (failing checks, conflicts, branch protection), stop
-   and report exactly what blocked it — do not force anything.
-8. Report what happened: tidy results (if run), commit hash, push, PR/MR URL, merge result.
+     is one) with a generated title/body:
+     - GitHub: `gh pr create …`. GitLab: `glab mr create …`.
+     Then **stop and ask whether to merge** — nudge, don't act: hand me the
+     PR/MR URL and ask "merge it?". This is a confirmation gate; never merge
+     without my explicit go-ahead in this session ("ship" alone is not it).
+7. **Only if I say merge:** GitHub `gh pr merge --squash --delete-branch`;
+   GitLab `glab mr merge --squash --remove-source-branch`. After merge,
+   `git checkout` the default branch and `git pull`. If the merge is blocked
+   (failing checks, conflicts, branch protection), stop and report exactly
+   what blocked it — do not force anything.
+8. Report what happened: tidy results (if run), commit hash, push, PR/MR URL,
+   and the merge result or the pending merge question.
