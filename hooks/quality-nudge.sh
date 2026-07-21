@@ -114,10 +114,16 @@ fi
 
 reason="Advisory only: material code change detected (${files} files, ${lines} lines).${notes} The Change Log approval gate may also apply. Do not auto-run \$verify or \$improve and do not continue the turn because of this hook; mention only relevant optional follow-ups in the handoff."
 
-# Claude and Codex both accept the common non-blocking Stop output shape. Cursor
-# is intentionally not wired: its stop followup_message would auto-continue.
+# Claude and Codex accept the common non-blocking Stop output shape. Cursor's stop
+# hook injects via followup_message; install-hooks.sh wires loop_limit:1 and we
+# honor loop_count so the advisory cannot chain into further auto-continues.
 case "$PLATFORM" in
   claude|codex) jq -nc --arg m "$reason" '{continue:true,systemMessage:$m}';;
+  cursor)
+    loop_count="$(printf '%s' "$input" | jq -r '.loop_count // 0')"
+    [ "$loop_count" -gt 0 ] && exit 0
+    jq -nc --arg m "$reason" '{followup_message:$m}'
+    ;;
   *)            printf '%s\n' "$reason" >&2;;
 esac
 exit 0

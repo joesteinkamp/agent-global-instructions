@@ -61,8 +61,8 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `extras.local.md` | Optional, gitignored — personal Markdown sections spliced verbatim into every render at `{{EXTRAS}}`. |
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
 | `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
-| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, gitignored — regenerated on every install) → `install-commands.sh` installs Claude/Cursor/Gemini commands and Codex skills (`~/.codex/skills/`). |
-| `.agents/skills/` (+ `.claude/skills/` symlinks) + `skills-lock.json` | Third-party Skills vendored via [`npx skills`](https://skills.sh), project-scoped so they ship with the repo. `.agents/skills/` is the canonical Agent-Skills-standard tree (Codex, Cursor, Gemini CLI); `.claude/skills/` entries are symlinks into it, so Claude Code reads the same bytes. Currently: `grill-me` / `grill-with-docs` plus their primitives `grilling` and `domain-modeling`, and `ux-audit` (from [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill); skill-backed — `install-commands.sh` symlinks it globally for Claude/Codex in place of the `/ux-audit` wrapper). Re-sync with `npx skills update`; the lockfile pins each skill's upstream source + hash. `grill-me` is also promoted to a globally-installed command (see `commands/grill-me.md` below) so `/grill-me` works in any project, not just this repo's checkout. |
+| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, gitignored — regenerated on every install) → `install-commands.sh` installs Claude/Cursor/Gemini commands and Codex skills (`~/.codex/skills/`); skill-backed commands symlink globally for Claude, Codex, and Cursor. |
+| `.agents/skills/` (+ `.claude/skills/` + `.cursor/skills/` symlinks) + `skills-lock.json` | Third-party Skills vendored via [`npx skills`](https://skills.sh), project-scoped so they ship with the repo. `.agents/skills/` is the canonical Agent-Skills-standard tree; `.claude/skills/` and `.cursor/skills/` entries are symlinks into it. Currently: `grill-me` / `grill-with-docs` plus their primitives `grilling` and `domain-modeling`, and `ux-audit` (from [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill); skill-backed — `install-commands.sh` symlinks it globally for Claude/Codex/Cursor in place of the `/ux-audit` wrapper). Re-sync with `npx skills update`; the lockfile pins each skill's upstream source + hash. `grill-me` is also promoted to a globally-installed command (see `commands/grill-me.md` below) so `/grill-me` works in any project, not just this repo's checkout. |
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Gemini). |
 | `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
@@ -136,7 +136,7 @@ it up.
 | `/grill-me` | A relentless interview to sharpen a plan or design before you build it — one question at a time, recommended answers offered, environment facts looked up rather than asked, nothing acted on until we reach a shared understanding. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
-| `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills` + `~/.codex/skills` at install — Claude/Codex run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots); Cursor/Gemini get the wrapper command's inline rubric. Writes + serves a self-contained HTML report. |
+| `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots); Gemini gets the wrapper command's inline rubric. Writes + serves a self-contained HTML report. |
 
 **Command groups.** A command declares `group: <name>` in its frontmatter
 (absent ⇒ `core`, always installed). The **`design`** group
@@ -148,9 +148,9 @@ external [project-starter-pack](https://github.com/joesteinkamp/project-starter-
 [ux-audit skill](https://github.com/joesteinkamp/ux-audit-skill) itself is
 **vendored in-repo** at `.agents/skills/ux-audit` (pinned in
 `skills-lock.json`; re-sync with `npx skills update`) and this repo is its
-installer — `install-commands.sh` symlinks it into `~/.claude/skills` and
-`~/.codex/skills`, while Cursor/Gemini get the `/ux-audit` wrapper command
-(no skill support there).
+installer — `install-commands.sh` symlinks it into `~/.claude/skills`,
+`~/.codex/skills`, and `~/.cursor/skills`, while Gemini gets the `/ux-audit`
+wrapper command (no skill support there).
 
 **Improving the ux-audit skill — one-way sync.** The skill is a **separate
 project** developed in its own working checkout of the GitHub repo (e.g.
@@ -181,7 +181,7 @@ separate tool from the Gemini CLI with its own hooks schema — it's **opt-in**
 | `guard-bash` | before shell | Trip on catastrophic `rm -r` (root/home/parent) and force-pushes. Best-effort tripwire, not a sandbox. |
 | `format-edited` | after edits | Auto-format the edited file with the project's Prettier/ESLint. |
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
-| `quality-nudge` | turn end | Emit at most one **non-blocking advisory** for a material code diff (default ≥4 files or ≥120 lines). Small, docs-only, and artifact-only diffs stay quiet. The note may mention relevant optional verification/review and the Change Log gate, but cannot auto-run a workflow or continue the turn. Claude + Codex only. |
+| `quality-nudge` | turn end | Emit at most one **non-blocking advisory** for a material code diff (default ≥4 files or ≥120 lines). Small, docs-only, and artifact-only diffs stay quiet. The note may mention relevant optional verification/review and the Change Log gate, but cannot auto-run a workflow or continue the turn. Claude + Codex + Cursor (Cursor: `followup_message` on `stop` with `loop_limit:1`). |
 | `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude + Cursor; silent when none exist. |
 | `precompact-archive` | before compaction | Archive the raw transcript to `~/.ai-logs/transcripts/` before Claude compacts, plus a `PreCompact` audit record. Claude only; never blocks. |
 | `log-session-end` | session end | Append a `SessionEnd` record (with the end reason) to the audit log, closing the trail. Claude only. |
@@ -233,11 +233,11 @@ point polishing a change that doesn't render).
   ⑥ does what it claimed (re-runs the PR/task acceptance criteria). It writes a
   self-contained `verify/<slug>-<date>/report.html` and serves it over your
   preview method — verdict + link inline, findings in the artifact.
-- **`quality-nudge`** (Stop hook — Claude + Codex) emits one advisory after a
+- **`quality-nudge`** (Stop hook — Claude, Codex, Cursor) emits one advisory after a
   material code diff. It stays silent for small, documentation-only, and
   artifact-only work; never auto-runs either pass; and never blocks or continues
-  a turn. Cursor gets no Stop advisory because its follow-up mechanism
-  auto-continues.
+  a turn. On Cursor the advisory is injected via `followup_message` (`loop_limit:1`;
+  the script honors `loop_count` so it cannot chain).
 
 ## Customize the wording
 

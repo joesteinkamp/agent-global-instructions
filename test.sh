@@ -328,6 +328,24 @@ if command -v jq >/dev/null 2>&1; then
       bad "quality-nudge respects fresh verify evidence"
     fi
 
+    QNC="$(mktemp -d)"; QNCS="$(mktemp -d)"
+    ( cd "$QNC" && git init -q && git config user.email t@t.t && git config user.name t \
+      && printf 'base\n' > base.js && git add -A && git commit -qm init ) >/dev/null 2>&1
+    mkdir -p "$QNC/src/components"
+    for i in 1 2 3 4; do
+      j=0; while [ "$j" -lt 35 ]; do printf '.c%s-%s { color: green; }\n' "$i" "$j"; j=$((j+1)); done > "$QNC/src/components/C$i.css"
+    done
+    qcur="$(printf '{"cwd":"%s","loop_count":0}' "$QNC" | AI_NUDGE_STATE="$QNCS" HOOK_PLATFORM=cursor bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+    qcur2="$(printf '{"cwd":"%s","loop_count":0}' "$QNC" | AI_NUDGE_STATE="$QNCS" HOOK_PLATFORM=cursor bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+    qcur_chain="$(printf '{"cwd":"%s","loop_count":1}' "$QNC" | AI_NUDGE_STATE="$QNCS" HOOK_PLATFORM=cursor bash "$DIR/hooks/quality-nudge.sh" 2>/dev/null)"
+    if printf '%s' "$qcur" | jq -e '.followup_message|test("Advisory only") and test("Do not auto-run")' >/dev/null 2>&1 \
+       && [ -z "$qcur2" ] \
+       && [ -z "$qcur_chain" ]; then
+      ok "quality-nudge emits cursor followup_message once and honors loop_count"
+    else
+      bad "quality-nudge emits cursor followup_message once and honors loop_count"
+    fi
+
     # Small UI, documentation-only, and artifact-only work should stay silent.
     QS="$(mktemp -d)"; QSS="$(mktemp -d)"
     ( cd "$QS" && git init -q && git config user.email t@t.t && git config user.name t \
@@ -359,7 +377,7 @@ if command -v jq >/dev/null 2>&1; then
       bad "quality-nudge honors and consumes its skip marker"
     fi
 
-    rm -rf "$QN" "$QNS" "$QNF" "$QS" "$QSS" "$QD" "$QDS" "$QA" "$QAS" "$QNK"
+    rm -rf "$QN" "$QNS" "$QNF" "$QNC" "$QNCS" "$QS" "$QSS" "$QD" "$QDS" "$QA" "$QAS" "$QNK"
   fi
 
   # uninstall reverses hooks, permissions, and commands cleanly.
@@ -496,26 +514,28 @@ if command -v jq >/dev/null 2>&1; then
     || bad "customize --design-group (got default=$dg_def explicit-n=$dg_off)"
 
   # Explicit flags gate the design pack and prune it when turned off. The design
-  # command (/ux-audit) is skill-backed: on claude the vendored skill symlinks in
-  # and the wrapper command must NOT install (no duplicate menu entry); cursor
+  # command (/ux-audit) is skill-backed: on claude/cursor the vendored skill symlinks in
+  # and the wrapper command must NOT install (no duplicate menu entry); gemini
   # has no skill support and gets the wrapper.
   count_design() {  # $1 = HOME root -> 1 if the claude design skill link is present
     [ -L "$1/.claude/skills/ux-audit" ] && printf 1 || printf 0
   }
-  GT="$(mktemp -d)"; GC="$GT/.claude/commands"; GS="$GT/.claude/skills"; CC="$GT/.cursor/commands"
+  GT="$(mktemp -d)"; GC="$GT/.claude/commands"; GS="$GT/.claude/skills"; CC="$GT/.cursor/commands"; CS="$GT/.cursor/skills"
   HOME="$GT" "$DIR/install-commands.sh" --no-design claude cursor >/dev/null 2>&1
   core_ok=1; [ -f "$GC/ship.md" ] || core_ok=0
-  off_ok=1; if [ -e "$GS/ux-audit" ] || [ -f "$GC/ux-audit.md" ] || [ -f "$CC/ux-audit.md" ]; then off_ok=0; fi
+  off_ok=1; if [ -e "$GS/ux-audit" ] || [ -f "$GC/ux-audit.md" ] || [ -e "$CS/ux-audit" ] || [ -f "$CC/ux-audit.md" ]; then off_ok=0; fi
   HOME="$GT" "$DIR/install-commands.sh" --design claude cursor >/dev/null 2>&1
   on_ok=1
   [ -L "$GS/ux-audit" ] || on_ok=0
   [ -f "$GS/ux-audit/SKILL.md" ] || on_ok=0   # the link resolves to the vendored skill
   [ -f "$GC/ux-audit.md" ] && on_ok=0         # no duplicate wrapper beside the skill
-  [ -f "$CC/ux-audit.md" ] || on_ok=0         # cursor keeps the wrapper
+  [ -L "$CS/ux-audit" ] || on_ok=0
+  [ -f "$CS/ux-audit/SKILL.md" ] || on_ok=0
+  [ -f "$CC/ux-audit.md" ] && on_ok=0         # cursor gets the skill, not the wrapper
   HOME="$GT" "$DIR/install-commands.sh" --no-design claude cursor >/dev/null 2>&1
-  pr_ok=1; if [ -e "$GS/ux-audit" ] || [ -f "$CC/ux-audit.md" ]; then pr_ok=0; fi
+  pr_ok=1; if [ -e "$GS/ux-audit" ] || [ -e "$CS/ux-audit" ] || [ -f "$CC/ux-audit.md" ]; then pr_ok=0; fi
   { [ "$core_ok" = 1 ] && [ "$off_ok" = 1 ] && [ "$on_ok" = 1 ] && [ "$pr_ok" = 1 ]; } \
-    && ok "design group: skill symlink on claude, wrapper on cursor, --no-design prunes both" \
+    && ok "design group: skill symlink on claude/cursor, --no-design prunes both" \
     || bad "design group gating (core=$core_ok off=$off_ok on=$on_ok pruned=$pr_ok)"
   rm -rf "$GT"
 
@@ -689,27 +709,29 @@ PY
     fi
   fi
 
-  # Vendored skills: every .claude/skills entry must be a SYMLINK resolving into
-  # the canonical .agents/skills tree — parity by construction, not by copy.
-  # The diff (which follows links) additionally catches a broken link.
+  # Vendored skills: every .claude/skills and .cursor/skills entry must be a
+  # SYMLINK resolving into the canonical .agents/skills tree — parity by
+  # construction, not by copy.
   par_ok=1
-  for sk in "$DIR"/.claude/skills/*; do
+  for sk in "$DIR"/.claude/skills/* "$DIR"/.cursor/skills/*; do
     [ -e "$sk" ] || continue
     [ -L "$sk" ] || par_ok=0
     case "$(readlink "$sk")" in ../../.agents/skills/*) ;; *) par_ok=0;; esac
   done
   diff -rq "$DIR/.claude/skills" "$DIR/.agents/skills" >/dev/null 2>&1 || par_ok=0
-  [ "$par_ok" = 1 ] && ok ".claude/skills symlinks into .agents/skills (canonical tree)" \
-                    || bad ".claude/skills symlinks into .agents/skills (canonical tree)"
+  diff -rq "$DIR/.cursor/skills" "$DIR/.agents/skills" >/dev/null 2>&1 || par_ok=0
+  [ "$par_ok" = 1 ] && ok ".claude/.cursor skills symlinks into .agents/skills (canonical tree)" \
+                    || bad ".claude/.cursor skills symlinks into .agents/skills (canonical tree)"
 
   MT="$(mktemp -d)"
   HOME="$MT" bash "$DIR/install-commands.sh" >/dev/null 2>&1
   if [ -f "$MT/.codex/skills/ship/SKILL.md" ] && [ -f "$MT/.cursor/commands/ship.md" ] \
      && [ -f "$MT/.gemini/commands/ship.toml" ] \
-     && [ -L "$MT/.codex/skills/ux-audit" ] && [ -f "$MT/.codex/skills/ux-audit/SKILL.md" ]; then
-    ok "install-commands installs codex/cursor/gemini ports (+ skill-backed symlink)"
+     && [ -L "$MT/.codex/skills/ux-audit" ] && [ -f "$MT/.codex/skills/ux-audit/SKILL.md" ] \
+     && [ -L "$MT/.cursor/skills/ux-audit" ] && [ -f "$MT/.cursor/skills/ux-audit/SKILL.md" ]; then
+    ok "install-commands installs codex/cursor/gemini ports (+ skill-backed symlinks)"
   else
-    bad "install-commands installs codex/cursor/gemini ports (+ skill-backed symlink)"
+    bad "install-commands installs codex/cursor/gemini ports (+ skill-backed symlinks)"
   fi
 
   # Cursor hooks: top-level version:1, flat entries, idempotent through merge.
@@ -719,10 +741,11 @@ PY
   c2="$(jq '[.hooks[]|length]|add' "$MT/.cursor/hooks.json" 2>/dev/null)"
   if [ "$(jq '.version' "$MT/.cursor/hooks.json" 2>/dev/null)" = "1" ] \
      && [ -n "$c1" ] && [ "$c1" = "$c2" ] \
-     && ! jq -e '.hooks | has("stop")' "$MT/.cursor/hooks.json" >/dev/null 2>&1; then
-    ok "install-hooks cursor is idempotent and omits auto-continuing Stop hooks"
+     && jq -e '[.hooks.stop[].command] | length==1 and (.[0]|test("quality-nudge"))' "$MT/.cursor/hooks.json" >/dev/null 2>&1 \
+     && jq -e '.hooks.stop[0].loop_limit == 1' "$MT/.cursor/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks cursor is idempotent and wires one advisory quality-nudge stop hook"
   else
-    bad "install-hooks cursor is idempotent and omits auto-continuing Stop hooks"
+    bad "install-hooks cursor is idempotent and wires one advisory quality-nudge stop hook"
   fi
 
   # Codex hooks: file edits wired via the apply_patch matcher (path-guard + format).
@@ -875,15 +898,18 @@ PY
   ln -s /external/foo "$MT/.codex/skills/foo"
   mkdir -p "$MT/.codex/skills/myown" && echo mine > "$MT/.codex/skills/myown/SKILL.md"
   ln -s "$DIR/.agents/skills/ghost" "$MT/.claude/skills/ghost"
+  ln -s "$DIR/.agents/skills/ghost" "$MT/.cursor/skills/ghost"
   HOME="$MT" bash "$DIR/uninstall.sh" >/dev/null 2>&1
   u_ok=1
   [ -L "$MT/.codex/skills/foo" ]            || u_ok=0   # foreign link spared
   [ -f "$MT/.codex/skills/myown/SKILL.md" ] || u_ok=0   # user's real skill spared
   [ -L "$MT/.claude/skills/ghost" ]         && u_ok=0   # dangling link of ours removed
+  [ -L "$MT/.cursor/skills/ghost" ]         && u_ok=0   # dangling link of ours removed
   [ -f "$MT/.codex/skills/ship/SKILL.md" ]   && u_ok=0
   [ -d "$MT/.codex/skills/ship" ]            && u_ok=0   # no orphaned empty skill dir
   [ -e "$MT/.codex/skills/ux-audit" ]        && u_ok=0   # skill-backed symlink removed
   [ -e "$MT/.claude/skills/ux-audit" ]       && u_ok=0
+  [ -e "$MT/.cursor/skills/ux-audit" ]      && u_ok=0
   [ -f "$MT/.cursor/commands/ship.md" ]     && u_ok=0
   [ -f "$MT/.gemini/commands/ship.toml" ]   && u_ok=0
   jq -e '(.hooks // {}) | length > 0' "$MT/.cursor/hooks.json" >/dev/null 2>&1 && u_ok=0

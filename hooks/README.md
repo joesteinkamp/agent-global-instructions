@@ -18,7 +18,7 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `guard-bash.sh`  | shell tool (before) | Trips on `rm -r` targeting root/home/parent **as a whole token** (so `rm -rf /tmp/build` and `rm -rf node_modules` pass), and on force-pushes — `--force`, a `-f` flag, or a `+refspec` (allows `--force-with-lease`). |
 | `format-edited.sh` | edit tools (after) | Auto-formats the edited file with the project's Prettier/ESLint. Never blocks. |
 | `log-tool.sh` | every tool (before + after) | **Observability** — appends one JSONL record per tool event to an audit log. Never blocks. |
-| `quality-nudge.sh` | turn end (Stop) | Emits one **non-blocking advisory** after a material code diff (default: ≥4 code files or ≥120 code lines). Documentation/artifact-only and small diffs stay quiet. The note may mention verification for a substantial UI diff, improvement review for a large diff, and the Change Log approval gate—but explicitly forbids auto-running `/verify` or `/improve`. Claude + Codex only; Cursor is not wired because its Stop follow-up auto-continues. |
+| `quality-nudge.sh` | turn end (Stop) | Emits one **non-blocking advisory** after a material code diff (default: ≥4 code files or ≥120 code lines). Documentation/artifact-only and small diffs stay quiet. The note may mention verification for a substantial UI diff, improvement review for a large diff, and the Change Log approval gate—but explicitly forbids auto-running `/verify` or `/improve`. Claude + Codex (`systemMessage`); Cursor (`followup_message` on `stop`, `loop_limit:1`). |
 | `load-memory.sh` | session start | Injects a pointer to your **out-of-tool** memory stores (Hermes `~/.hermes/`, OpenClaw `~/.openclaw/workspace/`, project `MEMORY.md`/`memory/`) so the agent reads them before personal tasks. Lists only stores that exist; silent otherwise. Never blocks. Claude (`additionalContext`) + Cursor (`additional_context`) — the tools with SessionStart injection. Complements Claude's native auto-memory (`~/.claude/projects/<project>/memory/`), which it doesn't duplicate. |
 | `precompact-archive.sh` | before compaction (PreCompact) | Copies the **raw transcript** to `<log-dir>/transcripts/` before Claude compacts (and silently drops detail), and logs a `PreCompact` audit record. The platform forbids context injection here, so it preserves the record on disk rather than curating it. Never blocks. Claude only. |
 | `log-session-end.sh` | session end (SessionEnd) | Appends a `SessionEnd` audit record with the end reason (`clear`/`logout`/`prompt_input_exit`/`resume`/`other`), closing the trail the SessionStart loader opened. Output is ignored by the platform — pure observability. Claude only. |
@@ -69,7 +69,7 @@ them yourself if they grow large.
 |------|-------------|--------|---------------|
 | **Claude Code** | `~/.claude/settings.json` | `SessionStart`, `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse`, `PreCompact`, advisory `Stop`, `SessionEnd` | guards: exit 2 + stderr; advisory: `continue:true` + `systemMessage` |
 | **Codex** | `~/.codex/hooks.json` | `PreToolUse` (`apply_patch\|Edit\|Write`, `Bash`), `PostToolUse`, advisory `Stop` | guards: exit 2 + stderr; advisory: `continue:true` + `systemMessage` |
-| **Cursor** | `~/.cursor/hooks.json` (`version: 1`) | `sessionStart`, `beforeShellExecution`, `beforeReadFile`, `afterFileEdit` | stdout `{"permission":"deny"}` for guards; no Stop advisory |
+| **Cursor** | `~/.cursor/hooks.json` (`version: 1`) | `sessionStart`, `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`, advisory `stop` | stdout `{"permission":"deny"}` for guards; advisory: `followup_message` on `stop` (`loop_limit:1`) |
 | **Gemini CLI** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |
 | **Antigravity** (opt-in) | `~/.gemini/antigravity-cli/hooks.json` | `PreToolUse` (`run_command`, `write_to_file\|replace_file_content\|multi_replace_file_content`), `PostToolUse` | stdout `{"allow_tool":false,"deny_reason":…}` + **exit 0** |
 
@@ -84,9 +84,9 @@ them yourself if they grow large.
   veto a write), so `guard-paths` is wired to `beforeReadFile` (blocks reading
   secrets) and `afterFileEdit` (best-effort). Hard write-protection for `.env`,
   lockfiles, and build dirs comes from the **permissions layer**
-  (`../install-settings.sh cursor`), not the hook. Cursor has no quality Stop
-  hook because its `followup_message` behavior auto-continues, which violates
-  the advisory-only contract.
+  (`../install-settings.sh cursor`), not the hook. Cursor's quality Stop hook uses
+  `followup_message` with `loop_limit:1`; the script also honors `loop_count` so
+  the advisory cannot chain into further auto-continues.
 - **Antigravity is a SEPARATE tool from the Gemini CLI** — despite the shared
   `~/.gemini/` prefix. The `gemini` target writes the **Gemini CLI**'s
   `~/.gemini/settings.json`; the **`antigravity`** target writes Antigravity's own

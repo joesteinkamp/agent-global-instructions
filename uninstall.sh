@@ -253,6 +253,7 @@ for t in "${targets[@]}"; do
       ;;
     cursor)
       remove_commands_dir "$HOME/.cursor/commands" "$DIR/commands/cursor" md
+      remove_skill_links "$HOME/.cursor/skills"
       strip_hooks "$HOME/.cursor/hooks.json"
       cursor_hooks_cleanup "$HOME/.cursor/hooks.json"
       strip_permissions_json "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json"

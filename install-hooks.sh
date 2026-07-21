@@ -160,13 +160,15 @@ install_cursor() {
     --arg gb "$(cmd cursor "$hd" guard-bash)" \
     --arg fm "$(cmd cursor "$hd" format-edited)" \
     --arg lg "$(cmd cursor "$hd" log-tool)" \
-    --arg lm "$(cmd cursor "$hd" load-memory)" '{
+    --arg lm "$(cmd cursor "$hd" load-memory)" \
+    --arg qn "$(cmd cursor "$hd" quality-nudge)" '{
     sessionStart: [ {command:$lm} ],
     beforeShellExecution: [ {command:$lg}, {command:$gb} ],
     beforeReadFile: [ {command:$gpr} ],
-    afterFileEdit: [ {command:$lg}, {command:$gp}, {command:$fm} ]
+    afterFileEdit: [ {command:$lg}, {command:$gp}, {command:$fm} ],
+    stop: [ {command:$qn, loop_limit:1} ]
   }')"
-  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format; no Stop nudge because Cursor followups auto-continue; write-block via permissions)"
+  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, advisory quality-nudge; write-block via permissions)"
 }
 
 install_gemini() {

@@ -20,10 +20,10 @@
 # Skill-backed commands: a canonical command opts in with `skill-backed: true`
 # in its frontmatter, promising a vendored skill of the same name at
 # .agents/skills/<name> (pinned in skills-lock.json). Skill-capable tools
-# (claude, codex) then get a SYMLINK to the real skill instead of the thin
+# (claude, codex, cursor) then get a SYMLINK to the real skill instead of the thin
 # command wrapper — one /<name>, the full engine, no duplicate menu entry.
-# Cursor/Gemini have no skill support and keep the wrapper (its inline fallback
-# path). Opt-in, not name-matched: a same-named vendored skill may be a stub
+# Gemini keeps the wrapper (no skill support). Opt-in, not name-matched: a same-named
+# vendored skill may be a stub
 # that depends on other project-scoped skills (e.g. grill-me -> grilling),
 # while the command wrapper is the deliberately self-contained global version.
 # Currently: /ux-audit -> .agents/skills/ux-audit.
@@ -36,6 +36,7 @@
 #                                     like all codex skills this is global even under
 #                                     --project — codex has no project-scoped install)
 #   cursor  commands/cursor/*.md   -> ~/.cursor/commands/   (project: ./.cursor/commands/)
+#           skill-backed           -> ~/.cursor/skills/<name> (symlink into .agents/skills/)
 #   gemini  commands/gemini/*.toml -> ~/.gemini/commands/   (project: ./.gemini/commands/)
 #   antigravity                    -> skipped (separate tool; hooks-only, see install-hooks.sh)
 #
@@ -145,7 +146,7 @@ skill_backed() {  # $1 = command basename without extension
 # skill; a note is printed). Unwanted -> prune, but only a link that is ours
 # (is_our_skill_link). rc=2 (persona resolver failed) leaves things exactly as
 # they are. Ends with an orphan prune for dangling links of ours.
-install_skill_link() {  # $1 = destination skills dir (~/.claude/skills or ~/.codex/skills)
+install_skill_link() {  # $1 = destination skills dir (~/.claude/skills, ~/.codex/skills, ~/.cursor/skills)
   local dest="$1" src name rc link
   for src in "$DIR/.agents/skills"/*/; do
     [ -d "$src" ] || continue
@@ -343,7 +344,9 @@ for t in "${targets[@]}"; do
       [ "$PROJECT" = 1 ] && echo "  (Codex skills are global; --project has no effect for codex)";;
     cursor)
       if [ "$PROJECT" = 1 ]; then d="$DIR/.cursor/commands"; else d="$HOME/.cursor/commands"; fi
-      install_dir cursor "$SRC/cursor" md "$d";;
+      install_dir cursor "$SRC/cursor" md "$d" 1
+      # --project: the repo's own .cursor/skills/ symlinks already cover it.
+      [ "$PROJECT" = 1 ] || install_skill_link "$HOME/.cursor/skills";;
     gemini)
       if [ "$PROJECT" = 1 ]; then d="$DIR/.gemini/commands"; else d="$HOME/.gemini/commands"; fi
       install_dir gemini "$SRC/gemini" toml "$d";;
