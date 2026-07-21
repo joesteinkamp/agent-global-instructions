@@ -573,7 +573,7 @@ INC_DESIGN="$(ask_one 'Include "design system & UI" section (build to design tok
 INC_PROJECT="$(ask_one 'Include "project-specific instructions" section (encourages keeping/updating per-project AGENTS.md/CLAUDE.md)?' "y/n" "$INC_PROJECT")"; INC_PROJECT="${INC_PROJECT:0:1}"
 INC_DOCS="$(ask_one 'Include "documentation first" section (read official docs before using libraries; custom hacks as last resort)?' "y/n" "$INC_DOCS")";          INC_DOCS="${INC_DOCS:0:1}"
 INC_CORRECTIONS="$(ask_one 'Include "when I say you did wrong" section (rules for capturing corrections/memories to prevent repeating mistakes)?' "y/n" "$INC_CORRECTIONS")"; INC_CORRECTIONS="${INC_CORRECTIONS:0:1}"
-INC_CHANGELOG="$(ask_one 'Include "change log" section (tracks AI changes, proposes draft entry, requires approval before writing)?' "y/n" "$INC_CHANGELOG")"; INC_CHANGELOG="${INC_CHANGELOG:0:1}"
+INC_CHANGELOG="$(ask_one 'Include "change log" section (tracks AI changes and the decisions behind them, proposes draft entry, requires approval before writing)?' "y/n" "$INC_CHANGELOG")"; INC_CHANGELOG="${INC_CHANGELOG:0:1}"
 
 fi  # end of the "customize" branch — the quick path keeps every default above
 

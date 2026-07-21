@@ -151,6 +151,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 <!--SECTION:changelog-->
 ## Change Log
 
-- **Keep a Change Log of AI-made changes.** Whenever you (or any AI model — Claude, Codex, …) change the codebase, track what changed and why toward a changelog entry.
+- **Keep a Change Log of AI-made changes.** Whenever you (or any AI model — Claude, Codex, …) change the codebase, track what changed toward a changelog entry — and capture the decision behind it as you work, while the context is still live.
+- **Entries record decisions, not just diffs.** Each entry captures four things: **what changed**, **the original ask or problem** that prompted it, **why this approach** (the rationale and constraints that drove the choice), and **what was considered and rejected** (alternatives and why they lost — skip only if none were). When a change reverses or supersedes an earlier entry, name the decision it replaces and what new information changed the call. The test: someone reading the log top to bottom should understand how and why the project evolved, not just what its files did.
 - **At the end of a session, propose the entry and ask before writing it.** Surface a draft Change Log entry and let me approve or edit it — **never write or commit the changelog without my explicit approval.** This is a confirmation gate; it overrides "finish the task."
 <!--/SECTION:changelog-->

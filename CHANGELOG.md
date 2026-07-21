@@ -5,7 +5,9 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Entries are proposed by the AI assistant at the end of a session and written
 only after human approval (see the `changelog` instruction section and the
-`changelog-nudge` hook).
+`quality-nudge` hook). Each entry records the decision behind the change —
+the original ask, why this approach, and what was considered and rejected —
+so the log reads as the project's decision history, not just a list of diffs.
 
 ## [Unreleased]
 
@@ -28,6 +30,18 @@ only after human approval (see the `changelog` instruction section and the
   Examples and GUIDE regenerated; suite 104 → 107.
 
 ### Changed
+- **Changelog entries now record decision history, not just diffs
+  (2026-07-21, Claude).** Joe asked that the changelog nudge and writer
+  capture the original decision and its rationale so the log explains how
+  the project evolved. The `changelog` template section now requires each
+  entry to record what changed, the original ask, why this approach, and
+  rejected alternatives — and supersessions must name the decision they
+  replace; the `quality-nudge` advisory echoes the same expectation. Chose
+  to encode this in the existing section + advisory sentence rather than a
+  new hook or entry template file, keeping the one-advisory-per-diff design
+  intact. Also fixed CHANGELOG.md's stale `changelog-nudge` reference
+  (retired hook; it's `quality-nudge` now). Examples, root renders, and
+  `~/AGENTS.md` re-rendered; suite green.
 - **`/ship` no longer auto-merges (2026-07-20, Claude).** The feature-branch
   path went straight from `gh pr create` to `gh pr merge --squash` in one
   shot. It now opens the PR/MR, hands over the URL, and stops to ask before

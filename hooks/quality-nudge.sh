@@ -112,7 +112,7 @@ if [ "$files" -ge "$improve_files" ] || [ "$lines" -ge "$improve_lines" ]; then
   notes="${notes} An improvement review may be useful because the code diff is large."
 fi
 
-reason="Advisory only: material code change detected (${files} files, ${lines} lines).${notes} The Change Log approval gate may also apply. Do not auto-run \$verify or \$improve and do not continue the turn because of this hook; mention only relevant optional follow-ups in the handoff."
+reason="Advisory only: material code change detected (${files} files, ${lines} lines).${notes} The Change Log approval gate may also apply: a draft entry should capture the decision behind the change — the original ask, why this approach, and what was rejected — not just the diff. Do not auto-run \$verify or \$improve and do not continue the turn because of this hook; mention only relevant optional follow-ups in the handoff."
 
 # Claude and Codex accept the common non-blocking Stop output shape. Cursor's stop
 # hook injects via followup_message; install-hooks.sh wires loop_limit:1 and we
