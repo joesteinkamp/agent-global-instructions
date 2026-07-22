@@ -12,6 +12,34 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Added
+- **Benchmark-informed model routing + the `~/.ai/` governance layer
+  (2026-07-21, Claude).** New `MODEL-ROUTING.md` — an advisory, per-task-type
+  ranking of the installed AI CLIs (7 categories, every claim cited with
+  source + retrieval date), seeded from live benchmark research and mirrored
+  to `~/.ai/model-routing.md` at install. Two new orchestration bullets tell
+  agents to consult it (reference, not law) and to flag staleness past ~2
+  months. New `/update-model-routing` command re-researches and rewrites it
+  behind a show-the-diff approval gate. The machine-level layout also
+  changed: `~/.ai/` is now the governance/contract layer — the CLI roster
+  moved from `~/.ai-logs/ai-clis` to `~/.ai/clis` (installer removes the
+  legacy file; old renders fall back to `command -v`) — while logs and hook
+  state stay in `~/.ai-logs/`. The ask: orchestration should reference the
+  latest public tests on which models perform best at which tasks, as
+  governance for model-per-task delegation. Why this approach: on-demand
+  refresh command (fits the repo's manual-update ethos; no cron infra),
+  repo-committed table + machine-local mirror (volatile data stays out of
+  the rendered instructions; updates don't force a re-render), advisory-only
+  strictness (Joe's call — availability, cost, and observed results outrank
+  benchmarks). The `~/.ai/` split was Joe's architecture call mid-review:
+  `~/.ai-logs` had drifted into a grab-bag, and contract data agents are
+  instructed to read shouldn't live under a "logs" name. Rejected: scheduled
+  auto-refresh (new infrastructure, weaker human oversight), live benchmark
+  lookup at delegation time (slow, token-heavy, non-deterministic), baking
+  the table into `template.md` (bloats every session and couples benchmark
+  churn to re-renders), keeping everything in `~/.ai-logs/` (the misnaming
+  this change exists to fix). Supersedes the roster-location decision in the
+  2026-07-20 cross-tool orchestration entry. Examples and GUIDE regenerated;
+  suite 107 green.
 - **Cross-tool orchestration: one session can delegate to the machine's other
   AI CLIs (2026-07-20, Claude).** New `cross-tool-orchestration` template
   section (toggle `INC_ORCHESTRATION`, on by default) teaching any host tool
