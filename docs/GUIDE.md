@@ -67,6 +67,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
 | `converge.sh` | Daemon for the `/worktrees` flow: folds parallel agent branches (`ai/*`) into the integration branch as they advance. |
+| `MODEL-ROUTING.md` | Advisory, benchmark-derived table of which installed AI CLI is strongest per task type (hard coding, review, research, planning, UI, cheap fan-out, long-context). Mirrored to `~/.ai/model-routing.md` by `customize.sh --global` so the rendered instructions can point agents at it; refreshed on demand with `/update-model-routing`. |
 | `CHANGELOG.md` | Human-readable decision history of AI-made changes — each entry records what changed, the original ask, why that approach, and what was rejected. Proposed by the assistant at session end, written only after you approve. `customize.sh --global` seeds a copy into `~/.claude/` (seed-only; never overwrites). |
 | `.github/workflows/ci.yml` | CI: shellcheck every script + run `test.sh` on push / PR. |
 | `test.sh` | Smoke tests: render engine, the `load_env` parser, example reproducibility, and installer/uninstaller smoke tests. |
@@ -104,8 +105,13 @@ every option:
   headless subtasks to the other installed CLIs — `codex exec`, `agy -p`
   (Antigravity), `claude -p` — for parallel speed and cross-vendor review
   (a model never solely checks its own work). The install records the machine's
-  CLI roster at `~/.ai-logs/ai-clis` so sessions read it instead of re-probing;
-  delegation is coordinated through
+  CLI roster at `~/.ai/clis` so sessions read it instead of re-probing, and
+  mirrors the advisory model-routing table to `~/.ai/model-routing.md` —
+  benchmark-derived per-task-type vendor rankings agents consult when picking a
+  delegate (refresh with `/update-model-routing`; other machines pick a
+  refreshed table up on their next `git pull && ./install.sh --yes`).
+  `~/.ai/` is the machine-level governance/contract layer; operational exhaust
+  (logs, hook state) stays in `~/.ai-logs/`. Delegation is coordinated through
   a shared temporary context dir `~/.ai-context/<repo>-<task-slug>/`; set
   `INC_ORCHESTRATION=n` to opt out),
   improve-after-larger-changes, tools & MCP servers, output artifacts,
@@ -136,6 +142,7 @@ it up.
 | `/grill-me` | A relentless interview to sharpen a plan or design before you build it — one question at a time, recommended answers offered, environment facts looked up rather than asked, nothing acted on until we reach a shared understanding. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
+| `/update-model-routing` | Deep-research current public model benchmarks (SWE-bench Verified, Terminal-Bench, LMArena, …) and refresh `MODEL-ROUTING.md` — the advisory per-task-type vendor rankings mirrored to `~/.ai/model-routing.md`. Shows the diff for approval before anything is kept. Runs in this repo's checkout only. |
 | `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots); Gemini gets the wrapper command's inline rubric. Writes + serves a self-contained HTML report. |
 
 **Command groups.** A command declares `group: <name>` in its frontmatter

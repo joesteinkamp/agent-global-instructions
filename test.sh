@@ -34,9 +34,12 @@ assert_no "INC_DOCS=n leaves no marker leak" 'SECTION:'
 
 INC_ORCHESTRATION=n render
 assert_no "INC_ORCHESTRATION=n removes the cross-tool orchestration heading" 'Orchestrating other AI CLIs'
+assert_no "INC_ORCHESTRATION=n removes the model-routing pointer" 'model-routing'
 assert_no "INC_ORCHESTRATION=n leaves no marker leak" 'SECTION:'
 render
 assert_has "default render includes cross-tool orchestration" 'Orchestrating other AI CLIs'
+assert_has "default render points at the CLI roster" '~/.ai/clis'
+assert_has "default render points at the model-routing table" '~/.ai/model-routing.md'
 
 # 3. Nested sections: artifacts off removes the nested preview-* blocks too.
 INC_ARTIFACTS=n render
@@ -395,6 +398,8 @@ if command -v jq >/dev/null 2>&1; then
   # --no-design to install-commands.sh (the empty-array idiom on bash 3.2), so
   # core commands land while the design group stays out.
   SMOKE2="$(mktemp -d)"
+  # Pre-seed a legacy roster so the install proves it migrates it to ~/.ai/.
+  mkdir -p "$SMOKE2/.ai-logs"; echo "stale" > "$SMOKE2/.ai-logs/ai-clis"
   if HOME="$SMOKE2" bash "$DIR/install.sh" --yes --no-design claude >/dev/null 2>&1 </dev/null \
      && jq -e '.permissions.deny and .hooks.SessionStart' "$SMOKE2/.claude/settings.json" >/dev/null 2>&1 \
      && [ -f "$SMOKE2/.claude/commands/ship.md" ] \
@@ -403,7 +408,9 @@ if command -v jq >/dev/null 2>&1; then
      && [ -f "$SMOKE2/AGENTS.md" ] \
      && [ ! -L "$SMOKE2/.claude/CLAUDE.md" ] && grep -qF '@~/AGENTS.md' "$SMOKE2/.claude/CLAUDE.md" \
      && [ -L "$SMOKE2/.codex/AGENTS.md" ] && [ -L "$SMOKE2/.gemini/GEMINI.md" ] \
-     && [ -f "$SMOKE2/.claude/CHANGELOG.md" ]; then
+     && [ -f "$SMOKE2/.claude/CHANGELOG.md" ] \
+     && [ -f "$SMOKE2/.ai/clis" ] && [ ! -e "$SMOKE2/.ai-logs/ai-clis" ] \
+     && cmp -s "$DIR/MODEL-ROUTING.md" "$SMOKE2/.ai/model-routing.md"; then
     ok "install.sh orchestrates every layer and forwards --no-design"
   else
     bad "install.sh orchestrates every layer and forwards --no-design"

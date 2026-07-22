@@ -432,13 +432,16 @@ write_global() {
         || { cp "$HOME/AGENTS.md" "$t" && echo "  copied $t (symlinks unavailable)"; }
     fi
   done
+  # ~/.ai/ is the machine-level governance/contract layer — durable files the
+  # rendered instructions tell agents to consult (CLI roster, model-routing
+  # table). Operational exhaust (logs, hook state) stays in ~/.ai-logs/.
   # Record which AI CLIs exist right now, so sessions read one file instead of
   # re-probing every time (the cross-tool delegation roster). Regenerable
   # metadata — refreshed on every install/--global, left in place on uninstall.
   # Bare names only, one per line — no header, so `cat` output is pure roster
   # (a comment line would be fed to the model as if it were an entry).
-  local mf="$HOME/.ai-logs/ai-clis" c
-  mkdir -p "$HOME/.ai-logs"
+  local mf="$HOME/.ai/clis" c
+  mkdir -p "$HOME/.ai"
   if { for c in codex agy claude gemini; do
          command -v "$c" >/dev/null 2>&1 && printf '%s\n' "$c"
        done
@@ -450,6 +453,23 @@ write_global() {
     echo "  wrote $mf (installed AI CLI roster)"
   else
     echo "  (could not write $mf — roster skipped)"
+  fi
+  # The roster lived at ~/.ai-logs/ai-clis before ~/.ai/ existed; remove the
+  # stale copy so nothing keeps reading the old path (old rendered instructions
+  # fall back to `command -v` probing until their next re-render).
+  rm -f "$HOME/.ai-logs/ai-clis"
+  # Advisory model-routing table — mirror the repo's committed MODEL-ROUTING.md
+  # to the machine-local path the instructions point at. The repo copy is the
+  # source of truth (refreshed via /update-model-routing, which re-copies here
+  # itself); like the rendered files, the machine copy is never hand-edited, so
+  # an unconditional mirror (cmp-guarded to avoid churn) is always correct.
+  if [ -f "$DIR/MODEL-ROUTING.md" ]; then
+    if cmp -s "$DIR/MODEL-ROUTING.md" "$HOME/.ai/model-routing.md" 2>/dev/null; then
+      echo "  ok ~/.ai/model-routing.md (up to date)"
+    else
+      cp "$DIR/MODEL-ROUTING.md" "$HOME/.ai/model-routing.md" \
+        && echo "  wrote ~/.ai/model-routing.md (model-routing table)"
+    fi
   fi
   # Seed a Change Log into the global instruction folder so AI-made changes have a
   # machine-wide place to be logged. Seed-only: never overwrite an existing global
