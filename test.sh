@@ -731,7 +731,8 @@ PY
                     || bad ".claude/.cursor skills symlinks into .agents/skills (canonical tree)"
 
   MT="$(mktemp -d)"
-  HOME="$MT" bash "$DIR/install-commands.sh" >/dev/null 2>&1
+  # gemini is opt-in now (defaults swap it for antigravity) — name targets explicitly.
+  HOME="$MT" bash "$DIR/install-commands.sh" claude codex cursor gemini >/dev/null 2>&1
   if [ -f "$MT/.codex/skills/ship/SKILL.md" ] && [ -f "$MT/.cursor/commands/ship.md" ] \
      && [ -f "$MT/.gemini/commands/ship.toml" ] \
      && [ -L "$MT/.codex/skills/ux-audit" ] && [ -f "$MT/.codex/skills/ux-audit/SKILL.md" ] \
@@ -906,7 +907,7 @@ PY
   mkdir -p "$MT/.codex/skills/myown" && echo mine > "$MT/.codex/skills/myown/SKILL.md"
   ln -s "$DIR/.agents/skills/ghost" "$MT/.claude/skills/ghost"
   ln -s "$DIR/.agents/skills/ghost" "$MT/.cursor/skills/ghost"
-  HOME="$MT" bash "$DIR/uninstall.sh" >/dev/null 2>&1
+  HOME="$MT" bash "$DIR/uninstall.sh" claude codex cursor gemini >/dev/null 2>&1
   u_ok=1
   [ -L "$MT/.codex/skills/foo" ]            || u_ok=0   # foreign link spared
   [ -f "$MT/.codex/skills/myown/SKILL.md" ] || u_ok=0   # user's real skill spared

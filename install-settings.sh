@@ -126,7 +126,7 @@ install_gemini_settings() {
   if ! cmp -s "$tmp" "$sf"; then backup_file "$sf"; mv "$tmp" "$sf"; echo "    folderTrust enabled -> $sf"; fi
 }
 
-targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 # Guard each install so one tool's merge failure doesn't abort the rest under
 # `set -e` (the merge_* helpers return 1 on bad jq / missing snippet).
 for t in "${targets[@]}"; do
