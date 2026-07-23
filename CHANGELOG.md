@@ -58,6 +58,21 @@ so the log reads as the project's decision history, not just a list of diffs.
   Examples and GUIDE regenerated; suite 104 → 107.
 
 ### Changed
+- **Default install targets: Antigravity replaces the legacy Gemini CLI
+  (2026-07-22, Claude).** `install.sh`, `install-commands.sh`,
+  `install-hooks.sh`, `install-settings.sh`, and `uninstall.sh` now default
+  to `claude codex cursor antigravity`; gemini remains a supported target
+  you must name explicitly. Tests that relied on the old default now
+  exercise the gemini port explicitly. The ask: Joe corrected a default
+  install that wired layers for gemini — "it's not gemini anymore, it's
+  agy." Why this approach: the scripts already supported `antigravity` as a
+  named target, so swapping the default changes only the no-args path while
+  leaving every layer's behavior intact. Rejected: auto-detecting installed
+  binaries (both `gemini` and `agy` exist on this box, so detection would
+  still include the retired tool) and removing gemini support entirely
+  (kept as explicit opt-in for machines still on the legacy CLI).
+  Supersedes the implicit gemini-by-default target set carried since the
+  original installer. Suite 107 green.
 - **Changelog entries now record decision history, not just diffs
   (2026-07-21, Claude).** Joe asked that the changelog nudge and writer
   capture the original decision and its rationale so the log explains how

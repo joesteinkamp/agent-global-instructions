@@ -231,7 +231,7 @@ install_antigravity() {
   echo "  antigravity -> $hj (log, guard paths, guard bash, format via ~/.gemini/antigravity-cli/hooks/)"
 }
 
-targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 # Guard each install so a single tool's merge failure (bad jq, missing file)
 # doesn't abort the whole run under `set -e` — the others still install.
 for t in "${targets[@]}"; do

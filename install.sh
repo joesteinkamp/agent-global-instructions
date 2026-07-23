@@ -32,7 +32,8 @@ for a in "$@"; do
     *) echo "unknown arg: $a (use: --yes | --design | --no-design | claude | codex | cursor | gemini | antigravity)" >&2; exit 1;;
   esac
 done
-[ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+# Default covers the tools in active use; the legacy Gemini CLI is opt-in (name it explicitly).
+[ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 
 echo "== instructions =="
 # Portable core — renders every tool's instruction file from template.md.

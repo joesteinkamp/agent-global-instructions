@@ -61,7 +61,7 @@ for a in "$@"; do
     *) echo "unknown arg: $a (use: --project | --design | --no-design | claude codex cursor gemini antigravity)" >&2; exit 1;;
   esac
 done
-[ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+[ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 
 # Decide whether the "design" command group installs. Explicit flag wins; on
 # "auto" ask customize.sh, which applies the same INC_DESIGN precedence (on by

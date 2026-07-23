@@ -215,7 +215,7 @@ for a in "$@"; do
     *) echo "  unknown arg: $a (use: --project | claude codex cursor gemini antigravity)" >&2; exit 1;;
   esac
 done
-[ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor gemini)
+[ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 
 # --project: mirror `install-commands.sh --project` — strip ONLY the in-repo
 # command files; global hooks/permissions aren't installed per-project, so leave
