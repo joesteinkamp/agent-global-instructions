@@ -58,6 +58,22 @@ so the log reads as the project's decision history, not just a list of diffs.
   Examples and GUIDE regenerated; suite 104 → 107.
 
 ### Changed
+- **Gemini fully retired from the global render and delegate roster
+  (2026-07-23, Claude).** `customize.sh --global` no longer wires the
+  `~/.gemini/GEMINI.md` pointer and no longer includes `gemini` in the
+  `~/.ai/clis` roster probe; both return with `WIRE_GEMINI=y`. On this
+  machine the installed gemini layers (commands, hooks, guardrails,
+  pointer) were stripped via `uninstall.sh gemini`. The ask: follow-through
+  on the 2026-07-22 default-target swap — Joe confirmed Antigravity has
+  replaced the Gemini CLI, so its layers and roster entry should go, not
+  just the install default. Why this approach: an env toggle keeps the
+  template usable on machines still running the legacy CLI while making
+  retirement the default; the roster probe and pointer share one switch so
+  "legacy gemini support" is a single knob. Rejected: deleting gemini
+  support outright (breaks template users on the old CLI) and
+  auto-detecting the binary (it's still installed here, so detection can't
+  express "installed but retired"). Extends the 2026-07-22 entry. Suite
+  107 → 108.
 - **Default install targets: Antigravity replaces the legacy Gemini CLI
   (2026-07-22, Claude).** `install.sh`, `install-commands.sh`,
   `install-hooks.sh`, `install-settings.sh`, and `uninstall.sh` now default

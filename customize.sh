@@ -414,8 +414,13 @@ write_global() {
     echo "  wrote $cf (imports ~/AGENTS.md)"
   fi
 
-  local t
-  for t in "$HOME/.codex/AGENTS.md" "$HOME/.gemini/GEMINI.md"; do
+  # ~/.gemini/GEMINI.md serves only the legacy Gemini CLI — Antigravity
+  # replaced that tool and reads AGENTS.md natively — so a default render no
+  # longer claims it. WIRE_GEMINI=y re-enables the pointer for machines still
+  # on the old CLI.
+  local t pointers=("$HOME/.codex/AGENTS.md")
+  if [ "${WIRE_GEMINI:-n}" = y ]; then pointers+=("$HOME/.gemini/GEMINI.md"); fi
+  for t in "${pointers[@]}"; do
     if [ -L "$t" ] && [ "$(readlink "$t")" = "$HOME/AGENTS.md" ]; then
       echo "  ok $t -> ~/AGENTS.md"; continue
     fi
@@ -442,9 +447,14 @@ write_global() {
   # (a comment line would be fed to the model as if it were an entry).
   local mf="$HOME/.ai/clis" c
   mkdir -p "$HOME/.ai"
-  if { for c in codex agy claude gemini; do
+  if { for c in codex agy claude; do
          command -v "$c" >/dev/null 2>&1 && printf '%s\n' "$c"
        done
+       # Legacy Gemini CLI — retired from the default roster (Antigravity is
+       # the Google-vendor CLI now); WIRE_GEMINI=y re-includes it if installed.
+       if [ "${WIRE_GEMINI:-n}" = y ]; then
+         command -v gemini >/dev/null 2>&1 && printf 'gemini\n'
+       fi
        # Cursor's CLI brands itself `agent` (older installs: `cursor-agent`) —
        # emit whichever name this machine can invoke, once.
        for c in agent cursor-agent; do
@@ -504,7 +514,7 @@ case "${1:-}" in
     echo "This renders ~/AGENTS.md and points the per-tool files at it (any real"
     echo "file at those paths is backed up first):"
     echo "  ~/.claude/CLAUDE.md   -> imports ~/AGENTS.md (@import; your additions below it survive)"
-    echo "  ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md  ->  symlinks to ~/AGENTS.md"
+    echo "  ~/.codex/AGENTS.md  ->  symlink to ~/AGENTS.md (legacy gemini pointer: opt-in via WIRE_GEMINI=y)"
     if [ -z "$ASSUME_YES" ]; then
       CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
       case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted (pass --yes to skip this prompt)."; exit 0;; esac
@@ -614,7 +624,7 @@ case "$TARGET" in
     echo ""; echo "This renders ~/AGENTS.md and points the per-tool files at it (any real"
     echo "file at those paths is backed up first):"
     echo "  ~/.claude/CLAUDE.md   -> imports ~/AGENTS.md (@import; your additions below it survive)"
-    echo "  ~/.codex/AGENTS.md, ~/.gemini/GEMINI.md  ->  symlinks to ~/AGENTS.md"
+    echo "  ~/.codex/AGENTS.md  ->  symlink to ~/AGENTS.md (legacy gemini pointer: opt-in via WIRE_GEMINI=y)"
     CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
     case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted."; exit 0;; esac
     write_global

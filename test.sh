@@ -407,7 +407,7 @@ if command -v jq >/dev/null 2>&1; then
      && [ ! -e "$SMOKE2/.claude/skills/ux-audit" ] \
      && [ -f "$SMOKE2/AGENTS.md" ] \
      && [ ! -L "$SMOKE2/.claude/CLAUDE.md" ] && grep -qF '@~/AGENTS.md' "$SMOKE2/.claude/CLAUDE.md" \
-     && [ -L "$SMOKE2/.codex/AGENTS.md" ] && [ -L "$SMOKE2/.gemini/GEMINI.md" ] \
+     && [ -L "$SMOKE2/.codex/AGENTS.md" ] && [ ! -e "$SMOKE2/.gemini/GEMINI.md" ] \
      && [ -f "$SMOKE2/.claude/CHANGELOG.md" ] \
      && [ -f "$SMOKE2/.ai/clis" ] && [ ! -e "$SMOKE2/.ai-logs/ai-clis" ] \
      && cmp -s "$DIR/MODEL-ROUTING.md" "$SMOKE2/.ai/model-routing.md"; then
@@ -417,7 +417,7 @@ if command -v jq >/dev/null 2>&1; then
   fi
 
   # Claude pointer: hand additions below the @import survive a re-render;
-  # codex/gemini pointers stay symlinks.
+  # the codex pointer stays a symlink.
   echo "- my claude-only note" >> "$SMOKE2/.claude/CLAUDE.md"
   HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
   { grep -qF -- "- my claude-only note" "$SMOKE2/.claude/CLAUDE.md" \
@@ -425,6 +425,13 @@ if command -v jq >/dev/null 2>&1; then
     && [ -L "$SMOKE2/.codex/AGENTS.md" ]; } \
     && ok "claude pointer preserves hand additions across re-renders" \
     || bad "claude pointer preserves hand additions across re-renders"
+
+  # Legacy gemini pointer is opt-in now (default absence asserted above):
+  # WIRE_GEMINI=y wires it, and the gemini uninstall below removes it again.
+  HOME="$SMOKE2" WIRE_GEMINI=y AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+  [ -L "$SMOKE2/.gemini/GEMINI.md" ] \
+    && ok "WIRE_GEMINI=y opts the legacy gemini pointer back in" \
+    || bad "WIRE_GEMINI=y opts the legacy gemini pointer back in"
 
   # uninstall reverses the pointers: with no pre-existing backup they are
   # removed; ~/AGENTS.md itself stays.
