@@ -110,6 +110,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Use Markdown for** issues, PR descriptions, notes apps, commits, or specs under ~100 lines.
 - **Reviews, audits, and multi-finding syntheses are artifacts, not chat.** When the work is a set of findings, options, or results (code reviews, audits, research, comparisons), build the HTML artifact **first** and hand me the link — don't dump the findings inline as the primary deliverable.
 - Don't ask which format — pick and proceed.
+- **Browser testing & verification — `playwright-cli`.** After serving a route, drive it with `playwright-cli` (`open`/`goto`, `screenshot`, `console`, and the network log; `run-code` when you need Playwright APIs like axe-core or `emulateMedia`). Read `playwright-cli --help` before inventing flows; don't use curl-only smoke checks for UI work.
 <!--SECTION:preview-tailscale-->
 - **Headless — serve over Tailscale, no local browser.** Start a webserver on `0.0.0.0` (never `127.0.0.1`), verify it returns 200, then give me `http://{{TS_HOST}}:PORT/`. Keep it running.
 - **Vite/Astro 403 gotcha:** binding `0.0.0.0` isn't enough — they reject an unknown `*.ts.net` Host. For `astro dev`/Vite add `vite.server.allowedHosts: ['.ts.net']`; for `astro preview` (a separate check `allowedHosts` doesn't fix) serve the build statically: `python3 -m http.server PORT --bind 0.0.0.0 --directory dist`.
@@ -125,8 +126,8 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 - **Build to the system — don't reinvent it.** When the project ships design tokens (a `DESIGN.json`, a Figma library over MCP, or a `DESIGN.md`), treat them as the source of truth: pull real color, type, spacing, radius, shadow, and motion values instead of inventing hex codes and pixel values.
 - **Stay on the scales.** Use the defined type, spacing, and color scales and the project's breakpoints; don't introduce one-off values a component or two later has to reconcile.
-- **Accessible by default.** Meet WCAG 2.2 AA contrast, keep focus states visible and hit targets adequate, and honor `prefers-reduced-motion` for any animation.
-- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — and fix the drift (or update the tokens). After a material UI change, `quality-nudge` may mention `/verify` as an optional follow-up; it never runs it.
+- **Accessible by default.** Meet WCAG 2.2 AA contrast, keep focus states visible and hit targets adequate, and honor `prefers-reduced-motion` for any animation. When verifying UI, run **axe-core** on touched routes — it's the primary automated a11y check.
+- **Match the design before calling UI work done.** Compare the result against the reference — Figma node or tokens — and fix the drift (or update the tokens). Use `playwright-cli screenshot` at project breakpoints when checking visually. After a material UI change, `quality-nudge` may mention `/verify` as an optional follow-up; it never runs it.
 
 <!--/SECTION:design-->
 <!--SECTION:project-instructions-->

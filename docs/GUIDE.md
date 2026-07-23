@@ -232,8 +232,8 @@ point polishing a change that doesn't render).
   prioritized fixes with `file:line`, then deduped into one summary.
 - **`/verify`** runs a lens stack, each emitting **PASS / FAIL / N/A** with
   evidence: ① builds & runs (detects the project's tooling); ② renders in a headless
-  browser (Playwright) — responsive screenshots, console & network gates,
-  axe-core a11y; ③ visual regression vs the last run or the default branch;
+  browser (`playwright-cli`) — responsive screenshots, console & network gates,
+  axe-core a11y (required on touched routes — report rule ID, impact, selector); ③ visual regression vs the last run or the default branch;
   ④ matches the design (Figma via MCP, or `DESIGN.md` + `DESIGN.json` tokens);
   ⑤ conforms to the briefs (`PRODUCT.md`/`DESIGN.md`/`CODE.md` + guardrails —
   pairs with the [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack));
