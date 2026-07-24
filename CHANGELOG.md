@@ -11,6 +11,31 @@ so the log reads as the project's decision history, not just a list of diffs.
 
 ## [Unreleased]
 
+### Changed
+- **Model routing refresh — hard coding & long-context now split at the top
+  (2026-07-24, Claude).** Re-researched all 7 categories against current
+  public benchmarks. Two real changes, driven by GPT-5.6 Sol's independent
+  Terminal-Bench 2.1 and MRCR v2 entries landing since the 2026-07-21 seed:
+  **Hard coding & refactoring** moves from clean claude-then-codex to a
+  genuine **#1 tie** — tbench.ai's native-harness board still favors Claude
+  Fable 5 (83.8%), but vals.ai's neutral-harness board now has GPT-5.6 Sol
+  ahead (85.77%), and the two disagree. **Long-context analysis** softens
+  similarly — Sol's new MRCR score is a near-tie with Claude Opus 4.6 at true
+  1M-token depth, though Claude still leads at shallower depths. The other
+  five categories (code review, deep research, planning, UI/frontend, cheap
+  fan-out) were re-verified and are unchanged, with minor citation refreshes
+  (e.g. a new Martian Code Review Bench noted as ranking products, not
+  vendors, so it doesn't resolve that category's tie). Also trimmed the file
+  from 101 to 90 lines to honor its own stated "~90 lines" budget, a gap an
+  earlier review had flagged. Mirrored to `~/.ai/model-routing.md`.
+
+  Why this approach: research was fanned out to 7 parallel subagents (one per
+  category) per the command's own instructions, each independently
+  re-verifying primary sources rather than trusting the prior seed — this
+  caught both real changes and confirmed the other five hadn't silently
+  drifted. Rejected: nothing — this is the routine refresh workflow the
+  command exists for.
+
 ### Added
 - **Session scorecard survey + memoryOS registry (2026-07-24, Claude).** A
   human-feedback loop that evaluates each session and feeds lessons into the
