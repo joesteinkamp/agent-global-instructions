@@ -12,7 +12,6 @@
 #   claude  ~/.claude/settings.json       permissions.deny/ask (JSON union)    — hard-enforced
 #   codex   ~/.codex/config.toml          approval_policy + sandbox_mode       — coarse; path-deny via hook
 #   cursor  ~/.cursor/cli-config.json     permissions.deny (JSON union)        — CLI agent; GUI via hook
-#   gemini  ~/.gemini/policies/*.toml     Policy Engine deny/ask_user rules    — hard-enforced
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -103,29 +102,6 @@ install_codex_settings() {
   fi
 }
 
-install_gemini_settings() {
-  local pd="$HOME/.gemini/policies" src="$DIR/policies/gemini-guardrails.toml"
-  local dst="$pd/gemini-guardrails.toml" sf="$HOME/.gemini/settings.json"
-  echo "  gemini:"
-  [ -f "$src" ] || { echo "    no policy snippet at $src" >&2; return 1; }
-  mkdir -p "$pd"
-  if [ -f "$dst" ] && cmp -s "$src" "$dst"; then
-    echo "    $dst (policy already current)"
-  else
-    [ -f "$dst" ] && backup_file "$dst"
-    cp "$src" "$dst"; echo "    Policy Engine rules -> $dst"
-  fi
-  # Enable folder trust so a project's .gemini/settings.json is honored only when
-  # the folder is trusted (user-level policies above still apply regardless).
-  [ -f "$sf" ] || echo '{}' > "$sf"
-  local tmp; tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
-  jq '.security = (.security // {})
-      | .security.folderTrust = (.security.folderTrust // {})
-      | .security.folderTrust.enabled = true' "$sf" > "$tmp" \
-    || { echo "    settings merge failed for $sf (left unchanged)" >&2; return 0; }
-  if ! cmp -s "$tmp" "$sf"; then backup_file "$sf"; mv "$tmp" "$sf"; echo "    folderTrust enabled -> $sf"; fi
-}
-
 targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 # Guard each install so one tool's merge failure doesn't abort the rest under
 # `set -e` (the merge_* helpers return 1 on bad jq / missing snippet).
@@ -134,9 +110,8 @@ for t in "${targets[@]}"; do
     claude)             install_claude_settings || echo "  claude: skipped (error above)" >&2;;
     codex)              install_codex_settings  || echo "  codex: skipped (error above)" >&2;;
     cursor)             install_cursor_settings || echo "  cursor: skipped (error above)" >&2;;
-    gemini)             install_gemini_settings || echo "  gemini: skipped (error above)" >&2;;
     antigravity)        echo "  antigravity: uses its own permission model (~/.gemini/antigravity-cli/settings.json); not wired here — guardrails come from its hooks (install-hooks.sh antigravity)";;
-    *) echo "  unknown target: $t (use: claude codex cursor gemini antigravity)" >&2;;
+    *) echo "  unknown target: $t (use: claude codex cursor antigravity)" >&2;;
   esac
 done
 echo "Done. Backups saved next to each file."

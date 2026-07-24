@@ -5,7 +5,7 @@
 #   ./install-commands.sh                     # all tools, global
 #   ./install-commands.sh --project           # all tools, into ./ (this repo)
 #   ./install-commands.sh claude cursor       # just these tools, global
-#   ./install-commands.sh --project cursor gemini
+#   ./install-commands.sh --project cursor
 #   ./install-commands.sh --design            # also install the design command group
 #   ./install-commands.sh --no-design         # core commands only
 #
@@ -22,8 +22,7 @@
 # .agents/skills/<name> (pinned in skills-lock.json). Skill-capable tools
 # (claude, codex, cursor) then get a SYMLINK to the real skill instead of the thin
 # command wrapper — one /<name>, the full engine, no duplicate menu entry.
-# Gemini keeps the wrapper (no skill support). Opt-in, not name-matched: a same-named
-# vendored skill may be a stub
+# Opt-in, not name-matched: a same-named vendored skill may be a stub
 # that depends on other project-scoped skills (e.g. grill-me -> grilling),
 # while the command wrapper is the deliberately self-contained global version.
 # Currently: /ux-audit -> .agents/skills/ux-audit.
@@ -37,7 +36,6 @@
 #                                     --project — codex has no project-scoped install)
 #   cursor  commands/cursor/*.md   -> ~/.cursor/commands/   (project: ./.cursor/commands/)
 #           skill-backed           -> ~/.cursor/skills/<name> (symlink into .agents/skills/)
-#   gemini  commands/gemini/*.toml -> ~/.gemini/commands/   (project: ./.gemini/commands/)
 #   antigravity                    -> skipped (separate tool; hooks-only, see install-hooks.sh)
 #
 # commands/*.md (top level) is the canonical Claude-dialect source of truth; the
@@ -57,8 +55,8 @@ for a in "$@"; do
     --project) PROJECT=1;;
     --design) DESIGN_FLAG=on;;
     --no-design) DESIGN_FLAG=off;;
-    claude|codex|cursor|gemini|antigravity) targets+=("$a");;
-    *) echo "unknown arg: $a (use: --project | --design | --no-design | claude codex cursor gemini antigravity)" >&2; exit 1;;
+    claude|codex|cursor|antigravity) targets+=("$a");;
+    *) echo "unknown arg: $a (use: --project | --design | --no-design | claude codex cursor antigravity)" >&2; exit 1;;
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
@@ -195,7 +193,7 @@ install_skill_link() {  # $1 = destination skills dir (~/.claude/skills, ~/.code
 # gets installed always reflects the current canonical (hand-edits to a generated
 # port are overwritten here — edit commands/<name>.md instead). Abort on failure
 # rather than installing from a half-rendered port dir (a swallowed render error
-# is how codex/cursor/gemini once silently got zero commands).
+# is how codex/cursor once silently got zero commands).
 if [ -x "$DIR/render-commands.sh" ]; then
   "$DIR/render-commands.sh" >/dev/null \
     || { echo "render-commands.sh failed — aborting before install (ports may be stale)" >&2; exit 1; }
@@ -347,9 +345,6 @@ for t in "${targets[@]}"; do
       install_dir cursor "$SRC/cursor" md "$d" 1
       # --project: the repo's own .cursor/skills/ symlinks already cover it.
       [ "$PROJECT" = 1 ] || install_skill_link "$HOME/.cursor/skills";;
-    gemini)
-      if [ "$PROJECT" = 1 ]; then d="$DIR/.gemini/commands"; else d="$HOME/.gemini/commands"; fi
-      install_dir gemini "$SRC/gemini" toml "$d";;
     antigravity)
       echo "  antigravity: command install not supported here (Antigravity CLI is a separate tool); skipped — its hooks are wired by install-hooks.sh";;
   esac

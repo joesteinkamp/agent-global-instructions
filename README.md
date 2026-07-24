@@ -1,11 +1,11 @@
 # Portable AI harness
 
 **Write your AI-assistant preferences once; use them in every tool.** Claude
-Code, Codex, Gemini, and Cursor each read their own `CLAUDE.md` / `AGENTS.md` /
-`GEMINI.md` instruction file — maintain them by hand and you re-teach every tool
-your name, your environment, and how you like to work, and the files drift out
-of sync. Here you edit one template, run one command, and every tool is
-regenerated in sync.
+Code, Codex, Antigravity, and Cursor each read their own `CLAUDE.md` /
+`AGENTS.md` instruction file — maintain them by hand and you re-teach every
+tool your name, your environment, and how you like to work, and the files
+drift out of sync. Here you edit one template, run one command, and every
+tool is regenerated in sync.
 
 ## Quick start
 
@@ -17,7 +17,8 @@ git clone <this repo> && cd agent-global-instructions
 cp my-context.env.example my-context.env && $EDITOR my-context.env
                                # your answers — every render and re-run reads them
 ./install.sh                   # instructions + commands + hooks + settings,
-                               #   for all four tools (asks once; --yes skips)
+                               #   for all four tools: Claude, Codex, Cursor,
+                               #   Antigravity (asks once; --yes skips)
 ```
 
 That's it. Prefer answering questions to editing a file? `./customize.sh` runs
@@ -53,8 +54,8 @@ All gitignored; all survive every re-render and `git pull`:
 | `extras.local.md` | Personal Markdown sections the shared template can't express (e.g. machine-specific serving notes) — spliced into every render. |
 | `mcp-rules.local` | Per-MCP-server "when to use" rules; generate with `./customize.sh --scan-mcp`. |
 
-**Never edit the rendered files** (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md` in
-this repo, or the machine-wide `~/AGENTS.md` and its per-tool pointers) —
+**Never edit the rendered files** (`CLAUDE.md`, `AGENTS.md` in this repo, or
+the machine-wide `~/AGENTS.md` and its per-tool pointers) —
 they're snapshots, overwritten on the next render. Put the change in the
 template or one of the layers above instead.
 

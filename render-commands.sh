@@ -4,7 +4,7 @@
 # the ports can't drift. Mirrors how customize.sh renders the instruction files
 # from template.md.
 #
-#   ./render-commands.sh         # regenerate commands/{codex,cursor,gemini}/
+#   ./render-commands.sh         # regenerate commands/{codex,cursor}/
 #
 # The generated files are snapshots — NEVER hand-edit them (install-commands.sh
 # re-renders on every install). To change a command, edit commands/<name>.md and
@@ -14,10 +14,10 @@
 #   - frontmatter: description kept everywhere; Codex receives skill-compatible
 #     name/description metadata;
 #     allowed-tools dropped (Claude-only — other tools govern tools elsewhere).
-#   - $ARGUMENTS: translated to request context for Codex skills; -> {{args}} for gemini; kept (with a note) for
-#     cursor (no placeholder — it appends typed input).
-#   - !`cmd` shell-injection: -> !{cmd} for gemini (native); -> run `cmd` for
-#     codex/cursor (no injection — tell the agent to run it).
+#   - $ARGUMENTS: translated to request context for Codex skills; kept (with a
+#     note) for cursor (no placeholder — it appends typed input).
+#   - !`cmd` shell-injection: -> run `cmd` for codex/cursor (no injection —
+#     tell the agent to run it).
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -53,7 +53,6 @@ fm_body() {  # $1 = file  -> body after the frontmatter (leading blanks trimmed)
 }
 
 # --- body dialect transforms (single-quoted sed: backticks/$ are literal) ----
-to_gemini_body() { sed -e 's/!`\([^`]*\)`/!{\1}/g' -e 's/\$ARGUMENTS/{{args}}/g'; }
 to_norun_body()  { sed -e 's/!`\([^`]*\)`/run `\1`/g'; }
 to_codex_skill_body() { to_norun_body | sed 's/\$ARGUMENTS/Use any focus supplied in the user request./g'; }
 
@@ -73,16 +72,16 @@ emit() {  # $1 = destination path
   rm -f "$t"; return 1
 }
 
-mkdir -p "$SRC/codex" "$SRC/cursor" "$SRC/gemini"
+mkdir -p "$SRC/codex" "$SRC/cursor"
 # Sweep any orphaned temp from a previously-interrupted run (prune_dir only globs
 # *.md/*.toml, so these hidden .cmd.* files would otherwise linger uncommitted).
-rm -f "$SRC"/codex/.cmd.* "$SRC"/cursor/.cmd.* "$SRC"/gemini/.cmd.* 2>/dev/null || true
+rm -f "$SRC"/codex/.cmd.* "$SRC"/cursor/.cmd.* 2>/dev/null || true
 # Codex used to receive flat custom-prompt files here. They are unsupported in
 # current Codex; remove only these generated port artifacts during migration.
 rm -f "$SRC"/codex/*.md
 # Stale-port cleanup happens AFTER a successful render (prune_dir below), not
 # before — so an aborted render can never empty the committed port dirs (that
-# emptied codex/cursor/gemini and silently installed zero commands).
+# emptied codex/cursor and silently installed zero commands).
 prune_dir() {  # $1 = dir, $2 = ext, $3 = space-delimited set of generated basenames
   local d="$1" ext="$2" set="$3" f base
   for f in "$d"/*."$ext"; do
@@ -93,7 +92,7 @@ prune_dir() {  # $1 = dir, $2 = ext, $3 = space-delimited set of generated basen
 }
 
 n=0
-gen_codex=" "; gen_cursor=" "; gen_gemini=" "
+gen_codex=" "; gen_cursor=" "
 for f in "$SRC"/*.md; do
   [ -e "$f" ] || continue
   base="$(basename "$f")"
@@ -103,12 +102,6 @@ for f in "$SRC"/*.md; do
   desc="$(fm_field "$f" description)"
   body="$(fm_body "$f")"
   has_args=0; printf '%s\n' "$body" | grep -q '\$ARGUMENTS' && has_args=1
-
-  # TOML literal strings ('''...''') can't contain ''' and have no escape — fail
-  # loudly rather than emit an unparseable Gemini command.
-  case "$body" in
-    *"'''"*) echo "render-commands: commands/$base body contains ''' — breaks the Gemini TOML literal string. Aborting." >&2; exit 1;;
-  esac
 
   # --- Codex: ~/.codex/skills/<name>/SKILL.md (invoke $<name>) ---
   mkdir -p "$SRC/codex/$name"
@@ -131,16 +124,6 @@ for f in "$SRC"/*.md; do
     printf '%s\n' "$body" | to_norun_body
   } | emit "$SRC/cursor/$base"
   gen_cursor="$gen_cursor$base "
-
-  # --- Gemini: ~/.gemini/commands/<name>.toml ---
-  {
-    printf '# GENERATED from commands/%s by render-commands.sh — do not edit.\n' "$base"
-    printf 'description = "%s"\n\n' "$(printf '%s' "$desc" | dq_escape)"
-    printf "prompt = '''\n"
-    printf '%s\n' "$body" | to_gemini_body
-    printf "'''\n"
-  } | emit "$SRC/gemini/$name.toml"
-  gen_gemini="$gen_gemini$name.toml "
 
   n=$((n+1))
 done
@@ -165,6 +148,5 @@ for d in "$SRC/codex"/*; do
   esac
 done
 prune_dir "$SRC/cursor" md   "$gen_cursor"
-prune_dir "$SRC/gemini" toml "$gen_gemini"
 
-echo "Rendered $n command(s) -> commands/{codex,cursor,gemini}/"
+echo "Rendered $n command(s) -> commands/{codex,cursor}/"

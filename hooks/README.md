@@ -1,7 +1,7 @@
 # Hooks
 
 Guardrail hooks — shell commands that fire on tool events. One set of scripts
-serves **Claude Code, Codex, Cursor, Gemini (CLI), and Antigravity (opt-in)**; `HOOK_PLATFORM`
+serves **Claude Code, Codex, Cursor, and Antigravity**; `HOOK_PLATFORM`
 (set by the installer in each wired command) makes them block in the right
 dialect.
 
@@ -10,7 +10,7 @@ dialect.
 > heuristically — obfuscated, variable-expanded, or unusual inputs can bypass
 > them. Use them as seatbelts against fat-finger mistakes, not a sandbox.
 
-Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude codex cursor gemini`.
+Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude codex cursor`.
 
 | Script | Fires on | Does |
 |--------|----------|------|
@@ -70,8 +70,7 @@ them yourself if they grow large.
 | **Claude Code** | `~/.claude/settings.json` | `SessionStart`, `PreToolUse` (`Edit\|Write\|MultiEdit\|NotebookEdit`, `Bash`), `PostToolUse`, `PreCompact`, advisory `Stop`, `SessionEnd` | guards: exit 2 + stderr; advisory: `continue:true` + `systemMessage` |
 | **Codex** | `~/.codex/hooks.json` | `PreToolUse` (`apply_patch\|Edit\|Write`, `Bash`), `PostToolUse`, advisory `Stop` | guards: exit 2 + stderr; advisory: `continue:true` + `systemMessage` |
 | **Cursor** | `~/.cursor/hooks.json` (`version: 1`) | `sessionStart`, `beforeShellExecution`, `beforeReadFile`, `afterFileEdit`, advisory `stop` | stdout `{"permission":"deny"}` for guards; advisory: `followup_message` on `stop` (`loop_limit:1`) |
-| **Gemini CLI** | `~/.gemini/settings.json` | `BeforeTool` (`run_shell_command`, `write_file\|replace`), `AfterTool` | stdout `{"decision":"deny","reason":…}` |
-| **Antigravity** (opt-in) | `~/.gemini/antigravity-cli/hooks.json` | `PreToolUse` (`run_command`, `write_to_file\|replace_file_content\|multi_replace_file_content`), `PostToolUse` | stdout `{"allow_tool":false,"deny_reason":…}` + **exit 0** |
+| **Antigravity** | `~/.gemini/antigravity-cli/hooks.json` | `PreToolUse` (`run_command`, `write_to_file\|replace_file_content\|multi_replace_file_content`), `PostToolUse` | stdout `{"allow_tool":false,"deny_reason":…}` + **exit 0** |
 
 ## Caveats
 
@@ -87,11 +86,10 @@ them yourself if they grow large.
   (`../install-settings.sh cursor`), not the hook. Cursor's quality Stop hook uses
   `followup_message` with `loop_limit:1`; the script also honors `loop_count` so
   the advisory cannot chain into further auto-continues.
-- **Antigravity is a SEPARATE tool from the Gemini CLI** — despite the shared
-  `~/.gemini/` prefix. The `gemini` target writes the **Gemini CLI**'s
-  `~/.gemini/settings.json`; the **`antigravity`** target writes Antigravity's own
-  **`~/.gemini/antigravity-cli/hooks.json`**, which the Gemini CLI never reads and
-  vice-versa. `antigravity` is **opt-in** — not in the default target set — and
+- **Antigravity**'s config lives at `~/.gemini/antigravity-cli/hooks.json` — the
+  `~/.gemini/` prefix is a historical artifact of the retired Gemini CLI sharing
+  that vendor directory; Antigravity is a separate tool with its own schema.
+  `antigravity` is in the **default target set**, and
   `./install-hooks.sh antigravity` skips gracefully if `~/.gemini/antigravity-cli`
   isn't present. Its schema (verified against the `agy` binary's proto + embedded
   docs) differs from every other tool: top-level **named hooks**, `PreToolUse`/

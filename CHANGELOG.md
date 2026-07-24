@@ -11,6 +11,62 @@ so the log reads as the project's decision history, not just a list of diffs.
 
 ## [Unreleased]
 
+### Removed
+- **Gemini CLI support removed entirely (2026-07-24, Claude).** No more
+  opt-in: `WIRE_GEMINI` is gone, and `gemini` is no longer accepted by any
+  install script (`install.sh`/`install-commands.sh`/`install-hooks.sh`/
+  `install-settings.sh` now error on it as an unknown target).
+  `render-commands.sh` no longer generates a gemini command port;
+  `policies/gemini-guardrails.toml` is deleted. `uninstall.sh gemini` is kept
+  as a **legacy-cleanup-only** target — since the generated port it used to
+  diff against no longer exists, it now identifies our own artifacts by their
+  GENERATED marker instead, so machines with a pre-retirement install still
+  have a clean removal path. Scrubbed gemini mentions from README/GUIDE/
+  hooks-README/commands-README/command templates/examples/hook-script
+  comments; corrected two stale doc claims found in the process (Antigravity
+  described as opt-in when it's the default; Cursor described as lacking
+  skill support). test.sh: removed ~15 gemini-specific assertions, added one
+  covering the legacy-cleanup path. Suite 108 → 106.
+
+  The ask: Joe asked to remove Gemini completely now that Antigravity has
+  replaced it, rather than continue carrying it as an opt-in escape hatch.
+  Why this approach: a legacy-cleanup-only uninstall target costs nothing to
+  keep and prevents stranding any pre-existing install with no
+  repo-provided removal path — that's teardown tooling, not gemini
+  "support." Rejected: keeping `WIRE_GEMINI` as a permanent opt-in (exactly
+  the interim state the prior entry set up, which Joe is now closing out);
+  dropping the uninstall cleanup path too (would leave earlier installs with
+  orphaned artifacts and no fix). Supersedes the 2026-07-23 "Gemini fully
+  retired from the global render and delegate roster" entry (removes the
+  `WIRE_GEMINI=y` escape hatch it introduced) and completes the retirement
+  started in the 2026-07-22 "Default install targets: Antigravity replaces
+  the legacy Gemini CLI" entry (gemini is no longer an installable target at
+  all, only a legacy-cleanup one).
+
+### Fixed
+- **Remove redundant `Write(...)` deny rules from the Claude permissions
+  snippet.** `settings-permissions.snippet.json` listed both an `Edit(...)`
+  and a `Write(...)` deny rule for every protected path (`.env`, `build/`,
+  `dist/`, `.next/`, `out/`, `coverage/`, `node_modules/`, `.git/`) — 9
+  duplicate pairs. The original ask: Joe reported "a lot of errors when
+  claude loads." Root cause: Claude Code's permission engine only matches
+  file writes against `Edit(path)` rules (they cover Write/Edit/MultiEdit/
+  NotebookEdit collectively) and doesn't recognize `Write(...)` as its own
+  matchable rule type, so each redundant rule printed a "not matched by file
+  permission checks" warning on every startup — installed via
+  `install-settings.sh`, which unions this snippet into
+  `~/.claude/settings.json`. Removed the 9 `Write(...)` lines, keeping only
+  `Edit(...)`; verified with a clean `claude --debug -p` run (zero warnings)
+  after applying the same fix to the live `~/.claude/settings.json`. Why this
+  approach: delete the dead rules rather than suppress the warning, since the
+  `Edit(...)` rules already fully cover the intended protection — no
+  functional loss. Considered and rejected: none — this was a
+  straightforward dead-code removal once the warning pointed at the exact
+  redundant lines. The separate Cursor snippet
+  (`settings-permissions.cursor.snippet.json`) only ever used `Write(...)`
+  rules with no `Edit(...)` counterpart, so it isn't affected and was left
+  alone.
+
 ### Added
 - **Benchmark-informed model routing + the `~/.ai/` governance layer
   (2026-07-21, Claude).** New `MODEL-ROUTING.md` — an advisory, per-task-type

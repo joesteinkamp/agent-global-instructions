@@ -1,6 +1,6 @@
 ---
 description: Set up parallel-agent git worktrees and converge them into one live dev tree
-argument-hint: [agent names, e.g. "claude codex gemini"]
+argument-hint: [agent names, e.g. "claude codex antigravity"]
 allowed-tools: Bash(git:*), Bash(./converge.sh:*)
 ---
 
@@ -12,7 +12,7 @@ Current state:
 Set up isolated worktrees so several AI agents can work this repo in parallel,
 then converge their branches into a single **integration** tree that one dev
 server watches — so I see everyone's changes near-live. $ARGUMENTS are the agent
-names (default: `claude codex gemini`).
+names (default: `claude codex antigravity`).
 
 Steps:
 1. **Pick the integration tree.** The current checkout is it. If I'm on a

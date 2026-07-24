@@ -1,13 +1,13 @@
 ---
 description: Run a multi-role review team on recent changes to find improvement opportunities
 argument-hint: [optional focus, e.g. "perf" or a path]
-allowed-tools: Bash(git:*), Bash(command:*), Bash(codex:*), Bash(agy:*), Bash(gemini:*), Bash(claude:*), Bash(agent:*), Bash(cursor-agent:*), Task, Read, Grep, Glob
+allowed-tools: Bash(git:*), Bash(command:*), Bash(codex:*), Bash(agy:*), Bash(claude:*), Bash(agent:*), Bash(cursor-agent:*), Task, Read, Grep, Glob
 ---
 
 Changed files: !`git --no-pager diff --stat HEAD 2>/dev/null`
 Untracked: !`git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
 Recent commits: !`git --no-pager log --oneline -5 2>/dev/null`
-Other AI CLIs installed: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent gemini 2>/dev/null | sed 's|.*/||'`
+Other AI CLIs installed: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
 
 Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). $ARGUMENTS
 

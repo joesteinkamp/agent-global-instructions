@@ -16,7 +16,7 @@ my-context.env    your answers: name, env, autonomy …     (personal, gitignore
 extras.local.md   personal sections spliced in verbatim   (personal, gitignored)
       │
       ▼   ./customize.sh
-rendered files    CLAUDE.md / AGENTS.md / GEMINI.md       (snapshots — generated)
+rendered files    CLAUDE.md / AGENTS.md                   (snapshots — generated)
 ```
 
 **The rendered files are snapshots — never edit them directly.** Anything you
@@ -46,9 +46,8 @@ Independent parts — use any subset; `./install.sh` wires them all:
    Both are explicit-only; one conservative Stop hook can mention them as
    optional follow-ups after a material code change, but never runs them.
 5. **Settings** (per tool) — a client-enforced permissions layer mapped to each
-   tool's native model (Claude & Cursor deny rules, Codex sandbox + approval,
-   Gemini Policy Engine) that backs up the guard hooks with rules the model
-   can't bypass.
+   tool's native model (Claude & Cursor deny rules, Codex sandbox + approval)
+   that backs up the guard hooks with rules the model can't bypass.
 
 ## What's here
 
@@ -61,10 +60,10 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `extras.local.md` | Optional, gitignored — personal Markdown sections spliced verbatim into every render at `{{EXTRAS}}`. |
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
 | `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
-| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor,gemini}/`, gitignored — regenerated on every install) → `install-commands.sh` installs Claude/Cursor/Gemini commands and Codex skills (`~/.codex/skills/`); skill-backed commands symlink globally for Claude, Codex, and Cursor. |
+| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor}/`, gitignored — regenerated on every install) → `install-commands.sh` installs Claude/Cursor commands and Codex skills (`~/.codex/skills/`); skill-backed commands symlink globally for Claude, Codex, and Cursor. |
 | `.agents/skills/` (+ `.claude/skills/` + `.cursor/skills/` symlinks) + `skills-lock.json` | Third-party Skills vendored via [`npx skills`](https://skills.sh), project-scoped so they ship with the repo. `.agents/skills/` is the canonical Agent-Skills-standard tree; `.claude/skills/` and `.cursor/skills/` entries are symlinks into it. Currently: `grill-me` / `grill-with-docs` plus their primitives `grilling` and `domain-modeling`, and `ux-audit` (from [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill); skill-backed — `install-commands.sh` symlinks it globally for Claude/Codex/Cursor in place of the `/ux-audit` wrapper). Re-sync with `npx skills update`; the lockfile pins each skill's upstream source + hash. `grill-me` is also promoted to a globally-installed command (see `commands/grill-me.md` below) so `/grill-me` works in any project, not just this repo's checkout. |
-| `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Gemini). |
-| `*-permissions.snippet.*` + `policies/` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval, Gemini Policy Engine rules (idempotent, backed up). |
+| `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Antigravity). |
+| `*-permissions.snippet.*` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
 | `converge.sh` | Daemon for the `/worktrees` flow: folds parallel agent branches (`ai/*`) into the integration branch as they advance. |
 | `MODEL-ROUTING.md` | Advisory, benchmark-derived table of which installed AI CLI is strongest per task type (hard coding, review, research, planning, UI, cheap fan-out, long-context). Mirrored to `~/.ai/model-routing.md` by `customize.sh --global` so the rendered instructions can point agents at it; refreshed on demand with `/update-model-routing`. |
@@ -72,7 +71,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `.github/workflows/ci.yml` | CI: shellcheck every script + run `test.sh` on push / PR. |
 | `test.sh` | Smoke tests: render engine, the `load_env` parser, example reproducibility, and installer/uninstaller smoke tests. |
 
-Rendered output (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`), your `my-context.env`,
+Rendered output (`AGENTS.md`, `CLAUDE.md`), your `my-context.env`,
 `extras.local.md`, `mcp-rules.local`, the generated command ports, and the
 `verify/` + `audits/` artifacts are **gitignored** — they're personal or
 generated; produce them locally. Want to see finished output first? Read
@@ -124,15 +123,13 @@ every option:
 
 Portable prompt shortcuts. `commands/*.md` is the **single source of truth**
 (Claude dialect). `./render-commands.sh` translates each into the other tools'
-dialects under `commands/{codex,cursor,gemini}/` — per-tool frontmatter, argument
-tokens (`$ARGUMENTS` → `{{args}}` for Gemini), and shell-injection (`` !`cmd` ``
-→ `!{cmd}` for Gemini, → "run `cmd`" for Codex/Cursor). Those ports are
-**generated and gitignored** — `./install-commands.sh` re-renders on every run.
-`./install-commands.sh [tool ...]` installs each into the right place — Claude
-`~/.claude/commands/`, Codex skills under `~/.codex/skills/` (invoked
-`$<name>`), Cursor `~/.cursor/commands/`, Gemini `~/.gemini/commands/`
-(`.toml`). Add a command once as `commands/<name>.md` and all four tools pick
-it up.
+dialects under `commands/{codex,cursor}/` — per-tool frontmatter, argument
+tokens, and shell-injection (`` !`cmd` `` → "run `cmd`" for Codex/Cursor).
+Those ports are **generated and gitignored** — `./install-commands.sh`
+re-renders on every run. `./install-commands.sh [tool ...]` installs each into
+the right place — Claude `~/.claude/commands/`, Codex skills under
+`~/.codex/skills/` (invoked `$<name>`), Cursor `~/.cursor/commands/`. Add a
+command once as `commands/<name>.md` and every tool picks it up.
 
 | Command | Does |
 |---------|------|
@@ -143,7 +140,7 @@ it up.
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
 | `/update-model-routing` | Deep-research current public model benchmarks (SWE-bench Verified, Terminal-Bench, LMArena, …) and refresh `MODEL-ROUTING.md` — the advisory per-task-type vendor rankings mirrored to `~/.ai/model-routing.md`. Shows the diff for approval before anything is kept. Runs in this repo's checkout only. |
-| `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots); Gemini gets the wrapper command's inline rubric. Writes + serves a self-contained HTML report. |
+| `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots). Writes + serves a self-contained HTML report. |
 
 **Command groups.** A command declares `group: <name>` in its frontmatter
 (absent ⇒ `core`, always installed). The **`design`** group
@@ -156,8 +153,7 @@ external [project-starter-pack](https://github.com/joesteinkamp/project-starter-
 **vendored in-repo** at `.agents/skills/ux-audit` (pinned in
 `skills-lock.json`; re-sync with `npx skills update`) and this repo is its
 installer — `install-commands.sh` symlinks it into `~/.claude/skills`,
-`~/.codex/skills`, and `~/.cursor/skills`, while Gemini gets the `/ux-audit`
-wrapper command (no skill support there).
+`~/.codex/skills`, and `~/.cursor/skills`.
 
 **Improving the ux-audit skill — one-way sync.** The skill is a **separate
 project** developed in its own working checkout of the GitHub repo (e.g.
@@ -169,17 +165,18 @@ in place — it's a synced vendor copy and the next update overwrites it.
 
 ## 3. Guardrails & observability (hooks)
 
-One set of scripts serves **Claude Code, Codex, Cursor, Gemini (CLI), and
-Antigravity** — a `HOOK_PLATFORM` env var (set by the installer) makes each block
-in the right dialect (exit-2 for Claude/Codex, `{"decision":"deny"}` for Gemini,
-`{"permission":"deny"}` for Cursor, `{"allow_tool":false,"deny_reason":…}`+exit-0
-for Antigravity). `./install-hooks.sh [claude|codex|cursor|gemini|antigravity]`
-merges them into each tool's config (idempotent, backs up first). Codex surfaces
-file edits via `apply_patch`, so path-guard + auto-format are wired there too;
-Cursor has no blocking pre-edit event, so its write-protection comes from the
-permissions layer while the hook guards secret *reads*. **Antigravity** is a
-separate tool from the Gemini CLI with its own hooks schema — it's **opt-in**
-(`./install-hooks.sh antigravity`), not in the default set. Full detail in
+One set of scripts serves **Claude Code, Codex, Cursor, and Antigravity** — a
+`HOOK_PLATFORM` env var (set by the installer) makes each block in the right
+dialect (exit-2 for Claude/Codex, `{"permission":"deny"}` for Cursor,
+`{"allow_tool":false,"deny_reason":…}`+exit-0 for Antigravity).
+`./install-hooks.sh [claude|codex|cursor|antigravity]` merges them into each
+tool's config (idempotent, backs up first). Codex surfaces file edits via
+`apply_patch`, so path-guard + auto-format are wired there too; Cursor has no
+blocking pre-edit event, so its write-protection comes from the permissions
+layer while the hook guards secret *reads*. **Antigravity** has its own hooks
+schema and its config path lives under `~/.gemini/antigravity-cli/` for
+historical reasons — it's in the **default target set**, installing where
+present and skipping gracefully otherwise. Full detail in
 [`hooks/README.md`](../hooks/README.md).
 
 | Hook | Fires | Does |
@@ -213,8 +210,6 @@ adds the **client-enforced** half, mapped to each tool's native model:
   in `~/.codex/config.toml` (a managed, sentinel-delimited block; skipped if you
   already set those keys). Codex's sandbox is directory-scoped, so fine-grained
   path-deny stays with the `guard-paths` hook. Tune via `codex-permissions.snippet.toml`.
-- **Gemini** — Policy Engine `deny`/`ask_user` rules dropped at
-  `~/.gemini/policies/gemini-guardrails.toml`, plus `folderTrust` enabled.
 
 Merges are idempotent and backed up; `./uninstall.sh` removes exactly these.
 
@@ -268,8 +263,7 @@ Run `./test.sh` after any change.
 `customize.sh --global` (run by `install.sh`) renders **one** file,
 `~/AGENTS.md`, and points each tool at it:
 
-- `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md` are **symlinks** — those
-  tools only ever read their file.
+- `~/.codex/AGENTS.md` is a **symlink** — Codex only ever reads that file.
 - `~/.claude/CLAUDE.md` is a small **real file** containing `@~/AGENTS.md`
   (Claude Code's documented import syntax) — not a symlink, because Claude
   appends `#` memories and `/memory` edits to this file; through a symlink

@@ -14,7 +14,7 @@ Portable workflow shortcuts. Each top-level `.md` file is the canonical
 | `/improve` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities inline (HTML report on request), then tee them up as a ready-to-apply plan and offer to make the changes on your go-ahead. Nothing is edited until you approve. |
 | `/verify` | Product-grade evaluation of the recent work: prove it runs (build/test, headless browser with console/a11y/visual-regression evidence), then **grade how well it serves this session's goal** across goal-fit, experience quality, design/a11y, and product fit. Holds the briefs (`PRODUCT`/`DESIGN`/`CODE.md`) as reference — not gospel — and separates intentional evolution (docs to update) from real regressions as the code outruns the docs. Inline scorecard by default (HTML report on request), then a ready-to-apply fix plan on your go-ahead. Nothing is edited until you approve. |
 | `/update-model-routing` | Deep-research current public model benchmarks (SWE-bench Verified, Terminal-Bench, LMArena, …) and refresh `MODEL-ROUTING.md` — the advisory table of which installed AI CLI is strongest per task type, mirrored to `~/.ai/model-routing.md` for the orchestration instructions to consult. Every ranking claim carries a source + retrieval date; independent leaderboards outrank vendor numbers. Shows the diff for approval before anything is kept; only runs inside this repo's checkout. |
-| `/ux-audit` | *(design, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills` + `~/.codex/skills` at install, so Claude/Codex run the real engine — 15 UX heuristic frameworks, 0–100 scores, annotated screenshots. Cursor/Gemini (no skill support) get this wrapper command, which runs the heuristic rubric inline. Writes + serves a self-contained HTML report. |
+| `/ux-audit` | *(design, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install, so Claude/Codex/Cursor run the real engine — 15 UX heuristic frameworks, 0–100 scores, annotated screenshots. Writes + serves a self-contained HTML report. |
 
 Most take optional arguments, e.g. `/ship fix login redirect` uses that as the
 commit message / PR title. In Codex, write `$ship fix login redirect`.
@@ -30,12 +30,11 @@ decides what gets **installed**.
 **Skill-backed commands.** A canonical command that declares
 `skill-backed: true` in its frontmatter — promising a same-named vendored
 skill at `.agents/skills/<name>`, pinned in `../skills-lock.json` — installs
-on the skill-capable tools (Claude, Codex) as a **symlink to the real skill**
-instead of the wrapper command — one `/<name>`, the full engine, no duplicate
-menu entry. Opt-in, not name-matched: a same-named vendored skill may be a
-project-scoped stub (e.g. `grill-me`) while the command is the deliberately
-self-contained global version. Cursor/Gemini keep the wrapper (its inline
-fallback path).
+on the skill-capable tools (Claude, Codex, Cursor) as a **symlink to the real
+skill** instead of the wrapper command — one `/<name>`, the full engine, no
+duplicate menu entry. Opt-in, not name-matched: a same-named vendored skill
+may be a project-scoped stub (e.g. `grill-me`) while the command is the
+deliberately self-contained global version.
 Currently: `/ux-audit` → `.agents/skills/ux-audit`, synced from
 [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill)
 via `npx skills update`. That skill is a **separate project** with its own
@@ -48,8 +47,8 @@ body that embeds shell output with `` !`cmd` `` and arguments with `$ARGUMENTS`.
 They are the **single source of truth** — edit here only.
 
 **Ports are generated, never committed or hand-edited.** `../render-commands.sh`
-translates the canonical files into each tool's dialect under `codex/`, `cursor/`,
-`gemini/` (gitignored; `../install-commands.sh` re-renders on every install, so a
+translates the canonical files into each tool's dialect under `codex/`, `cursor/`
+(gitignored; `../install-commands.sh` re-renders on every install, so a
 hand-edit to a port never reaches your tools):
 
 - `codex/<name>/SKILL.md` → `~/.codex/skills/<name>/SKILL.md` (invoke
@@ -57,9 +56,7 @@ hand-edit to a port never reaches your tools):
   `` !`cmd` `` → `` run `cmd` `` and passes any typed focus as request context.
 - `cursor/*.md` → `~/.cursor/commands/`; plain Markdown (no frontmatter); same
   `` !`cmd` `` → `` run `cmd` `` rewrite, with a note about `$ARGUMENTS`.
-- `gemini/*.toml` → `~/.gemini/commands/`; TOML `prompt`/`description`,
-  `$ARGUMENTS` → `{{args}}`, `` !`cmd` `` → `!{cmd}` shell injection.
 
-Add a command once as `<name>.md` and all four tools pick it up. `../test.sh`
+Add a command once as `<name>.md` and every tool picks it up. `../test.sh`
 checks render is idempotent, applies the dialect transforms, and yields a port
 for every canonical command.

@@ -407,7 +407,7 @@ if command -v jq >/dev/null 2>&1; then
      && [ ! -e "$SMOKE2/.claude/skills/ux-audit" ] \
      && [ -f "$SMOKE2/AGENTS.md" ] \
      && [ ! -L "$SMOKE2/.claude/CLAUDE.md" ] && grep -qF '@~/AGENTS.md' "$SMOKE2/.claude/CLAUDE.md" \
-     && [ -L "$SMOKE2/.codex/AGENTS.md" ] && [ ! -e "$SMOKE2/.gemini/GEMINI.md" ] \
+     && [ -L "$SMOKE2/.codex/AGENTS.md" ] \
      && [ -f "$SMOKE2/.claude/CHANGELOG.md" ] \
      && [ -f "$SMOKE2/.ai/clis" ] && [ ! -e "$SMOKE2/.ai-logs/ai-clis" ] \
      && cmp -s "$DIR/MODEL-ROUTING.md" "$SMOKE2/.ai/model-routing.md"; then
@@ -426,18 +426,11 @@ if command -v jq >/dev/null 2>&1; then
     && ok "claude pointer preserves hand additions across re-renders" \
     || bad "claude pointer preserves hand additions across re-renders"
 
-  # Legacy gemini pointer is opt-in now (default absence asserted above):
-  # WIRE_GEMINI=y wires it, and the gemini uninstall below removes it again.
-  HOME="$SMOKE2" WIRE_GEMINI=y AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
-  [ -L "$SMOKE2/.gemini/GEMINI.md" ] \
-    && ok "WIRE_GEMINI=y opts the legacy gemini pointer back in" \
-    || bad "WIRE_GEMINI=y opts the legacy gemini pointer back in"
-
   # uninstall reverses the pointers: with no pre-existing backup they are
   # removed; ~/AGENTS.md itself stays.
-  HOME="$SMOKE2" bash "$DIR/uninstall.sh" claude codex gemini >/dev/null 2>&1
+  HOME="$SMOKE2" bash "$DIR/uninstall.sh" claude codex >/dev/null 2>&1
   { [ ! -e "$SMOKE2/.claude/CLAUDE.md" ] && [ ! -e "$SMOKE2/.codex/AGENTS.md" ] \
-    && [ ! -e "$SMOKE2/.gemini/GEMINI.md" ] && [ -f "$SMOKE2/AGENTS.md" ]; } \
+    && [ -f "$SMOKE2/AGENTS.md" ]; } \
     && ok "uninstall removes our pointers (no backups) and keeps ~/AGENTS.md" \
     || bad "uninstall removes our pointers (no backups) and keeps ~/AGENTS.md"
   rm -rf "$SMOKE2"
@@ -456,7 +449,7 @@ if command -v jq >/dev/null 2>&1; then
   # render fails — otherwise every tool dangles on a missing/stale target.
   # (Skipped as root, where an unwritable $HOME doesn't fail the render.)
   if [ "$(id -u)" != 0 ]; then
-    SMK3="$(mktemp -d)"; mkdir -p "$SMK3/.claude" "$SMK3/.codex" "$SMK3/.gemini"
+    SMK3="$(mktemp -d)"; mkdir -p "$SMK3/.claude" "$SMK3/.codex"
     chmod 555 "$SMK3"    # $HOME unwritable => the ~/AGENTS.md render fails
     HOME="$SMK3" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
     if [ ! -e "$SMK3/.claude/CLAUDE.md" ] && [ ! -L "$SMK3/.claude/CLAUDE.md" ]; then
@@ -471,9 +464,9 @@ if command -v jq >/dev/null 2>&1; then
   bash "$DIR/render-commands.sh" >/dev/null 2>&1 \
     && ok "render-commands.sh runs" || bad "render-commands.sh runs"
   # Idempotent: a second render produces byte-identical output (snapshot model).
-  RC1="$(mktemp -d)"; cp -r "$DIR/commands/gemini" "$RC1/g" 2>/dev/null
+  RC1="$(mktemp -d)"; cp -r "$DIR/commands/codex" "$RC1/c" 2>/dev/null
   bash "$DIR/render-commands.sh" >/dev/null 2>&1
-  diff -rq "$DIR/commands/gemini" "$RC1/g" >/dev/null 2>&1 \
+  diff -rq "$DIR/commands/codex" "$RC1/c" >/dev/null 2>&1 \
     && ok "render-commands is idempotent" || bad "render-commands is idempotent"
   rm -rf "$RC1"
   # Faithful dialect transforms — ship-specific positives plus invariants across
@@ -481,17 +474,11 @@ if command -v jq >/dev/null 2>&1; then
   ft=1
   grep -q '^name: "ship"'  "$DIR/commands/codex/ship/SKILL.md" || ft=0 # Codex skill metadata
   grep -q 'run `git branch' "$DIR/commands/codex/ship/SKILL.md" || ft=0 # !`cmd` -> run `cmd`
-  grep -q '{{args}}'        "$DIR/commands/gemini/ship.toml"  || ft=0   # gemini $ARGUMENTS -> {{args}}
-  grep -q '!{git branch'    "$DIR/commands/gemini/ship.toml"  || ft=0   # gemini !`cmd` -> !{cmd}
   head -1 "$DIR/commands/cursor/ship.md" | grep -q '^<!--'    || ft=0   # cursor: no frontmatter
   for cf in "$DIR"/commands/codex/*/SKILL.md; do
     grep -q '^allowed-tools' "$cf" && ft=0                              # allowed-tools dropped everywhere
     grep -qF '!`' "$cf" && ft=0                                          # no leftover !`cmd` injection
     grep -q '^<!-- GENERATED' "$cf" || ft=0                               # marker is in the skill body
-  done
-  for gf in "$DIR"/commands/gemini/*.toml; do
-    grep -q '\$ARGUMENTS' "$gf" && ft=0                                  # every $ARGUMENTS -> {{args}}
-    grep -qF '!`' "$gf" && ft=0
   done
   # The cursor argument note appears IFF the canonical command uses $ARGUMENTS.
   for md in "$DIR"/commands/*.md; do
@@ -505,7 +492,7 @@ if command -v jq >/dev/null 2>&1; then
   [ "$ft" = 1 ] && ok "render-commands applies the per-tool dialect transforms (all ports)" \
                 || bad "render-commands applies the per-tool dialect transforms (all ports)"
 
-  # ---- multi-tool: codex / cursor / gemini command ports, hooks, settings ----
+  # ---- multi-tool: codex / cursor command ports, hooks, settings ----
   # Every canonical command has a port in each tool dir (a missing port = a
   # command silently absent in that tool).
   miss=""
@@ -514,9 +501,8 @@ if command -v jq >/dev/null 2>&1; then
     cn="$(basename "$c" .md)"
     [ -f "$DIR/commands/codex/$cn/SKILL.md" ] || miss="$miss codex/$cn"
     [ -f "$DIR/commands/cursor/$cn.md" ]   || miss="$miss cursor/$cn"
-    [ -f "$DIR/commands/gemini/$cn.toml" ] || miss="$miss gemini/$cn"
   done
-  [ -z "$miss" ] && ok "every canonical command has a codex/cursor/gemini port" \
+  [ -z "$miss" ] && ok "every canonical command has a codex/cursor port" \
                  || bad "missing command ports:$miss"
 
   # ---- command groups: the design group is INC_DESIGN-gated at install time ----
@@ -528,9 +514,8 @@ if command -v jq >/dev/null 2>&1; then
     || bad "customize --design-group (got default=$dg_def explicit-n=$dg_off)"
 
   # Explicit flags gate the design pack and prune it when turned off. The design
-  # command (/ux-audit) is skill-backed: on claude/cursor the vendored skill symlinks in
-  # and the wrapper command must NOT install (no duplicate menu entry); gemini
-  # has no skill support and gets the wrapper.
+  # command (/ux-audit) is skill-backed: on claude/cursor the vendored skill
+  # symlinks in and the wrapper command must NOT install (no duplicate menu entry).
   count_design() {  # $1 = HOME root -> 1 if the claude design skill link is present
     [ -L "$1/.claude/skills/ux-audit" ] && printf 1 || printf 0
   }
@@ -674,54 +659,17 @@ if command -v jq >/dev/null 2>&1; then
     || bad "retired prune (audit=$([ -f "$GC/audit.md" ] && echo present || echo gone) backup=$(grep -q "the user's own audit notes" "$GC"/audit.md.bak.* 2>/dev/null && echo yes || echo MISSING))"
   rm -rf "$GT"
 
-  # Group gating isn't claude-only: the gemini port maps <name>.toml back to the
-  # canonical commands/<name>.md group (${base%.*} across a different extension).
-  GT="$(mktemp -d)"; GG="$GT/.gemini/commands"
-  count_design_toml() { [ -f "$GG/ux-audit.toml" ] && printf 1 || printf 0; }
-  HOME="$GT" "$DIR/install-commands.sh" --no-design gemini >/dev/null 2>&1
-  g_off=$(count_design_toml)
-  HOME="$GT" "$DIR/install-commands.sh" --design gemini >/dev/null 2>&1
-  g_on=$(count_design_toml)
-  { [ "$g_off" = 0 ] && [ "$g_on" = 1 ]; } \
-    && ok "design group gating works for the gemini .toml dialect" \
-    || bad "gemini design gating (off=$g_off on=$g_on)"
-  rm -rf "$GT"
-
-  # Gemini command TOML + the TOML permission snippets parse.
+  # Codex permissions TOML snippet parses.
   if command -v python3 >/dev/null 2>&1; then
-    if python3 -c "import tomllib,glob; [tomllib.load(open(f,'rb')) for f in glob.glob('$DIR/commands/gemini/*.toml')+['$DIR/policies/gemini-guardrails.toml','$DIR/codex-permissions.snippet.toml']]" 2>/dev/null; then
-      ok "gemini command TOML + TOML snippets parse"
+    if python3 -c "import tomllib; tomllib.load(open('$DIR/codex-permissions.snippet.toml','rb'))" 2>/dev/null; then
+      ok "codex permissions TOML snippet parses"
     else
-      bad "gemini command TOML + TOML snippets parse"
+      bad "codex permissions TOML snippet parses"
     fi
   fi
   jq -e '.permissions.deny | length > 0' "$DIR/settings-permissions.cursor.snippet.json" >/dev/null 2>&1 \
     && ok "cursor permissions snippet is valid with deny rules" \
     || bad "cursor permissions snippet is valid with deny rules"
-
-  # Gemini argsPattern must fire against the JSON-serialized tool args (the form
-  # the Policy Engine matches) — guards the anchor bug where .env / root-relative
-  # build dirs silently never match (leaving only the best-effort hook).
-  if command -v python3 >/dev/null 2>&1; then
-    if python3 - "$DIR/policies/gemini-guardrails.toml" <<'PY' 2>/dev/null
-import sys, re, tomllib
-rules = tomllib.load(open(sys.argv[1], "rb"))["rule"]
-def names(r): return r["toolName"] if isinstance(r["toolName"], list) else [r["toolName"]]
-pat = next(r["argsPattern"] for r in rules if "write_file" in names(r))
-rx = re.compile(pat)
-must = ['{"content":"x","file_path":"/home/u/proj/.env"}',
-        '{"content":"x","file_path":".env.local"}',
-        '{"file_path":"build/app.js"}',
-        '{"file_path":"node_modules/x/i.js"}',
-        '{"file_path":"/p/package-lock.json"}']
-mustnot = ['{"file_path":"src/app.js"}', '{"file_path":"README.md"}']
-assert all(rx.search(s) for s in must), "a protected arg did not match"
-assert not any(rx.search(s) for s in mustnot), "a benign arg matched"
-PY
-    then ok "gemini argsPattern matches JSON-serialized protected args"
-    else bad "gemini argsPattern matches JSON-serialized protected args"
-    fi
-  fi
 
   # Vendored skills: every .claude/skills and .cursor/skills entry must be a
   # SYMLINK resolving into the canonical .agents/skills tree — parity by
@@ -738,15 +686,13 @@ PY
                     || bad ".claude/.cursor skills symlinks into .agents/skills (canonical tree)"
 
   MT="$(mktemp -d)"
-  # gemini is opt-in now (defaults swap it for antigravity) — name targets explicitly.
-  HOME="$MT" bash "$DIR/install-commands.sh" claude codex cursor gemini >/dev/null 2>&1
+  HOME="$MT" bash "$DIR/install-commands.sh" claude codex cursor >/dev/null 2>&1
   if [ -f "$MT/.codex/skills/ship/SKILL.md" ] && [ -f "$MT/.cursor/commands/ship.md" ] \
-     && [ -f "$MT/.gemini/commands/ship.toml" ] \
      && [ -L "$MT/.codex/skills/ux-audit" ] && [ -f "$MT/.codex/skills/ux-audit/SKILL.md" ] \
      && [ -L "$MT/.cursor/skills/ux-audit" ] && [ -f "$MT/.cursor/skills/ux-audit/SKILL.md" ]; then
-    ok "install-commands installs codex/cursor/gemini ports (+ skill-backed symlinks)"
+    ok "install-commands installs codex/cursor ports (+ skill-backed symlinks)"
   else
-    bad "install-commands installs codex/cursor/gemini ports (+ skill-backed symlinks)"
+    bad "install-commands installs codex/cursor ports (+ skill-backed symlinks)"
   fi
 
   # Cursor hooks: top-level version:1, flat entries, idempotent through merge.
@@ -890,15 +836,14 @@ PY
     rm -rf "$CT"
   fi
 
-  # Settings: cursor deny merge + codex managed block + gemini policy, idempotent.
-  HOME="$MT" bash "$DIR/install-settings.sh" cursor codex gemini >/dev/null 2>&1
-  HOME="$MT" bash "$DIR/install-settings.sh" cursor codex gemini >/dev/null 2>&1
+  # Settings: cursor deny merge + codex managed block, idempotent.
+  HOME="$MT" bash "$DIR/install-settings.sh" cursor codex >/dev/null 2>&1
+  HOME="$MT" bash "$DIR/install-settings.sh" cursor codex >/dev/null 2>&1
   s_ok=1
   jq -e '.permissions.deny | length > 0' "$MT/.cursor/cli-config.json" >/dev/null 2>&1 || s_ok=0
   [ "$(grep -c 'agent-global-instructions (codex permissions)' "$MT/.codex/config.toml" 2>/dev/null)" = "2" ] || s_ok=0
-  [ -f "$MT/.gemini/policies/gemini-guardrails.toml" ] || s_ok=0
-  [ "$s_ok" = 1 ] && ok "install-settings wires cursor/codex/gemini permissions (idempotent)" \
-                  || bad "install-settings wires cursor/codex/gemini permissions (idempotent)"
+  [ "$s_ok" = 1 ] && ok "install-settings wires cursor/codex permissions (idempotent)" \
+                  || bad "install-settings wires cursor/codex permissions (idempotent)"
 
   # Codex duplicate-key guard: never append when the user already set the keys.
   printf 'approval_policy = "never"\n' > "$MT/.codex/config.toml"
@@ -907,14 +852,14 @@ PY
     && ok "install-settings respects an existing codex approval_policy" \
     || bad "install-settings respects an existing codex approval_policy"
 
-  # uninstall reverses commands/hooks/policy for all four tools — removing only
+  # uninstall reverses commands/hooks/policy for these tools — removing only
   # what we installed. Plant user-owned skills entries plus one dangling link of
   # ours to lock in remove_skill_links' ownership boundary.
   ln -s /external/foo "$MT/.codex/skills/foo"
   mkdir -p "$MT/.codex/skills/myown" && echo mine > "$MT/.codex/skills/myown/SKILL.md"
   ln -s "$DIR/.agents/skills/ghost" "$MT/.claude/skills/ghost"
   ln -s "$DIR/.agents/skills/ghost" "$MT/.cursor/skills/ghost"
-  HOME="$MT" bash "$DIR/uninstall.sh" claude codex cursor gemini >/dev/null 2>&1
+  HOME="$MT" bash "$DIR/uninstall.sh" claude codex cursor >/dev/null 2>&1
   u_ok=1
   [ -L "$MT/.codex/skills/foo" ]            || u_ok=0   # foreign link spared
   [ -f "$MT/.codex/skills/myown/SKILL.md" ] || u_ok=0   # user's real skill spared
@@ -926,12 +871,34 @@ PY
   [ -e "$MT/.claude/skills/ux-audit" ]       && u_ok=0
   [ -e "$MT/.cursor/skills/ux-audit" ]      && u_ok=0
   [ -f "$MT/.cursor/commands/ship.md" ]     && u_ok=0
-  [ -f "$MT/.gemini/commands/ship.toml" ]   && u_ok=0
   jq -e '(.hooks // {}) | length > 0' "$MT/.cursor/hooks.json" >/dev/null 2>&1 && u_ok=0
-  [ -f "$MT/.gemini/policies/gemini-guardrails.toml" ] && u_ok=0
   [ "$u_ok" = 1 ] && ok "uninstall reverses commands/hooks/settings for all tools" \
                   || bad "uninstall reverses commands/hooks/settings for all tools"
   rm -rf "$MT"
+
+  # Legacy gemini cleanup: `uninstall.sh gemini` strips whatever a
+  # pre-retirement install left behind, without needing render-commands.sh's
+  # (now-removed) gemini port as a comparison source.
+  GL="$(mktemp -d)"
+  mkdir -p "$GL/.gemini/commands" "$GL/.gemini/policies" "$GL/.gemini/hooks"
+  printf '# GENERATED from commands/ship.md by render-commands.sh — do not edit.\ndescription = "x"\n\nprompt = ..."\n' \
+    > "$GL/.gemini/commands/ship.toml"
+  echo "not ours" > "$GL/.gemini/commands/my-own.toml"
+  jq -n --arg cmd "env HOOK_PLATFORM=gemini \"$GL/.gemini/hooks/guard-bash.sh\"" \
+    '{hooks:{BeforeTool:[{matcher:"run_shell_command",hooks:[{type:"command",command:$cmd}]}]}}' \
+    > "$GL/.gemini/settings.json"
+  echo "policy rules" > "$GL/.gemini/policies/gemini-guardrails.toml"
+  echo "agents" > "$GL/AGENTS.md"; ln -s "$GL/AGENTS.md" "$GL/.gemini/GEMINI.md"
+  HOME="$GL" bash "$DIR/uninstall.sh" gemini >/dev/null 2>&1
+  gl_ok=1
+  [ -f "$GL/.gemini/commands/ship.toml" ]     && gl_ok=0   # our generated port removed
+  [ -f "$GL/.gemini/commands/my-own.toml" ]   || gl_ok=0   # the user's own file spared
+  jq -e '(.hooks // {}) | length > 0' "$GL/.gemini/settings.json" >/dev/null 2>&1 && gl_ok=0
+  [ -f "$GL/.gemini/policies/gemini-guardrails.toml" ] && gl_ok=0
+  [ -e "$GL/.gemini/GEMINI.md" ]              && gl_ok=0   # our pointer removed
+  [ "$gl_ok" = 1 ] && ok "uninstall.sh gemini cleans up a pre-retirement legacy install" \
+                    || bad "uninstall.sh gemini cleans up a pre-retirement legacy install"
+  rm -rf "$GL"
 else
   echo "  (skipped — jq not installed)"
 fi

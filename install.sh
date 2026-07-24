@@ -10,7 +10,7 @@
 #
 # Layers (each applied to whichever targets you name):
 #   - instructions (customize.sh --global): all tools, always — the portable core.
-#   - commands (install-commands.sh):       per tool (~/.claude, ~/.codex/skills, ~/.cursor, ~/.gemini).
+#   - commands (install-commands.sh):       per tool (~/.claude, ~/.codex/skills, ~/.cursor).
 #   - hooks (install-hooks.sh):             per tool.
 #   - settings/permissions (install-settings.sh): per tool (native model differs; see that script).
 #
@@ -28,11 +28,10 @@ for a in "$@"; do
     --yes|-y) yes_flag="--yes";;
     --design) design_flag=(--design);;
     --no-design) design_flag=(--no-design);;
-    claude|codex|cursor|gemini|antigravity) targets+=("$a");;
-    *) echo "unknown arg: $a (use: --yes | --design | --no-design | claude | codex | cursor | gemini | antigravity)" >&2; exit 1;;
+    claude|codex|cursor|antigravity) targets+=("$a");;
+    *) echo "unknown arg: $a (use: --yes | --design | --no-design | claude | codex | cursor | antigravity)" >&2; exit 1;;
   esac
 done
-# Default covers the tools in active use; the legacy Gemini CLI is opt-in (name it explicitly).
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 
 echo "== instructions =="

@@ -10,11 +10,13 @@
 #
 # Removes, per tool: our hook entries (matched by hook-script name), the
 # permissions we added (Claude/Cursor JSON rules subtracted; Codex managed TOML
-# block removed; Gemini policy file deleted), and the installed command files.
-# Each config is backed up first. The per-tool instruction POINTERS that
-# customize.sh --global installed (Claude's @import file, Codex/Gemini symlinks)
-# are restored from their newest backup (or removed if none). The rendered
-# ~/AGENTS.md itself and Gemini's folderTrust setting are LEFT IN PLACE.
+# block removed), and the installed command files. Each config is backed up
+# first. The per-tool instruction POINTER that customize.sh --global installed
+# (Claude's @import file, Codex's symlink) is restored from its newest backup
+# (or removed if none). The rendered ~/AGENTS.md itself is LEFT IN PLACE.
+#
+# `gemini` is accepted only to clean up artifacts from a pre-retirement install
+# (the Gemini CLI itself is no longer a supported target — see CHANGELOG).
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -35,7 +37,7 @@ trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
 # The per-tool ports are generated, not committed — regenerate them first so
 # remove_commands_dir / remove_codex_skills know which basenames are ours even
 # on a fresh clone. Best-effort: retired-name pruning still runs if this fails.
-# Side effect: leaves the (gitignored) commands/{codex,cursor,gemini}/ ports in
+# Side effect: leaves the (gitignored) commands/{codex,cursor}/ ports in
 # the working tree, same as any install run.
 [ -x "$DIR/render-commands.sh" ] && { "$DIR/render-commands.sh" >/dev/null 2>&1 || true; }
 
@@ -48,7 +50,7 @@ backup_file() {  # $1 = file to back up, keep 5 newest
 }
 
 # Reverse a global instruction pointer that customize.sh --global installed.
-# Handles both shapes: the Codex/Gemini symlink to ~/AGENTS.md and Claude's
+# Handles both shapes: the Codex symlink to ~/AGENTS.md and Claude's
 # generated @import pointer file — anything else at the path is left alone.
 # The current pointer file is backed up first (it may carry hand additions
 # below the import), then the newest PRE-EXISTING backup of the original is
@@ -85,7 +87,7 @@ edit_json() {  # $1 = file, $2 = jq program, $3.. = extra jq args
 }
 
 # Drop our hook entries. Handles BOTH shapes: nested .hooks[].command
-# (Claude/Codex/Gemini) and flat .command (Cursor).
+# (Claude/Codex) and flat .command (Cursor).
 strip_hooks() {  # $1 = settings file
   edit_json "$1" '
     if .hooks then
@@ -145,6 +147,20 @@ remove_commands_dir() {  # $1 = dest dir  $2 = src dir  $3 = ext
     [ -f "$dest/$old.$ext" ] && { backup_file "$dest/$old.$ext"; rm -f "$dest/$old.$ext"; n=$((n+1)); }
   done
   [ "$n" -gt 0 ] && echo "  removed $n command file(s) from $dest"
+  return 0
+}
+
+# Legacy-cleanup helper: remove every file under $1 that carries our GENERATED
+# marker, without diffing against a source dir (render-commands.sh no longer
+# generates a gemini port, so there is nothing current to compare against).
+remove_generated_toml() {  # $1 = dest dir
+  local dest="$1" f n=0
+  [ -d "$dest" ] || return 0
+  for f in "$dest"/*.toml; do
+    [ -f "$f" ] || continue
+    grep -q '^# GENERATED from commands/' "$f" 2>/dev/null && { rm -f "$f"; n=$((n+1)); }
+  done
+  [ "$n" -gt 0 ] && echo "  removed $n legacy command file(s) from $dest"
   return 0
 }
 
@@ -211,8 +227,9 @@ targets=()
 for a in "$@"; do
   case "$a" in
     --project) PROJECT=1;;
-    claude|codex|cursor|gemini|antigravity) targets+=("$a");;
-    *) echo "  unknown arg: $a (use: --project | claude codex cursor gemini antigravity)" >&2; exit 1;;
+    claude|codex|cursor|antigravity) targets+=("$a");;
+    gemini) targets+=("$a");;  # legacy cleanup only — see header comment
+    *) echo "  unknown arg: $a (use: --project | claude codex cursor antigravity | gemini for legacy cleanup)" >&2; exit 1;;
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
@@ -226,9 +243,9 @@ if [ "$PROJECT" = 1 ]; then
       claude)      remove_commands_dir "$DIR/.claude/commands"  "$DIR/commands"        md;;
       codex)       echo "  Codex skills are global; --project has no effect for codex";;
       cursor)      remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md;;
-      gemini)      remove_commands_dir "$DIR/.gemini/commands"  "$DIR/commands/gemini" toml;;
+      gemini)      remove_generated_toml "$DIR/.gemini/commands";;
       antigravity) echo "  antigravity installs no command files; --project has no effect for antigravity";;
-      *) echo "  unknown target: $t (use: claude codex cursor gemini antigravity)" >&2;;
+      *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
     esac
   done
   echo "Done. Removed in-repo (--project) command files only."
@@ -259,7 +276,10 @@ for t in "${targets[@]}"; do
       strip_permissions_json "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json"
       ;;
     gemini)
-      remove_commands_dir "$HOME/.gemini/commands" "$DIR/commands/gemini" toml
+      # Legacy cleanup only — the Gemini CLI is retired, so this strips whatever
+      # a pre-retirement install left behind rather than diffing against a
+      # source dir that no longer exists.
+      remove_generated_toml "$HOME/.gemini/commands"
       strip_hooks "$HOME/.gemini/settings.json"
       restore_global_pointer "$HOME/.gemini/GEMINI.md"
       if [ -f "$HOME/.gemini/policies/gemini-guardrails.toml" ]; then
@@ -270,8 +290,8 @@ for t in "${targets[@]}"; do
     antigravity)
       strip_antigravity_hooks "$HOME/.gemini/antigravity-cli/hooks.json"
       ;;
-    *) echo "  unknown target: $t (use: claude codex cursor gemini antigravity)" >&2;;
+    *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
   esac
 done
-echo "Done. Backups saved next to each file. ~/AGENTS.md (and Gemini folderTrust) left in place;"
+echo "Done. Backups saved next to each file. ~/AGENTS.md left in place;"
 echo "per-tool instruction pointers were restored from their newest backup where one existed."

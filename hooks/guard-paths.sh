@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # PreToolUse / BeforeTool guard: block edits to generated or sensitive paths
 # (build output, deps, lockfiles, .env). Works across Claude Code, Codex, Cursor,
-# and Antigravity/Gemini — install-hooks.sh sets HOOK_PLATFORM so this blocks in
+# and Antigravity — install-hooks.sh sets HOOK_PLATFORM so this blocks in
 # the right dialect (exit 2 + stderr for claude/codex; stdout decision JSON for
-# gemini/antigravity; stdout permission JSON for cursor).
+# antigravity; stdout permission JSON for cursor).
 #
 # Path sources differ by tool: most pass a single tool_input.file_path; Cursor's
 # beforeReadFile/afterFileEdit put file_path at the top level; Codex's apply_patch
@@ -24,7 +24,6 @@ cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
 
 block() {  # $1 = reason
   case "$PLATFORM" in
-    gemini)             jq -nc --arg r "$1" '{decision:"deny",reason:$r}'; exit 0;;
     antigravity)        jq -nc --arg r "$1" '{allow_tool:false,deny_reason:$r}'; exit 0;;  # exit 0: non-zero = hook failure, not a block
     cursor)             jq -nc --arg r "$1" '{permission:"deny",user_message:$r,agent_message:$r}'; exit 0;;
     *)                  echo "$1" >&2; exit 2;;
@@ -95,7 +94,7 @@ check_one() {  # $1 = file path
   return 0
 }
 
-# Single explicit path (Claude/Codex-Edit/Gemini tool_input, or Cursor top-level).
+# Single explicit path (Claude/Codex-Edit tool_input, or Cursor top-level).
 fp="$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.path // .tool_input.filePath // .tool_input.notebook_path // .file_path // .toolCall.args.TargetFile // empty' 2>/dev/null)"
 # Antigravity delivers args as JSON-encoded strings — TargetFile can arrive wrapped
 # in a literal quote pair; strip it so the protected-path globs actually match.

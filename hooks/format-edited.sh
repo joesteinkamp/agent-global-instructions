@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PostToolUse / AfterTool — auto-format the file just edited using the PROJECT's
 # Prettier or ESLint, if present. Cross-tool (Claude Code, Codex, Cursor,
-# Antigravity/Gemini); needs no block dialect since it never blocks: always
+# Antigravity); needs no block dialect since it never blocks: always
 # exits 0. Path sources mirror guard-paths.sh (single tool_input.file_path,
 # Cursor top-level file_path, or Codex apply_patch envelope paths).
 set -u

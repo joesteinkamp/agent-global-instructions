@@ -66,7 +66,7 @@ up**. Grade A–F; an **A** means you'd ship it proudly, not merely that it work
   with a before/after.
 
 **Second opinion — a model must not solely grade its own work.** Read the installed-CLI roster
-(`~/.ai/clis`, else `command -v codex agy claude agent cursor-agent gemini`), drop the one you are running
+(`~/.ai/clis`, else `command -v codex agy claude agent cursor-agent`), drop the one you are running
 as, and have each of the others — the more independent vendors the better — take the stated goal + the diff
 and independently
 grade **Goal fit** headless, with writes scoped to a context dir it reports into — the repo stays read-only

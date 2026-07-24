@@ -5,10 +5,10 @@
 #   ./customize.sh             interactive — asks questions, then writes output
 #   ./customize.sh --print     non-interactive — render to stdout (uses defaults
 #                              + my-context.env if present)
-#   ./customize.sh --project   non-interactive — write AGENTS/CLAUDE/GEMINI.md
+#   ./customize.sh --project   non-interactive — write AGENTS.md/CLAUDE.md
 #                              into this directory (uses defaults + my-context.env)
 #   ./customize.sh --global    non-interactive — write the machine-wide files
-#                              (~/.claude, ~/AGENTS.md, ~/.codex, ~/.gemini).
+#                              (~/.claude, ~/AGENTS.md, ~/.codex).
 #                              Prompts to confirm; add --yes (or -y) to skip the
 #                              prompt for scripted / zero-prompt re-runs.
 #   ./customize.sh --scan-mcp  detect MCP servers and write mcp-rules.local
@@ -371,7 +371,6 @@ write_project() {
   render_to "$DIR/AGENTS.md" || return 1
   echo "  wrote $DIR/AGENTS.md"
   cp "$DIR/AGENTS.md" "$DIR/CLAUDE.md"; echo "  wrote $DIR/CLAUDE.md"
-  cp "$DIR/AGENTS.md" "$DIR/GEMINI.md"; echo "  wrote $DIR/GEMINI.md"
 }
 
 # Back up $1 to a collision-free .bak name, keeping only the 5 newest backups.
@@ -385,7 +384,7 @@ backup_keep5() {
 
 # Machine-wide install: ONE rendered file (~/AGENTS.md) + per-tool pointers, so
 # every tool reads the same bytes and there is nothing to keep in sync.
-#   - Codex & Gemini: symlinks — they only ever read their file.
+#   - Codex: symlink — it only ever reads its file.
 #   - Claude Code: a real pointer FILE holding `@~/AGENTS.md` (the documented
 #     import pattern). NOT a symlink, because Claude appends `#` memories and
 #     /memory edits to ~/.claude/CLAUDE.md — through a symlink those writes
@@ -395,7 +394,14 @@ backup_keep5() {
 # a foreign symlink at a pointer path is replaced without backup (its target
 # file is untouched and still owns the content).
 write_global() {
-  mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.gemini"
+  mkdir -p "$HOME/.claude" "$HOME/.codex"
+  # The legacy Gemini CLI is retired (Antigravity replaced it and reads
+  # AGENTS.md natively). Clean up a stale pointer this script wrote in the
+  # past, but only our own symlink — never touch a real file at that path.
+  if [ -L "$HOME/.gemini/GEMINI.md" ] && [ "$(readlink "$HOME/.gemini/GEMINI.md")" = "$HOME/AGENTS.md" ]; then
+    rm -f "$HOME/.gemini/GEMINI.md"
+    echo "  removed stale ~/.gemini/GEMINI.md pointer (Gemini CLI retired)"
+  fi
   # If the render fails, stop before touching the pointers — otherwise we'd
   # replace real per-tool files with pointers to a stale or missing target.
   render_to "$HOME/AGENTS.md" backup || return 1
@@ -414,12 +420,7 @@ write_global() {
     echo "  wrote $cf (imports ~/AGENTS.md)"
   fi
 
-  # ~/.gemini/GEMINI.md serves only the legacy Gemini CLI — Antigravity
-  # replaced that tool and reads AGENTS.md natively — so a default render no
-  # longer claims it. WIRE_GEMINI=y re-enables the pointer for machines still
-  # on the old CLI.
   local t pointers=("$HOME/.codex/AGENTS.md")
-  if [ "${WIRE_GEMINI:-n}" = y ]; then pointers+=("$HOME/.gemini/GEMINI.md"); fi
   for t in "${pointers[@]}"; do
     if [ -L "$t" ] && [ "$(readlink "$t")" = "$HOME/AGENTS.md" ]; then
       echo "  ok $t -> ~/AGENTS.md"; continue
@@ -450,11 +451,6 @@ write_global() {
   if { for c in codex agy claude; do
          command -v "$c" >/dev/null 2>&1 && printf '%s\n' "$c"
        done
-       # Legacy Gemini CLI — retired from the default roster (Antigravity is
-       # the Google-vendor CLI now); WIRE_GEMINI=y re-includes it if installed.
-       if [ "${WIRE_GEMINI:-n}" = y ]; then
-         command -v gemini >/dev/null 2>&1 && printf 'gemini\n'
-       fi
        # Cursor's CLI brands itself `agent` (older installs: `cursor-agent`) —
        # emit whichever name this machine can invoke, once.
        for c in agent cursor-agent; do
@@ -514,7 +510,7 @@ case "${1:-}" in
     echo "This renders ~/AGENTS.md and points the per-tool files at it (any real"
     echo "file at those paths is backed up first):"
     echo "  ~/.claude/CLAUDE.md   -> imports ~/AGENTS.md (@import; your additions below it survive)"
-    echo "  ~/.codex/AGENTS.md  ->  symlink to ~/AGENTS.md (legacy gemini pointer: opt-in via WIRE_GEMINI=y)"
+    echo "  ~/.codex/AGENTS.md  ->  symlink to ~/AGENTS.md"
     if [ -z "$ASSUME_YES" ]; then
       CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
       case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted (pass --yes to skip this prompt)."; exit 0;; esac
@@ -613,8 +609,8 @@ normalize_inputs
 # ---- output target ----------------------------------------------------------
 echo ""
 echo "Where should the finalized instructions be written?"
-echo "  1) This project dir (AGENTS.md + CLAUDE.md + GEMINI.md)            [default]"
-echo "  2) Global config on this machine (~/.claude, ~/AGENTS.md, ~/.codex, ~/.gemini)"
+echo "  1) This project dir (AGENTS.md + CLAUDE.md)            [default]"
+echo "  2) Global config on this machine (~/.claude, ~/AGENTS.md, ~/.codex)"
 echo "  3) A custom file path"
 echo "  4) Print to screen only"
 TARGET="$(ask_one 'Choose' "1/2/3/4" "1")"
@@ -624,7 +620,7 @@ case "$TARGET" in
     echo ""; echo "This renders ~/AGENTS.md and points the per-tool files at it (any real"
     echo "file at those paths is backed up first):"
     echo "  ~/.claude/CLAUDE.md   -> imports ~/AGENTS.md (@import; your additions below it survive)"
-    echo "  ~/.codex/AGENTS.md  ->  symlink to ~/AGENTS.md (legacy gemini pointer: opt-in via WIRE_GEMINI=y)"
+    echo "  ~/.codex/AGENTS.md  ->  symlink to ~/AGENTS.md"
     CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
     case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted."; exit 0;; esac
     write_global

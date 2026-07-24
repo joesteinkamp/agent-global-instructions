@@ -7,12 +7,13 @@
 #
 #   ./install-hooks.sh             # all detected tools
 #   ./install-hooks.sh claude      # just Claude Code
-#   ./install-hooks.sh codex gemini
+#   ./install-hooks.sh codex cursor
 #
 # Tools: claude (~/.claude/settings.json) · codex (~/.codex/hooks.json) ·
-#        cursor (~/.cursor/hooks.json) · gemini (~/.gemini/settings.json) ·
-#        antigravity (~/.gemini/antigravity-cli/hooks.json — a SEPARATE tool from
-#        the Gemini CLI, with its own hooks schema; opt-in, not in the default set)
+#        cursor (~/.cursor/hooks.json) ·
+#        antigravity (~/.gemini/antigravity-cli/hooks.json — its own hooks
+#        schema; the path lives under ~/.gemini/ for historical reasons but
+#        Antigravity is a separate tool from the retired Gemini CLI)
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -73,7 +74,7 @@ merge_json() {  # $1 = settings file, $2 = hooks object json
   jq --argjson add "$add" --arg pat "$HOOK_RE" '
     .hooks = (.hooks // {})
     # Drop any of our prior entries so re-runs do not duplicate. Handle BOTH
-    # shapes: Claude/Codex/Gemini nest commands under .hooks[]; Cursor uses a
+    # shapes: Claude/Codex nest commands under .hooks[]; Cursor uses a
     # flat { "command": ... } per entry.
     | .hooks |= with_entries(.value |= map(select(
         ([ .command ] + ((.hooks // []) | map(.command))
@@ -171,24 +172,7 @@ install_cursor() {
   echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, advisory quality-nudge; write-block via permissions)"
 }
 
-install_gemini() {
-  local hd="$HOME/.gemini/hooks" sf="$HOME/.gemini/settings.json"
-  copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd gemini "$hd" guard-paths)" --arg gb "$(cmd gemini "$hd" guard-bash)" --arg fm "$(cmd gemini "$hd" format-edited)" --arg lg "$(cmd gemini "$hd" log-tool)" '{
-    BeforeTool: [
-      {matcher:".*", hooks:[{type:"command",command:$lg}]},
-      {matcher:"run_shell_command", hooks:[{type:"command",command:$gb}]},
-      {matcher:"write_file|replace", hooks:[{type:"command",command:$gp}]}
-    ],
-    AfterTool: [
-      {matcher:".*", hooks:[{type:"command",command:$lg}]},
-      {matcher:"write_file|replace", hooks:[{type:"command",command:$fm}]}
-    ]
-  }')"
-  echo "  gemini  -> $sf (log, auto-format, guard paths, guard bash) — Gemini CLI (Antigravity is a separate target)"
-}
-
-# Antigravity is NOT the Gemini CLI — it reads its own ~/.gemini/antigravity-cli/
+# Antigravity reads its own ~/.gemini/antigravity-cli/
 # hooks.json with a different schema: top-level named hooks, PreToolUse/PostToolUse
 # events, tool-name matchers (run_command, write_to_file|replace_file_content|…),
 # stdin under toolCall.args, and a stdout deny of {"allow_tool":false,"deny_reason":…}
@@ -239,9 +223,8 @@ for t in "${targets[@]}"; do
     claude)      install_claude      || echo "  claude: skipped (error above)" >&2;;
     codex)       install_codex       || echo "  codex: skipped (error above)" >&2;;
     cursor)      install_cursor      || echo "  cursor: skipped (error above)" >&2;;
-    gemini)      install_gemini      || echo "  gemini: skipped (error above)" >&2;;
     antigravity) install_antigravity || echo "  antigravity: skipped (error above)" >&2;;
-    *) echo "  unknown target: $t (use: claude codex cursor gemini antigravity)" >&2;;
+    *) echo "  unknown target: $t (use: claude codex cursor antigravity)" >&2;;
   esac
 done
 echo "Done. Backups saved next to each settings file."

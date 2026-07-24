@@ -6,7 +6,7 @@ allowed-tools: Bash(git:*), Bash(cat:*), Bash(cp:*), Bash(date:*), Bash(ls:*), B
 
 Today: !`date +%Y-%m-%d`
 Current table header: !`head -20 MODEL-ROUTING.md 2>/dev/null || echo "MISSING"`
-Installed CLIs: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent gemini 2>/dev/null | sed 's|.*/||'`
+Installed CLIs: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
 Repo check: !`ls customize.sh template.md MODEL-ROUTING.md 2>/dev/null || echo "NOT THE HARNESS REPO"`
 
 Refresh the advisory model-routing table from **current public benchmark evidence**. $ARGUMENTS

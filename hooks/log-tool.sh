@@ -4,7 +4,7 @@
 # tool events of every tool. Never blocks: always exits 0.
 #
 # Log path: $AI_TOOL_LOG (default ~/.ai-logs/tool-calls.jsonl). Cross-tool: the
-# `tool` field comes from HOOK_PLATFORM (claude|codex|gemini).
+# `tool` field comes from HOOK_PLATFORM (claude|codex|cursor|antigravity).
 #
 # Secrets: tool input/response can contain credentials, tokens, .env contents,
 # and MCP responses (email, account data). This log is a durable sink, so:
