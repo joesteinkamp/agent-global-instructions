@@ -1,12 +1,13 @@
 ---
 description: Deep-research current public model benchmarks and refresh MODEL-ROUTING.md (the advisory per-task routing table), showing the diff for approval before anything is kept
 argument-hint: [optional focus, e.g. "coding categories only"]
-allowed-tools: Bash(git:*), Bash(cat:*), Bash(cp:*), Bash(date:*), Bash(ls:*), Bash(head:*), Read, Edit, Write, Grep, Glob, WebSearch, WebFetch, Task
+allowed-tools: Bash(git:*), Bash(cat:*), Bash(cp:*), Bash(date:*), Bash(ls:*), Bash(head:*), Bash(lm:*), Read, Edit, Write, Grep, Glob, WebSearch, WebFetch, Task
 ---
 
 Today: !`date +%Y-%m-%d`
 Current table header: !`head -20 MODEL-ROUTING.md 2>/dev/null || echo "MISSING"`
 Installed CLIs: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
+Local models: !`cat "$HOME/.ai/local-models" 2>/dev/null || echo "none registered"`
 Repo check: !`ls customize.sh template.md MODEL-ROUTING.md 2>/dev/null || echo "NOT THE HARNESS REPO"`
 
 Refresh the advisory model-routing table from **current public benchmark evidence**. $ARGUMENTS
@@ -35,11 +36,26 @@ Refresh the advisory model-routing table from **current public benchmark evidenc
    headings, per-claim citations, the caveats paragraph verbatim, and the
    Benchmarks-consulted list. Keep the whole file under ~90 lines — it is read
    mid-session; trim, don't accumulate.
-5. **Show the diff and ask.** `git --no-pager diff MODEL-ROUTING.md`, plus one
-   line per category on what moved and why. On approval, mirror the machine
-   copy: `cp MODEL-ROUTING.md ~/.ai/model-routing.md`. On rejection,
-   `git checkout -- MODEL-ROUTING.md` and stop.
-6. **Changelog gate.** Propose a `CHANGELOG.md` entry (what changed in the
+5. **Local models — machine-local scores, separate file.** If the local-models
+   probe above lists registered entries (`name|backend|url|model|tier[|tok/s]`),
+   score them too — but into `~/.ai/model-routing.local.md`, **never** the
+   committed table (their scores are true only for this machine):
+   - **Quality** comes from public open-model benchmarks for each registered
+     *model tag* (LMArena, LiveBench, Aider polyglot, open-model leaderboards)
+     — same sourcing rules as step 2. Note that local quants typically run
+     slightly below the full-precision numbers boards report.
+   - **Speed** cannot be researched — measure it: run `lm bench` (records
+     tok/s into the registry) and quote the measured numbers.
+   - Write a short table (model → evidence → what to route to it / never route
+     to it), stamped `Last updated`, and correct the registry `tier` field via
+     `LOCAL_MODELS` in `my-context.env` if the evidence contradicts it. If no
+     local models are registered, skip this step and leave no file behind.
+6. **Show the diff and ask.** `git --no-pager diff MODEL-ROUTING.md`, plus one
+   line per category on what moved and why (mention the local file separately —
+   it needs no approval to keep, but say what you wrote there). On approval,
+   mirror the machine copy: `cp MODEL-ROUTING.md ~/.ai/model-routing.md`. On
+   rejection, `git checkout -- MODEL-ROUTING.md` and stop.
+7. **Changelog gate.** Propose a `CHANGELOG.md` entry (what changed in the
    rankings and the evidence that drove it); **never write the changelog or
    commit anything without explicit approval** — this gate overrides "finish
    the task".

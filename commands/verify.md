@@ -74,7 +74,9 @@ to it (e.g. `codex exec "…" --sandbox workspace-write --cd ~/.ai-context/<repo
 accept-edits --add-dir ~/.ai-context/<repo>-verify`; read its full verdict from the file it writes there,
 not just stdout), prompted to find where the
 work falls short. Where its grade differs from yours, report both and say why — don't average the
-disagreement away.
+disagreement away. A `strong`-tier local model (`~/.ai/local-models` + the `lm` shim, if present) may add
+one more independent Goal-fit verdict — `lm -p "…"` with the goal + diff, output piped to the context dir —
+but never counts as the only second opinion.
 
 ### 4. Reconcile with the docs
 List where the work **diverges from the briefs**, and for each call it: **intentional evolution** (the code

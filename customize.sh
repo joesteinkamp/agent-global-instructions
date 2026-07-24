@@ -40,8 +40,8 @@ TEMPLATE="$DIR/template.md"
 # values handed to awk and the substitution loop, and all three lists drive the
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST)  # {{VAR}} <-> $VAR
-CTRL_VARS=(PREVIEW AUTONOMY PERSONA MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL)                     # control render, not substituted
-INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_ORCHESTRATION INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
+CTRL_VARS=(PREVIEW AUTONOMY PERSONA MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL LOCAL_MODELS)                     # control render, not substituted
+INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_ORCHESTRATION INC_LOCAL_MODELS INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
 TMPFILES=()
@@ -79,8 +79,12 @@ done
 : "${PERSONA:=generic}"        # accepted for back-compat; no longer changes any default
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
+: "${LOCAL_MODELS:=}"          # hand-registered local-model endpoints, verbatim registry lines
+                               # (name|backend|base_url|model|tier), one per line — the escape
+                               # hatch for servers autodetection can't see (custom ports, remote
+                               # boxes over Tailscale, an MLX Mac). Merged ahead of autodetection.
 : "${EXTRAS:=}"                # personal sections spliced in verbatim; filled from extras.local.md
-: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_ORCHESTRATION:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
+: "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_ORCHESTRATION:=y}"; : "${INC_LOCAL_MODELS:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
 : "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
 # INC_DESIGN starts UNSET (empty) on purpose: normalize_inputs() seeds it to "y"
 # (design is on for everyone), while an explicit y/n from the environment or
@@ -270,6 +274,80 @@ scan_mcp() {
   echo ""; echo "Saved $DIR/mcp-rules.local"
 }
 
+# ---- local-model detection ---------------------------------------------------
+# Coarse capability tier from the parameter count embedded in a model name or
+# size string ("qwen3:32b", "7.6B"): >=14B => strong, else light. A default the
+# hand-registered LOCAL_MODELS lines can override per entry.
+lm_tier() {
+  local n
+  n="$(printf '%s' "$(lc "$1")" | grep -oE '[0-9]+(\.[0-9]+)?b' | head -1)" || true
+  n="${n%b}"
+  if [ -n "$n" ] && awk -v s="$n" 'BEGIN{exit !(s+0>=14)}'; then echo strong; else echo light; fi
+}
+
+# Emit the ~/.ai/local-models registry (name|backend|base_url|model|tier, one
+# per line) for every local-model endpoint this machine can reach. Sources:
+#   1. LOCAL_MODELS from my-context.env — verbatim registry lines, authoritative
+#      (the escape hatch for custom ports, remote boxes over Tailscale, an MLX
+#      Mac — anything autodetection can't see).
+#   2. A running Ollama at 127.0.0.1:11434 — every pulled model, enumerated.
+#   3. A generic OpenAI-compatible server at 127.0.0.1:8080 (llama-server and
+#      mlx_lm.server both default there) — whatever /v1/models reports.
+# Autodetection needs curl+jq and a RUNNING server (a bare binary reveals no
+# models or ports — never start one on the user's behalf). AIGI_NO_PROBE=1
+# skips the network probes (tests, air-gapped renders). Empty output means
+# "no local models here" — the caller then removes the registry file.
+detect_local_models() {
+  local out="" seen=" " line url model size tier json backend
+  while IFS= read -r line; do
+    case "$line" in ''|'#'*) continue;; esac
+    case "$line" in
+      *\|*\|*\|*\|*) ;;
+      *) echo "local-models: skipping malformed LOCAL_MODELS line (need name|backend|url|model|tier): $line" >&2; continue;;
+    esac
+    out="$out$line"$'\n'
+    url="$(printf '%s' "$line" | cut -d'|' -f3)"
+    model="$(printf '%s' "$line" | cut -d'|' -f4)"
+    seen="$seen$url,$model "
+  done <<EOF
+$LOCAL_MODELS
+EOF
+  if [ -z "${AIGI_NO_PROBE:-}" ] && command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    url="http://127.0.0.1:11434"
+    json="$(curl -fsS --max-time 2 "$url/api/tags" 2>/dev/null)" || json=""
+    if [ -n "$json" ]; then
+      while IFS=$'\t' read -r model size; do
+        [ -z "$model" ] && continue
+        case "$seen" in *" $url,$model "*) continue;; esac
+        tier="$(lm_tier "$model $size")"
+        out="${out}ollama:$model|ollama|$url|$model|$tier"$'\n'
+        seen="$seen$url,$model "
+      done <<EOF
+$(printf '%s' "$json" | jq -r '.models[] | [.name, (.details.parameter_size // "")] | @tsv' 2>/dev/null)
+EOF
+    fi
+    url="http://127.0.0.1:8080"
+    json="$(curl -fsS --max-time 2 "$url/v1/models" 2>/dev/null)" || json=""
+    if [ -n "$json" ]; then
+      # Which runtime answers a generic /v1/models is a guess from installed
+      # binaries; the label is informational — the API contract is identical.
+      backend=openai
+      command -v llama-server >/dev/null 2>&1 && backend=llamacpp
+      command -v mlx_lm.server >/dev/null 2>&1 && backend=mlx
+      while IFS= read -r model; do
+        [ -z "$model" ] && continue
+        case "$seen" in *" $url,$model "*) continue;; esac
+        tier="$(lm_tier "$model")"
+        out="${out}$backend:${model##*/}|$backend|$url|$model|$tier"$'\n'
+        seen="$seen$url,$model "
+      done <<EOF
+$(printf '%s' "$json" | jq -r '.data[].id // empty' 2>/dev/null)
+EOF
+    fi
+  fi
+  printf '%s' "$out"
+}
+
 # ---- render(): filter sections + substitute vars, print to stdout -----------
 # One awk pass. Variable values are passed through the environment (ENVIRON[],
 # which performs NO escape processing), and substituted literally — so newlines,
@@ -283,6 +361,7 @@ render() {
   [ "$INC_TEAMS" = "y" ]         && keep="${keep}agent-teams:"
   [ "$INC_WORKTREES" = "y" ]     && keep="${keep}parallel-worktrees:"
   [ "$INC_ORCHESTRATION" = "y" ] && keep="${keep}cross-tool-orchestration:"
+  [ "$INC_LOCAL_MODELS" = "y" ]  && keep="${keep}local-models:"
   [ "$INC_IMPROVE" = "y" ]       && keep="${keep}improve:"
   [ "$INC_TOOLS" = "y" ]         && keep="${keep}tools-mcp:"
   [ "$INC_ARTIFACTS" = "y" ]     && keep="${keep}artifacts:"
@@ -439,15 +518,50 @@ write_global() {
     fi
   done
   # ~/.ai/ is the machine-level governance/contract layer — durable files the
-  # rendered instructions tell agents to consult (CLI roster, model-routing
-  # table). Operational exhaust (logs, hook state) stays in ~/.ai-logs/.
+  # rendered instructions tell agents to consult (CLI roster, local-model
+  # registry, model-routing table). Operational exhaust (logs, hook state)
+  # stays in ~/.ai-logs/.
+  mkdir -p "$HOME/.ai"
+  # Local-model layer: install the `lm` shim and record this machine's
+  # local-model endpoints (Ollama / llama.cpp / MLX / a remote box — one
+  # OpenAI-compatible contract) at ~/.ai/local-models. The file's ABSENCE is
+  # the "this machine has no local models" signal, so on empty detection or an
+  # explicit opt-out the registry is removed, not left stale.
+  local lmf="$HOME/.ai/local-models" reg
+  if [ "$INC_LOCAL_MODELS" = "y" ]; then
+    if [ -f "$DIR/lm" ]; then
+      mkdir -p "$HOME/.local/bin"
+      if cmp -s "$DIR/lm" "$HOME/.local/bin/lm" 2>/dev/null; then
+        echo "  ok ~/.local/bin/lm (up to date)"
+      else
+        install -m 0755 "$DIR/lm" "$HOME/.local/bin/lm" && echo "  wrote ~/.local/bin/lm (local-model shim)"
+      fi
+      command -v lm >/dev/null 2>&1 \
+        || echo "  (note: ~/.local/bin is not on PATH — add it so 'lm' is invocable)"
+    fi
+    reg="$(detect_local_models)"
+    if [ -n "$reg" ]; then
+      # $(…) stripped the trailing newline — restore it, or the last registry
+      # line is invisible to `while read` consumers.
+      printf '%s\n' "$reg" > "$lmf" \
+        && echo "  wrote $lmf ($(printf '%s' "$reg" | grep -c .) local model(s))"
+    else
+      rm -f "$lmf"
+      echo "  (no local models detected — start the server and re-run, or register endpoints via LOCAL_MODELS in my-context.env)"
+    fi
+  else
+    rm -f "$lmf"
+    # Only remove OUR shim (marker check) — never a foreign `lm` binary.
+    if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
+      rm -f "$HOME/.local/bin/lm"; echo "  removed ~/.local/bin/lm (INC_LOCAL_MODELS=n)"
+    fi
+  fi
   # Record which AI CLIs exist right now, so sessions read one file instead of
   # re-probing every time (the cross-tool delegation roster). Regenerable
   # metadata — refreshed on every install/--global, left in place on uninstall.
   # Bare names only, one per line — no header, so `cat` output is pure roster
   # (a comment line would be fed to the model as if it were an entry).
   local mf="$HOME/.ai/clis" c
-  mkdir -p "$HOME/.ai"
   if { for c in codex agy claude; do
          command -v "$c" >/dev/null 2>&1 && printf '%s\n' "$c"
        done
@@ -455,7 +569,10 @@ write_global() {
        # emit whichever name this machine can invoke, once.
        for c in agent cursor-agent; do
          command -v "$c" >/dev/null 2>&1 && { printf '%s\n' "$c"; break; }
-       done; } > "$mf" 2>/dev/null; then
+       done
+       # Registered local models behind the `lm` shim count as one delegate.
+       if [ -s "$lmf" ] && command -v lm >/dev/null 2>&1; then printf 'lm\n'; fi
+     } > "$mf" 2>/dev/null; then
     echo "  wrote $mf (installed AI CLI roster)"
   else
     echo "  (could not write $mf — roster skipped)"
@@ -505,6 +622,10 @@ case "${1:-}" in
   # everyone default — both already applied by normalize_inputs above).
   # install-commands.sh queries this so it never re-parses my-context.env. Prints y|n.
   --design-group) printf '%s\n' "$INC_DESIGN"; exit 0;;
+  # Dry-run of local-model detection: print the registry lines that --global
+  # would write to ~/.ai/local-models (nothing is written). For humans checking
+  # what a machine would register, and for test.sh.
+  --local-models) if [ "$INC_LOCAL_MODELS" = "y" ]; then detect_local_models; fi; exit 0;;
   --project)  write_project; exit 0;;
   --global)
     echo "This renders ~/AGENTS.md and points the per-tool files at it (any real"
@@ -567,6 +688,8 @@ fi
 INC_WORKTREES="$(ask_one 'Include "parallel AI models on one repo" (worktrees) section?' "y/n" "$INC_WORKTREES")"; INC_WORKTREES="${INC_WORKTREES:0:1}"
 
 INC_ORCHESTRATION="$(ask_one 'Include "orchestrating other AI CLIs" section (cross-tool delegation + shared temp-context dir)?' "y/n" "$INC_ORCHESTRATION")"; INC_ORCHESTRATION="${INC_ORCHESTRATION:0:1}"
+
+INC_LOCAL_MODELS="$(ask_one 'Include "local models as delegates" bullets (Ollama / llama.cpp / MLX behind the lm shim)?' "y/n" "$INC_LOCAL_MODELS")"; INC_LOCAL_MODELS="${INC_LOCAL_MODELS:0:1}"
 
 INC_IMPROVE="$(ask_one 'Include "when to verify & improve (nudge-driven)" section?' "y/n" "$INC_IMPROVE")"; INC_IMPROVE="${INC_IMPROVE:0:1}"
 INC_TOOLS="$(ask_one 'Include "tools & MCP servers" section?' "y/n" "$INC_TOOLS")"; INC_TOOLS="${INC_TOOLS:0:1}"

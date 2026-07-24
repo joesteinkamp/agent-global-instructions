@@ -40,6 +40,14 @@ render
 assert_has "default render includes cross-tool orchestration" 'Orchestrating other AI CLIs'
 assert_has "default render points at the CLI roster" '~/.ai/clis'
 assert_has "default render points at the model-routing table" '~/.ai/model-routing.md'
+assert_has "default render includes the local-models bullets" 'Local models are delegates'
+assert_has "default render points at the local-model registry" '~/.ai/local-models'
+
+INC_LOCAL_MODELS=n render
+assert_no "INC_LOCAL_MODELS=n removes the local-models bullets" 'Local models are delegates'
+assert_no "INC_LOCAL_MODELS=n leaves no marker leak" 'SECTION:'
+INC_ORCHESTRATION=n render
+assert_no "INC_ORCHESTRATION=n drops the nested local-models block too" 'Local models are delegates'
 
 # 3. Nested sections: artifacts off removes the nested preview-* blocks too.
 INC_ARTIFACTS=n render
@@ -974,6 +982,54 @@ PY
   [ "$gl_ok" = 1 ] && ok "uninstall.sh gemini cleans up a pre-retirement legacy install" \
                     || bad "uninstall.sh gemini cleans up a pre-retirement legacy install"
   rm -rf "$GL"
+else
+  echo "  (skipped — jq not installed)"
+fi
+
+# ---- local-models layer: detection dry-run + the lm shim --------------------
+echo ""
+echo "== local-models layer (detection + lm shim) =="
+# Hand-registered LOCAL_MODELS lines pass through verbatim; malformed lines are
+# dropped with a warning. AIGI_NO_PROBE keeps the run hermetic (no network).
+lm_out="$(LOCAL_MODELS='mac|mlx|http://mac.ts.net:8080|q3-30b|strong
+not-a-registry-line' AIGI_NO_PROBE=1 "$CUSTOMIZE" --local-models 2>/dev/null)"
+[ "$lm_out" = "mac|mlx|http://mac.ts.net:8080|q3-30b|strong" ] \
+  && ok "--local-models passes registered lines through, drops malformed ones" \
+  || bad "--local-models passes registered lines through, drops malformed ones (got: $lm_out)"
+lm_off="$(INC_LOCAL_MODELS=n LOCAL_MODELS='mac|mlx|http://u|m|light' AIGI_NO_PROBE=1 "$CUSTOMIZE" --local-models 2>/dev/null)"
+[ -z "$lm_off" ] && ok "INC_LOCAL_MODELS=n silences detection" \
+                 || bad "INC_LOCAL_MODELS=n silences detection"
+
+# The shim, hermetically: a stub `curl` on PATH answers the health check and the
+# completion, so no server (and no network) is needed.
+if command -v jq >/dev/null 2>&1; then
+  LMT="$(mktemp -d)"
+  mkdir -p "$LMT/bin"
+  cat > "$LMT/bin/curl" <<'CURLEOF'
+#!/usr/bin/env bash
+for a in "$@"; do case "$a" in
+  */v1/models) echo '{"data":[{"id":"stub"}]}'; exit 0;;
+  */v1/chat/completions) echo '{"choices":[{"message":{"content":"REPLY-FROM-STUB"}}],"usage":{"completion_tokens":10}}'; exit 0;;
+esac; done
+exit 0
+CURLEOF
+  chmod +x "$LMT/bin/curl"
+  # No trailing newline on the last line on purpose — the shim must still see it.
+  printf 'small|ollama|http://127.0.0.1:11434|tiny:3b|light\nbig|mlx|http://mac.ts.net:8080|q3-30b|strong' > "$LMT/reg"
+  out="$(PATH="$LMT/bin:$PATH" LM_REGISTRY="$LMT/reg" bash "$DIR/lm" -p "hi" 2>/dev/null)"
+  [ "$out" = "REPLY-FROM-STUB" ] && ok "lm -p returns the completion content" \
+                                 || bad "lm -p returns the completion content (got: $out)"
+  out="$(PATH="$LMT/bin:$PATH" LM_REGISTRY="$LMT/reg" bash "$DIR/lm" list 2>/dev/null)"
+  printf '%s\n' "$out" | grep -Eq '^big[[:space:]]+mlx[[:space:]]+strong[[:space:]]+up' \
+    && ok "lm list reports backend, tier, and health" \
+    || bad "lm list reports backend, tier, and health"
+  PATH="$LMT/bin:$PATH" LM_REGISTRY="$LMT/does-not-exist" bash "$DIR/lm" -p hi >/dev/null 2>&1
+  [ $? -eq 3 ] && ok "lm exits 3 when no registry exists" \
+               || bad "lm exits 3 when no registry exists"
+  PATH="$LMT/bin:$PATH" LM_REGISTRY="$LMT/reg" bash "$DIR/lm" -p hi --tier nope >/dev/null 2>&1
+  [ $? -eq 2 ] && ok "lm exits 2 when no endpoint matches the filters" \
+               || bad "lm exits 2 when no endpoint matches the filters"
+  rm -rf "$LMT"
 else
   echo "  (skipped — jq not installed)"
 fi

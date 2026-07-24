@@ -11,6 +11,43 @@ so the log reads as the project's decision history, not just a list of diffs.
 
 ## [Unreleased]
 
+### Added
+- **Local models as first-class delegates (2026-07-24, Claude).** Added a
+  machine-local registry (`~/.ai/local-models`, written by
+  `customize.sh --global`: probes a running Ollama at `:11434` and the
+  llama.cpp/MLX default `:8080`, plus hand-registered `LOCAL_MODELS` lines in
+  `my-context.env` for custom ports and remote tailnet boxes) and an `lm` shim
+  (installed to `~/.local/bin`; `-p` one-shot completion, `list` health,
+  `bench` measured tok/s) so any machine serving local models — Ollama,
+  llama.cpp, MLX, or a remote box — gets them wired into cross-tool
+  delegation, the `/improve` and `/verify` review lenses, and routing
+  (`/update-model-routing` now scores registered models into a machine-local
+  `~/.ai/model-routing.local.md`). Registry entries carry a `strong`/`light`
+  capability tier (derived from parameter count) that gates what work they
+  receive; machines without local models get no registry file and every
+  related instruction no-ops — nothing is ever installed or started to create
+  one.
+
+  Original ask: make the orchestration instructions and skills in this
+  installer work with local models however they're installed per machine —
+  explicitly **not** a setup of any one box.
+
+  Why this approach: all three runtimes expose the same OpenAI-compatible
+  HTTP API, so the harness integrates one contract (registry + shim) rather
+  than three runtimes; install method stops mattering because everything
+  resolves to a URL in the registry. Machine-specific truths (tiers, measured
+  tok/s, benchmark scores for whatever happens to be pulled) live in
+  machine-local files, keeping the committed template and routing table
+  portable.
+
+  Rejected: per-runtime integration (3× the surface, breaks on install-method
+  variance); putting local models directly in the `~/.ai/clis` roster as bare
+  entries (different invocation and failure contract would pollute the
+  pure-names roster — instead `lm` joins the roster as one delegate);
+  scoring local models in the committed `MODEL-ROUTING.md` (machine-specific
+  results don't belong in a shared file — it gets only a generic pointer
+  note).
+
 ### Changed
 - **Model routing refresh — hard coding & long-context now split at the top
   (2026-07-24, Claude).** Re-researched all 7 categories against current

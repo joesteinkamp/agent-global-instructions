@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# lm — local-model delegate shim, installed by agent-global-instructions
+# (customize.sh --global copies this to ~/.local/bin/lm).
+#
+# Makes every local model on this machine — Ollama, llama.cpp's llama-server,
+# MLX's mlx_lm.server, or a remote box over Tailscale — callable through ONE
+# roster-compatible command, so orchestrating agents treat local models exactly
+# like any other headless AI CLI (`lm -p "…"` next to `codex exec` / `claude -p`).
+# All backends speak the same OpenAI-compatible API; the differences live in the
+# registry, not here.
+#
+# Registry: ~/.ai/local-models (override: LM_REGISTRY), one endpoint per line:
+#   name|backend|base_url|model|tier[|tok_s]
+# e.g. ollama:qwen3:4b|ollama|http://127.0.0.1:11434|qwen3:4b|light
+# tier is strong|light (capability class); tok_s is measured by `lm bench`.
+# Written by customize.sh --global; hand-add lines via LOCAL_MODELS in
+# my-context.env, not here (this file's registry is regenerated on install).
+#
+# Usage:
+#   lm -p "prompt" [--model M] [--endpoint NAME] [--tier strong|light]
+#                  [--timeout SECS]        one-shot completion; "-" reads stdin
+#   lm list                                registry + live health per endpoint
+#   lm bench [--timeout SECS]              timed probe; records tok_s per entry
+#
+# Exit codes: 0 ok · 1 usage/dependency · 2 no healthy endpoint · 3 no registry
+set -uo pipefail
+
+REG="${LM_REGISTRY:-$HOME/.ai/local-models}"
+
+for dep in curl jq; do
+  command -v "$dep" >/dev/null 2>&1 || { echo "lm: needs $dep on PATH" >&2; exit 1; }
+done
+
+# ---- args -------------------------------------------------------------------
+cmd=run prompt="" f_model="" f_endpoint="" f_tier="" timeout=180
+case "${1:-}" in list|bench) cmd="$1"; shift;; esac
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -p)         prompt="${2:?lm: -p needs a prompt}"; shift 2;;
+    --model)    f_model="${2:?}"; shift 2;;
+    --endpoint) f_endpoint="${2:?}"; shift 2;;
+    --tier)     f_tier="${2:?}"; shift 2;;
+    --timeout)  timeout="${2:?}"; shift 2;;
+    -h|--help)  awk 'NR>1 && $0 !~ /^#/ {exit} NR>1 {sub(/^# ?/,""); print}' "$0"; exit 0;;
+    *) echo "lm: unknown arg: $1 (see lm --help)" >&2; exit 1;;
+  esac
+done
+[ "$cmd" = run ] && [ -z "$prompt" ] && { echo "lm: nothing to do — pass -p \"prompt\", or: lm list | lm bench" >&2; exit 1; }
+[ "$prompt" = "-" ] && prompt="$(cat)"
+
+[ -s "$REG" ] || { echo "lm: no local-model registry at $REG — this machine has no registered local models (customize.sh --global writes it)" >&2; exit 3; }
+
+# ---- registry ---------------------------------------------------------------
+# Emit matching entries, strong tier first (best-available default), preserving
+# registry order within a tier. Malformed lines are skipped with a warning.
+entries() {
+  local pass line name backend url model tier toks
+  for pass in strong light; do
+    # `|| [ -n "$name" ]` keeps a hand-edited final line without a newline.
+    while IFS='|' read -r name backend url model tier toks || [ -n "$name" ]; do
+      case "$name" in ''|'#'*) continue;; esac
+      if [ -z "$backend" ] || [ -z "$url" ] || [ -z "$model" ] || [ -z "$tier" ]; then
+        echo "lm: skipping malformed registry line: $name" >&2; continue
+      fi
+      [ "$tier" = "$pass" ] || { [ "$pass" = light ] && [ "$tier" != strong ]; } || continue
+      [ -n "$f_endpoint" ] && [ "$name" != "$f_endpoint" ] && continue
+      [ -n "$f_model" ] && [ "$model" != "$f_model" ] && [ "$name" != "$f_model" ] && continue
+      [ -n "$f_tier" ] && [ "$tier" != "$f_tier" ] && continue
+      printf '%s|%s|%s|%s|%s|%s\n' "$name" "$backend" "$url" "$model" "$tier" "${toks:-}"
+    done < "$REG"
+  done
+}
+
+healthy() { curl -fsS --max-time 3 "$1/v1/models" >/dev/null 2>&1; }
+
+complete_once() {  # $1=url $2=model $3=prompt -> content on stdout; curl time on fd3 if open
+  local payload
+  payload="$(jq -n --arg m "$2" --arg p "$3" \
+    '{model:$m, messages:[{role:"user",content:$p}], stream:false}')"
+  curl -fsS --max-time "$timeout" -H 'Content-Type: application/json' \
+    -d "$payload" "$1/v1/chat/completions"
+}
+
+# ---- commands ---------------------------------------------------------------
+case "$cmd" in
+  list)
+    while IFS='|' read -r name backend url model tier toks || [ -n "$name" ]; do
+      if healthy "$url"; then st=up; else st=DOWN; fi
+      printf '%-28s %-9s %-6s %-4s %s%s\n' "$name" "$backend" "$tier" "$st" "$url" "${toks:+ (${toks} tok/s)}"
+    done < <(entries)
+    exit 0;;
+
+  bench)
+    tmp="$(mktemp "${TMPDIR:-/tmp}/lm.XXXXXX")" || exit 1
+    trap 'rm -f "$tmp" "$tmp.reg"' EXIT
+    : > "$tmp.reg"
+    rc=2
+    while IFS='|' read -r name backend url model tier toks || [ -n "$name" ]; do
+      case "$name" in ''|'#'*) continue;; esac
+      if ! healthy "$url"; then
+        echo "$name: DOWN — skipped" >&2
+        printf '%s|%s|%s|%s|%s\n' "$name" "$backend" "$url" "$model" "$tier" >> "$tmp.reg"
+        continue
+      fi
+      payload="$(jq -n --arg m "$model" \
+        '{model:$m, messages:[{role:"user",content:"Write exactly one paragraph (~120 words) explaining what a hash table is."}], stream:false}')"
+      # curl itself times the request (-w %{time_total}) — portable to machines
+      # whose `date` lacks sub-second precision (macOS).
+      t="$(curl -fsS --max-time "$timeout" -H 'Content-Type: application/json' \
+            -d "$payload" -o "$tmp" -w '%{time_total}' "$url/v1/chat/completions" 2>/dev/null)" || {
+        echo "$name: request failed" >&2
+        printf '%s|%s|%s|%s|%s\n' "$name" "$backend" "$url" "$model" "$tier" >> "$tmp.reg"
+        continue
+      }
+      ntok="$(jq -r '.usage.completion_tokens // 0' "$tmp")"
+      tps="$(awk -v n="$ntok" -v t="$t" 'BEGIN{ if (t+0>0 && n+0>0) printf "%.1f", n/t; else printf "0" }')"
+      echo "$name: $ntok tokens in ${t}s = $tps tok/s"
+      printf '%s|%s|%s|%s|%s|%s\n' "$name" "$backend" "$url" "$model" "$tier" "$tps" >> "$tmp.reg"
+      rc=0
+    done < "$REG"
+    # Persist measurements (6th field) atomically; comments/blank lines are
+    # regenerated on the next install anyway, so a data-only rewrite is fine.
+    mv "$tmp.reg" "$REG"
+    exit "$rc";;
+
+  run)
+    while IFS='|' read -r name backend url model tier toks; do
+      healthy "$url" || continue
+      if out="$(complete_once "$url" "$model" "$prompt")"; then
+        content="$(printf '%s' "$out" | jq -r '.choices[0].message.content // empty')"
+        if [ -n "$content" ]; then printf '%s\n' "$content"; exit 0; fi
+      fi
+      echo "lm: $name failed mid-request, trying next endpoint" >&2
+    done < <(entries)
+    echo "lm: no healthy local-model endpoint matched (registry: $REG; filters: model='$f_model' endpoint='$f_endpoint' tier='$f_tier')" >&2
+    exit 2;;
+esac

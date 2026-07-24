@@ -72,6 +72,8 @@ Note: Moonshot Kimi K3 and Z.ai GLM-5.2 top both frontend boards but are not ins
 
 Note: a CLI's *default* model is usually its flagship — pass an explicit cheap-tier model flag when fanning out.
 
+Note: machines with local models registered (`~/.ai/local-models` + the `lm` shim) have a $0-marginal, data-stays-home tier for fan-out and privacy-sensitive work. Quality and speed are machine-specific — scored per machine in `~/.ai/model-routing.local.md` (written by `/update-model-routing`), never ranked here.
+
 ## Long-context analysis
 *Whole-repo or long-document comprehension; note usable context windows.*
 

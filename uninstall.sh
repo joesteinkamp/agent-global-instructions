@@ -293,5 +293,14 @@ for t in "${targets[@]}"; do
     *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
   esac
 done
+# Machine-wide (not per-tool): the local-model shim customize.sh --global
+# installed. Marker-checked so a foreign `lm` binary is never touched. The
+# ~/.ai/ registry files (clis, local-models, model-routing) are regenerable
+# metadata and stay in place, like the roster.
+if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
+  rm -f "$HOME/.local/bin/lm"
+  echo "  removed $HOME/.local/bin/lm (local-model shim)"
+fi
+
 echo "Done. Backups saved next to each file. ~/AGENTS.md left in place;"
 echo "per-tool instruction pointers were restored from their newest backup where one existed."

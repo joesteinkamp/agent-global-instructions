@@ -1,5 +1,5 @@
 {
-  "_comment": "Claude-only. install-settings.sh unions the rules below into ~/.claude/settings.json; uninstall.sh subtracts exactly these. This is the CLIENT-ENFORCED layer that complements the best-effort guard hooks: deny mirrors guard-paths.sh (no prompt — the edit/read is simply refused), ask adds a confirmation gate. Patterns are glob-style (* within a segment, ** across dirs). Want more friction? Add e.g. \"Bash(git push:*)\", \"Bash(curl:*)\", \"Bash(rm:*)\" to ask — they're left out by default to avoid prompting on everyday commands the guard hooks already cover.",
+  "_comment": "Claude-only. install-settings.sh unions the rules below into ~/.claude/settings.json; uninstall.sh subtracts exactly these. This is the CLIENT-ENFORCED layer that complements the best-effort guard hooks: deny mirrors guard-paths.sh (no prompt — the edit/read is simply refused), ask adds a confirmation gate, allow pre-approves the read-only local-model shim (lm) so delegation to local models never prompts. Patterns are glob-style (* within a segment, ** across dirs). Want more friction? Add e.g. \"Bash(git push:*)\", \"Bash(curl:*)\", \"Bash(rm:*)\" to ask — they're left out by default to avoid prompting on everyday commands the guard hooks already cover.",
   "permissions": {
     "deny": [
       "Read(./.env)",
@@ -22,6 +22,9 @@
     ],
     "ask": [
       "Bash(sudo:*)"
+    ],
+    "allow": [
+      "Bash(lm:*)"
     ]
   }
 }

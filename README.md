@@ -36,6 +36,10 @@ left in place).
 - **Commands** — the same slash commands in all four tools: `/ship`, `/sync`,
   `/worktrees`, `/grill-me`, `/improve`, `/verify`, `/update-model-routing`,
   `/ux-audit`.
+- **Local models** — machines serving local models (Ollama, llama.cpp,
+  MLX, or a remote box over your tailnet — all one OpenAI-compatible contract)
+  get them auto-registered at `~/.ai/local-models` and wired into cross-tool
+  delegation behind the `lm` shim; machines without any get a clean no-op.
 - **Guardrails** — hooks that block edits to generated/sensitive paths, trip on
   catastrophic shell, auto-format edits, and log every tool call.
 - **Session scorecard** — after a real session ends, the next session opens with

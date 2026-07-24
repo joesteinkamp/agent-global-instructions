@@ -113,6 +113,22 @@ every option:
   (logs, hook state) stays in `~/.ai-logs/`. Delegation is coordinated through
   a shared temporary context dir `~/.ai-context/<repo>-<task-slug>/`; set
   `INC_ORCHESTRATION=n` to opt out),
+  **local models as delegates** (machines that serve local models — Ollama,
+  llama.cpp's `llama-server`, MLX's `mlx_lm.server`, or a remote box over
+  Tailscale — get them wired into the same delegation flow. All of these speak
+  one OpenAI-compatible API, so the install probes for running servers
+  (Ollama at `:11434`; the llama.cpp/MLX default `:8080`), writes the
+  machine's registry to `~/.ai/local-models`
+  (`name|backend|base_url|model|tier`, tier `strong`/`light` derived from the
+  model's parameter count), and installs the `lm` shim to `~/.local/bin` —
+  `lm -p "…"` fronts whichever endpoint matches, `lm list` shows health,
+  `lm bench` measures tok/s into the registry. Endpoints the probe can't see
+  (custom ports, an MLX Mac on the tailnet) are hand-registered via
+  `LOCAL_MODELS` in `my-context.env`. A machine with no local models simply
+  gets no registry file and every related instruction no-ops — nothing is ever
+  installed or started to create one. Machine-specific quality/speed scores
+  land in `~/.ai/model-routing.local.md` via `/update-model-routing`; set
+  `INC_LOCAL_MODELS=n` to opt out of the bullets and the layer),
   improve-after-larger-changes, tools & MCP servers, output artifacts,
   **design system & UI** (build to the tokens, stay on the scales, WCAG AA,
   honor reduced-motion — **on by default for everyone**; set `INC_DESIGN=n` to
@@ -274,9 +290,15 @@ Run `./test.sh` after any change.
   re-renders untouched. Claude Code shows a one-time approval prompt per
   project for the external import — accept it.
 
+It also maintains the `~/.ai/` governance layer: the CLI roster (`clis`), the
+local-model registry (`local-models`) + the `~/.local/bin/lm` shim, and the
+model-routing mirror (`model-routing.md`, plus the machine-local
+`model-routing.local.md` that `/update-model-routing` writes for local models).
+
 `uninstall.sh` reverses the pointers: each is restored from its newest backup
 (taken when the pointer was first installed), or removed if none exists;
-`~/AGENTS.md` itself is left in place.
+`~/AGENTS.md` itself is left in place. The `lm` shim is removed
+(marker-checked); the regenerable `~/.ai/` metadata stays.
 
 ## Notes
 
