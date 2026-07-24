@@ -130,7 +130,7 @@ done
 
 # Now that every port rendered successfully, drop any stale port whose canonical
 # command was removed/renamed (safe — only runs on a complete render).
-# Codex skills are directories, unlike the flat Cursor/Gemini ports. Only remove
+# Codex skills are directories, unlike the flat Cursor port. Only remove
 # a directory this script actually generated (marker check) — never rm -rf a
 # hand-authored or WIP directory someone dropped under commands/codex/.
 for d in "$SRC/codex"/*; do

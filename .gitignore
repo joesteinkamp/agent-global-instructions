@@ -13,7 +13,6 @@ extras.local.md
 # every install; only commands/*.md (the canonical Claude dialect) is committed
 /commands/codex/
 /commands/cursor/
-/commands/gemini/
 
 # Generated review/audit/verify + design-command artifacts — local, never commit
 # (anchored to repo root: unanchored patterns would also match the generated
@@ -35,4 +34,3 @@ parallel-worktrees-playbook.html
 # Rendered, personalized output — generate locally with ./customize.sh
 /AGENTS.md
 /CLAUDE.md
-/GEMINI.md
