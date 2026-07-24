@@ -24,7 +24,9 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 # idempotency filter, so they can't drift. HOOK_RE matches /<our-script>.sh
 # (anchored on the dir slash so it won't match an unrelated user hook that just
 # mentions the bare name; not end-anchored since wired commands end in .sh").
-HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge load-memory precompact-archive log-session-end)
+# memory-os and scorecard are not event hooks: memory-os.sh is a sourced lib and
+# scorecard.sh the survey recorder CLI — both installed beside the hooks that use them.
+HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge load-memory precompact-archive log-session-end memory-os scorecard scorecard-enqueue scorecard-survey)
 # Keep retired names in the matcher so an update removes the three aggressive
 # legacy Stop entries instead of leaving them active beside quality-nudge.
 RETIRED_HOOK_SCRIPTS=(improve-nudge verify-nudge changelog-nudge)
@@ -93,8 +95,11 @@ cmd() { printf 'env HOOK_PLATFORM=%s "%s/%s.sh"' "$1" "$2" "$3"; }  # platform, 
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" '{
-    SessionStart: [ {matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$lm}]} ],
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg sq "$(cmd claude "$hd" scorecard-enqueue)" --arg ss "$(cmd claude "$hd" scorecard-survey)" '{
+    SessionStart: [
+      {matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$lm}]},
+      {matcher:"startup|resume|clear", hooks:[{type:"command",command:$ss}]}
+    ],
     PreToolUse: [
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
       {matcher:"Edit|Write|MultiEdit|NotebookEdit", hooks:[{type:"command",command:$gp}]},
@@ -106,9 +111,12 @@ install_claude() {
     ],
     PreCompact: [ {matcher:"manual|auto", hooks:[{type:"command",command:$pc}]} ],
     Stop: [ {hooks:[{type:"command",command:$qn}]} ],
-    SessionEnd: [ {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se}]} ]
+    SessionEnd: [
+      {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se}]},
+      {matcher:"clear|logout|prompt_input_exit|other", hooks:[{type:"command",command:$sq}]}
+    ]
   }')"
-  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, precompact-archive, session-end)"
+  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, precompact-archive, session-end, scorecard survey)"
 }
 
 install_codex() {
@@ -162,8 +170,9 @@ install_cursor() {
     --arg fm "$(cmd cursor "$hd" format-edited)" \
     --arg lg "$(cmd cursor "$hd" log-tool)" \
     --arg lm "$(cmd cursor "$hd" load-memory)" \
+    --arg ss "$(cmd cursor "$hd" scorecard-survey)" \
     --arg qn "$(cmd cursor "$hd" quality-nudge)" '{
-    sessionStart: [ {command:$lm} ],
+    sessionStart: [ {command:$lm}, {command:$ss} ],
     beforeShellExecution: [ {command:$lg}, {command:$gb} ],
     beforeReadFile: [ {command:$gpr} ],
     afterFileEdit: [ {command:$lg}, {command:$gp}, {command:$fm} ],

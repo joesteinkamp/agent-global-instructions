@@ -189,6 +189,8 @@ present and skipping gracefully otherwise. Full detail in
 | `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude + Cursor; silent when none exist. |
 | `precompact-archive` | before compaction | Archive the raw transcript to `~/.ai-logs/transcripts/` before Claude compacts, plus a `PreCompact` audit record. Claude only; never blocks. |
 | `log-session-end` | session end | Append a `SessionEnd` record (with the end reason) to the audit log, closing the trail. Claude only. |
+| `scorecard-enqueue` | session end | Queue a **scorecard survey** for a non-trivial session (marker expires after 2 h; `resume` and already-rated sessions skipped). Claude only. |
+| `scorecard-survey` | session start | Offer the pending survey — rate the last session 1–5, why, what to do differently — recorded via `hooks/scorecard.sh`, lesson appended to the memoryOS (`~/.ai/memory-os` registry, written by `setup-memory-os.sh`) and re-injected by `load-memory` next session. Effortless dismissal; at most 2 offers; `AI_SCORECARD=0` disables. Claude + Cursor. |
 
 Read the audit trail with `./audit.sh` (`--stats`, `--follow`, `-n N`). The log
 lives at `~/.ai-logs/tool-calls.jsonl` (`$AI_TOOL_LOG`); set `AI_LOG_RESPONSES=0`

@@ -38,6 +38,10 @@ left in place).
   `/ux-audit`.
 - **Guardrails** — hooks that block edits to generated/sensitive paths, trip on
   catastrophic shell, auto-format edits, and log every tool call.
+- **Session scorecard** — after a real session ends, the next session opens with
+  a 30-second survey (rate it 1–5, why, what to do differently); lessons land in
+  your memoryOS (Hermes, Obsidian, or plain markdown — `setup-memory-os.sh`)
+  and are read back at every session start.
 - **Permissions** — each tool's native enforcement (deny rules, sandbox,
   policy engine) backing the hooks with rules the model can't bypass.
 

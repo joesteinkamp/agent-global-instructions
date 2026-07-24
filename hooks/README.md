@@ -22,6 +22,36 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `load-memory.sh` | session start | Injects a pointer to your **out-of-tool** memory stores (Hermes `~/.hermes/`, OpenClaw `~/.openclaw/workspace/`, project `MEMORY.md`/`memory/`) so the agent reads them before personal tasks. Lists only stores that exist; silent otherwise. Never blocks. Claude (`additionalContext`) + Cursor (`additional_context`) — the tools with SessionStart injection. Complements Claude's native auto-memory (`~/.claude/projects/<project>/memory/`), which it doesn't duplicate. |
 | `precompact-archive.sh` | before compaction (PreCompact) | Copies the **raw transcript** to `<log-dir>/transcripts/` before Claude compacts (and silently drops detail), and logs a `PreCompact` audit record. The platform forbids context injection here, so it preserves the record on disk rather than curating it. Never blocks. Claude only. |
 | `log-session-end.sh` | session end (SessionEnd) | Appends a `SessionEnd` audit record with the end reason (`clear`/`logout`/`prompt_input_exit`/`resume`/`other`), closing the trail the SessionStart loader opened. Output is ignored by the platform — pure observability. Claude only. |
+| `scorecard-enqueue.sh` | session end (SessionEnd) | Queues the just-ended session for a **scorecard survey** — only non-trivial sessions (≥`AI_SCORECARD_MIN_EVENTS`, default 20 audit records), never `resume` ends, never sessions already rated or dismissed. Markers expire after `AI_SCORECARD_TTL` (default 2 h). Claude only; never blocks. |
+| `scorecard-survey.sh` | session start | If a fresh (< 2 h), unanswered marker matches this cwd, injects a 30-second survey ask: **rating 1–5, why, what to do differently**. Dismissal is effortless (skip or just start working) and an ignored survey stops appearing after `AI_SCORECARD_MAX_OFFERS` (default 2). Claude + Cursor. |
+| `scorecard.sh` | *(not event-wired — run by the agent)* | Records the survey answers: rating → `<log-dir>/scorecards/scorecards.jsonl`, lesson → the memoryOS `LESSONS.md` (see below), plus a `Scorecard` audit record. Also `dismiss`, `pending`, `stats`, `path`. |
+| `memory-os.sh` | *(sourced library)* | Resolves the machine's **memoryOS** from the `~/.ai/memory-os` registry (Hermes → `~/.hermes/memories/LESSONS.md`; markdown/Obsidian dir → `<dir>/LESSONS.md`; fallback `~/.ai-memory/`) and appends lessons to it. |
+
+### Session scorecard survey (the feedback loop)
+
+Capture → evaluate → feed back, with **you** as the evaluator — no LLM calls,
+no background jobs:
+
+1. **SessionEnd** — `scorecard-enqueue.sh` drops a pending marker for a
+   non-trivial session under `<log-dir>/scorecards/pending/`.
+2. **Next SessionStart** (in the same directory, within 2 hours) —
+   `scorecard-survey.sh` asks the agent to run a basic survey: rate the previous
+   session 1–5, why, and what to do differently. Skipping is one word; two
+   ignored offers and the marker deletes itself.
+3. **Record** — the agent runs `scorecard.sh record …`. The rating lands in
+   `scorecards.jsonl` (`scorecard.sh stats` for trends); the lesson is appended
+   to the memoryOS **`LESSONS.md`** named by the `~/.ai/memory-os` registry
+   (written by `../setup-memory-os.sh`; auto-detects Hermes, falls back to a
+   plain markdown store at `~/.ai-memory/`). Lessons live in a file this
+   project owns — a store's own curated files (e.g. Hermes
+   `memories/MEMORY.md`) are never written.
+4. **Feed back** — `load-memory.sh` injects the most recent lessons
+   (`AI_LESSONS_INJECT`, default 8) at every SessionStart, so what you asked
+   for after past sessions reaches the next one.
+
+Disable the whole loop with `AI_SCORECARD=0`. Survey data is user data:
+`uninstall.sh` removes the hooks but leaves `scorecards/`, `LESSONS.md`, and
+the `~/.ai/memory-os` registry in place.
 
 ### Skip marker (suppressing the advisory)
 

@@ -42,6 +42,25 @@ if [ -d "$cwd/memory" ]; then
   add "- **Project memory dir** at \`$cwd/memory/\` — read \`MEMORY.md\` there as the index."
 fi
 
+# Session-survey lessons from the configured memoryOS (see hooks/memory-os.sh).
+# Injecting the most recent lines here is what closes the scorecard feedback
+# loop: what the user asked for after past sessions reaches the next one.
+lib="$(cd "$(dirname "$0")" && pwd)/memory-os.sh"
+if [ -f "$lib" ]; then
+  # shellcheck source=hooks/memory-os.sh
+  . "$lib" 2>/dev/null || true
+  if command -v memoryos_load >/dev/null 2>&1; then
+    memoryos_load 2>/dev/null || true
+    if [ -n "${MEMORYOS_LESSONS:-}" ] && [ -s "$MEMORYOS_LESSONS" ]; then
+      recent="$(grep '^- ' "$MEMORYOS_LESSONS" 2>/dev/null | tail -n "${AI_LESSONS_INJECT:-8}")"
+      if [ -n "$recent" ]; then
+        add "- **Session lessons** at \`$MEMORYOS_LESSONS\` — feedback from past session surveys; apply these:
+$recent"
+      fi
+    fi
+  fi
+fi
+
 [ -z "$found" ] && exit 0
 
 ctx="Memory stores detected on this machine. Before any personal task, read the relevant one — it reflects who the user is and prior decisions, so you don't re-ask. Different systems keep different files; prefer the one for the system you're running as.

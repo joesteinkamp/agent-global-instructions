@@ -292,6 +292,81 @@ if command -v jq >/dev/null 2>&1; then
   fi
   rm -rf "$PCDIR"
 
+  # install-hooks wired the scorecard survey pair (SessionEnd queue + SessionStart offer).
+  if jq -e '[.hooks.SessionEnd[].hooks[].command] | any(test("scorecard-enqueue"))' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
+     && jq -e '[.hooks.SessionStart[].hooks[].command] | any(test("scorecard-survey"))' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+    ok "install-hooks wires the scorecard enqueue and survey hooks"
+  else
+    bad "install-hooks wires the scorecard enqueue and survey hooks"
+  fi
+
+  # setup-memory-os --yes writes the registry (markdown fallback in a bare HOME).
+  HOME="$SMOKE" bash "$DIR/setup-memory-os.sh" --yes >/dev/null 2>&1
+  grep -q '^MEMORYOS_TYPE=markdown' "$SMOKE/.ai/memory-os" 2>/dev/null \
+    && ok "setup-memory-os writes a markdown registry when nothing is detected" \
+    || bad "setup-memory-os writes a markdown registry when nothing is detected"
+
+  # Scorecard lifecycle: queue -> offer (cwd-scoped, TTL-pruned) -> record -> lesson -> re-injected.
+  SC="$(mktemp -d)"; SCLOG="$SC/log/tool-calls.jsonl"; SCD="$SC/log/scorecards"
+  SCCFG="$SC/memcfg"; SCMEM="$SC/mem"; mkdir -p "$SC/log"
+  printf 'MEMORYOS_TYPE=markdown\nMEMORYOS_PATH=%s\n' "$SCMEM" > "$SCCFG"
+  i=0; while [ "$i" -lt 25 ]; do printf '{"ts":"t","tool":"claude","session":"sc1","cwd":"/w","event":"PreToolUse","tool_name":"Bash"}\n'; i=$((i+1)); done > "$SCLOG"
+  printf '{"session_id":"sc1","cwd":"/w","reason":"clear"}' | AI_TOOL_LOG="$SCLOG" HOOK_PLATFORM=claude bash "$DIR/hooks/scorecard-enqueue.sh" 2>/dev/null
+  printf '{"session_id":"sc2","cwd":"/w","reason":"clear"}' | AI_TOOL_LOG="$SCLOG" HOOK_PLATFORM=claude bash "$DIR/hooks/scorecard-enqueue.sh" 2>/dev/null
+  [ -f "$SCD/pending/sc1.json" ] && [ ! -e "$SCD/pending/sc2.json" ] \
+    && ok "scorecard-enqueue queues material sessions and skips trivial ones" \
+    || bad "scorecard-enqueue queues material sessions and skips trivial ones"
+
+  # A stale (>TTL) marker is pruned, a matching fresh one is offered — but never
+  # for another cwd, and the offer text keeps dismissal explicit.
+  jq -nc --arg e "$(( $(date +%s) - 8000 ))" '{session:"old1",cwd:"/w",reason:"clear",ended_epoch:($e|tonumber),ended:"t",records:30,offered:0}' > "$SCD/pending/old1.json"
+  sv_other="$(printf '{"cwd":"/other","source":"startup"}' | AI_TOOL_LOG="$SCLOG" HOOK_PLATFORM=claude bash "$DIR/hooks/scorecard-survey.sh" 2>/dev/null)"
+  sv="$(printf '{"cwd":"/w","session_id":"new1","source":"startup"}' | AI_TOOL_LOG="$SCLOG" HOOK_PLATFORM=claude bash "$DIR/hooks/scorecard-survey.sh" 2>/dev/null)"
+  if printf '%s' "$sv" | jq -e '.hookSpecificOutput.additionalContext | test("sc1") and test("dismiss") and test("Rate that session")' >/dev/null 2>&1 \
+     && [ -z "$sv_other" ] && [ ! -e "$SCD/pending/old1.json" ]; then
+    ok "scorecard-survey offers a fresh matching survey and prunes expired markers"
+  else
+    bad "scorecard-survey offers a fresh matching survey and prunes expired markers"
+  fi
+
+  # Recording stores the rating, clears the marker, appends the lesson to the
+  # memoryOS, and blocks re-queueing of the same session.
+  AI_TOOL_LOG="$SCLOG" AI_MEMORYOS_CONFIG="$SCCFG" bash "$DIR/hooks/scorecard.sh" record \
+    --session sc1 --rating 4 --why "solid work" --lesson "always bind 0.0.0.0" >/dev/null 2>&1
+  printf '{"session_id":"sc1","cwd":"/w","reason":"clear"}' | AI_TOOL_LOG="$SCLOG" HOOK_PLATFORM=claude bash "$DIR/hooks/scorecard-enqueue.sh" 2>/dev/null
+  if jq -e 'select(.session=="sc1" and .rating==4)' "$SCD/scorecards.jsonl" >/dev/null 2>&1 \
+     && [ ! -e "$SCD/pending/sc1.json" ] \
+     && grep -q 'always bind 0.0.0.0' "$SCMEM/LESSONS.md" 2>/dev/null \
+     && jq -e 'select(.event=="Scorecard" and .tool_name=="record")' "$SCLOG" >/dev/null 2>&1; then
+    ok "scorecard record stores the rating, the lesson, and is not re-queued"
+  else
+    bad "scorecard record stores the rating, the lesson, and is not re-queued"
+  fi
+
+  # Dismissal is one command: marker gone, dismissal remembered.
+  jq -nc --arg e "$(date +%s)" '{session:"sc3",cwd:"/w",reason:"clear",ended_epoch:($e|tonumber),ended:"t",records:30,offered:0}' > "$SCD/pending/sc3.json"
+  AI_TOOL_LOG="$SCLOG" bash "$DIR/hooks/scorecard.sh" dismiss --session sc3 >/dev/null 2>&1
+  [ ! -e "$SCD/pending/sc3.json" ] \
+    && jq -e 'select(.session=="sc3" and .dismissed==true)' "$SCD/scorecards.jsonl" >/dev/null 2>&1 \
+    && ok "scorecard dismiss clears the marker and records the skip" \
+    || bad "scorecard dismiss clears the marker and records the skip"
+
+  # An ignored survey stops being offered after AI_SCORECARD_MAX_OFFERS.
+  jq -nc --arg e "$(date +%s)" '{session:"sc4",cwd:"/w",reason:"clear",ended_epoch:($e|tonumber),ended:"t",records:30,offered:0}' > "$SCD/pending/sc4.json"
+  m1="$(printf '{"cwd":"/w","source":"startup"}' | AI_TOOL_LOG="$SCLOG" AI_SCORECARD_MAX_OFFERS=1 HOOK_PLATFORM=claude bash "$DIR/hooks/scorecard-survey.sh" 2>/dev/null)"
+  m2="$(printf '{"cwd":"/w","source":"startup"}' | AI_TOOL_LOG="$SCLOG" AI_SCORECARD_MAX_OFFERS=1 HOOK_PLATFORM=claude bash "$DIR/hooks/scorecard-survey.sh" 2>/dev/null)"
+  [ -n "$m1" ] && [ -z "$m2" ] && [ ! -e "$SCD/pending/sc4.json" ] \
+    && ok "scorecard-survey stops offering after max offers" \
+    || bad "scorecard-survey stops offering after max offers"
+
+  # load-memory closes the loop: recorded lessons are injected next session.
+  LMPROJ="$(mktemp -d)"
+  lm_lessons="$(printf '{"cwd":"%s","source":"startup"}' "$LMPROJ" | HOME="$LMPROJ" AI_MEMORYOS_CONFIG="$SCCFG" HOOK_PLATFORM=claude bash "$DIR/hooks/load-memory.sh" 2>/dev/null)"
+  printf '%s' "$lm_lessons" | jq -e '.hookSpecificOutput.additionalContext | test("always bind 0.0.0.0")' >/dev/null 2>&1 \
+    && ok "load-memory injects recent session lessons at SessionStart" \
+    || bad "load-memory injects recent session lessons at SessionStart"
+  rm -rf "$SC" "$LMPROJ"
+
   # One conservative advisory replaces the three blocking Stop hooks.
   if jq -e '[.hooks.Stop[].hooks[].command] as $c
             | ($c|length)==1 and ($c[0]|test("quality-nudge"))

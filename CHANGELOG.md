@@ -11,7 +11,46 @@ so the log reads as the project's decision history, not just a list of diffs.
 
 ## [Unreleased]
 
-### Removed
+### Added
+- **Session scorecard survey + memoryOS registry (2026-07-24, Claude).** A
+  human-feedback loop that evaluates each session and feeds lessons into the
+  next one: `hooks/scorecard-enqueue.sh` (SessionEnd, Claude) queues a pending
+  marker for non-trivial sessions (≥`AI_SCORECARD_MIN_EVENTS`=20 audit
+  records, never `resume` ends, never already-rated sessions);
+  `hooks/scorecard-survey.sh` (SessionStart, Claude + Cursor) offers a
+  3-question survey — rate the last session 1–5, why, what to do differently;
+  `hooks/scorecard.sh` (agent-run CLI, not event-wired) records answers to
+  `<log-dir>/scorecards/scorecards.jsonl` (`stats`/`pending`/`dismiss`) and
+  appends the lesson to the machine's memoryOS; `load-memory.sh` now injects
+  the most recent lessons (`AI_LESSONS_INJECT`=8) at every SessionStart —
+  that injection is what closes the loop. Where lessons land is a new
+  machine-wide registry, `~/.ai/memory-os`, written by `setup-memory-os.sh`
+  (new `install.sh` layer): detects Hermes (`~/.hermes/memories/LESSONS.md`),
+  supports markdown/Obsidian dirs and a Notion local-mirror mode, falls back
+  to `~/.ai-memory/`. Suite 106 → 114; docs rows in hooks/README, GUIDE §3,
+  README bullet.
+
+  The ask: Joe wanted a component that scorecards each AI agent session and
+  feeds results back into memoryOS to improve the next session — with an
+  easy-to-dismiss survey and no ask more than 2 hours after the session ends.
+  Why this approach: SessionEnd hooks cannot prompt (the platform ignores
+  their output and the session is over), so the ask is deferred to the next
+  SessionStart in the same cwd — which after `/clear` appears immediately, so
+  it *feels* end-of-session; the user is the evaluator, making the signal
+  direct and the cost zero (no LLM calls, no cron, no background jobs).
+  Dismissal is deliberately frictionless: one word (or just starting real
+  work) dismisses, markers self-expire after `AI_SCORECARD_TTL`=7200s, an
+  ignored survey stops after `AI_SCORECARD_MAX_OFFERS`=2, and
+  `AI_SCORECARD=0` kills the loop. Lessons go to a project-owned `LESSONS.md`
+  inside the chosen store — never appended into a store's own curated files
+  (e.g. Hermes `memories/MEMORY.md`) — to respect one-writer-per-file and
+  Hermes' lock conventions. Rejected: the first design's cross-vendor
+  headless LLM graders with a rubric plus a daily cron sweep and a
+  `/scorecard` command (Joe cut it: costly, and a basic human rating with
+  "why" questions is more informative for training); surveying via a
+  terminal prompt at SessionEnd (unsupported — would fight the TUI for the
+  tty); writing lessons straight into Hermes `MEMORY.md` (clutters a curated
+  personal-facts store and races its writer).
 - **Gemini CLI support removed entirely (2026-07-24, Claude).** No more
   opt-in: `WIRE_GEMINI` is gone, and `gemini` is no longer accepted by any
   install script (`install.sh`/`install-commands.sh`/`install-hooks.sh`/

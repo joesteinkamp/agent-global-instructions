@@ -12,6 +12,8 @@
 #   - instructions (customize.sh --global): all tools, always — the portable core.
 #   - commands (install-commands.sh):       per tool (~/.claude, ~/.codex/skills, ~/.cursor).
 #   - hooks (install-hooks.sh):             per tool.
+#   - memory OS registry (setup-memory-os.sh): machine-wide — where session-survey
+#     lessons land (~/.ai/memory-os; detects Hermes, falls back to markdown).
 #   - settings/permissions (install-settings.sh): per tool (native model differs; see that script).
 #
 # Reverse it all with ./uninstall.sh.
@@ -43,6 +45,9 @@ echo "== commands =="
 
 echo "== hooks =="
 "$DIR/install-hooks.sh" "${targets[@]}"
+
+echo "== memory OS (lesson store for session surveys) =="
+if [ -n "$yes_flag" ]; then "$DIR/setup-memory-os.sh" --yes; else "$DIR/setup-memory-os.sh"; fi
 
 echo "== settings (per-tool permissions) =="
 "$DIR/install-settings.sh" "${targets[@]}"
