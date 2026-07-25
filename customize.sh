@@ -358,6 +358,10 @@ render() {
   [ -n "$ENVIRONMENT" ]          && keep="${keep}env-desc:"
   [ "$INC_MEMORY" = "y" ]        && keep="${keep}memory-os:"
   [ "$AUTONOMY" = "aggressive" ] && keep="${keep}autonomy-aggressive:" || keep="${keep}autonomy-balanced:"
+  # Long-running-work guidance (loops/goals) rides with the aggressive posture:
+  # it tells the agent to keep sessions alive, which is exactly what a balanced
+  # user opted out of.
+  [ "$AUTONOMY" = "aggressive" ] && keep="${keep}long-autonomy:"
   [ "$INC_TEAMS" = "y" ]         && keep="${keep}agent-teams:"
   [ "$INC_WORKTREES" = "y" ]     && keep="${keep}parallel-worktrees:"
   [ "$INC_ORCHESTRATION" = "y" ] && keep="${keep}cross-tool-orchestration:"
@@ -594,6 +598,13 @@ write_global() {
         && echo "  wrote ~/.ai/model-routing.md (model-routing table)"
     fi
   fi
+  # Seed the default /loop maintenance prompt for Claude Code — bare `/loop`
+  # runs it instead of the tool's built-in one. Seed-only: never overwrite,
+  # the installed copy is the user's to tune. (Codex/Cursor need no file:
+  # /goal takes its objective inline, and Cursor's /loop reads a prompt.)
+  if [ -f "$DIR/loop.md" ] && [ ! -f "$HOME/.claude/loop.md" ]; then
+    cp "$DIR/loop.md" "$HOME/.claude/loop.md" && echo "  seeded ~/.claude/loop.md (default /loop prompt)"
+  fi
   # Seed a Change Log into the global instruction folder so AI-made changes have a
   # machine-wide place to be logged. Seed-only: never overwrite an existing global
   # CHANGELOG.md, so accumulated entries survive re-installs.
@@ -622,6 +633,10 @@ case "${1:-}" in
   # everyone default — both already applied by normalize_inputs above).
   # install-commands.sh queries this so it never re-parses my-context.env. Prints y|n.
   --design-group) printf '%s\n' "$INC_DESIGN"; exit 0;;
+  # Resolved autonomy posture (aggressive|balanced), same precedence as the
+  # render. install-hooks.sh queries this to decide whether the SessionStart
+  # autonomy-reminder hook gets wired, so it never re-parses my-context.env.
+  --autonomy) printf '%s\n' "$AUTONOMY"; exit 0;;
   # Dry-run of local-model detection: print the registry lines that --global
   # would write to ~/.ai/local-models (nothing is written). For humans checking
   # what a machine would register, and for test.sh.

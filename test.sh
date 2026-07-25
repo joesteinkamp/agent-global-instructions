@@ -49,6 +49,14 @@ assert_no "INC_LOCAL_MODELS=n leaves no marker leak" 'SECTION:'
 INC_ORCHESTRATION=n render
 assert_no "INC_ORCHESTRATION=n drops the nested local-models block too" 'Local models are delegates'
 
+# 2b. Autonomy posture gates the long-running-work (loops/goals) section.
+render
+assert_has "default (aggressive) render includes Long-running work" '## Long-running work'
+assert_has "aggressive render names the per-tool loop primitives"   '/goal <objective>'
+AUTONOMY=balanced render
+assert_no "AUTONOMY=balanced omits the Long-running work section" 'Long-running work'
+assert_no "AUTONOMY=balanced leaves no marker leak" 'SECTION:'
+
 # 3. Nested sections: artifacts off removes the nested preview-* blocks too.
 INC_ARTIFACTS=n render
 assert_no "INC_ARTIFACTS=n removes Output artifacts" 'Output artifacts'
@@ -492,6 +500,7 @@ if command -v jq >/dev/null 2>&1; then
      && [ ! -L "$SMOKE2/.claude/CLAUDE.md" ] && grep -qF '@~/AGENTS.md' "$SMOKE2/.claude/CLAUDE.md" \
      && [ -L "$SMOKE2/.codex/AGENTS.md" ] \
      && [ -f "$SMOKE2/.claude/CHANGELOG.md" ] \
+     && [ -f "$SMOKE2/.claude/loop.md" ] \
      && [ -f "$SMOKE2/.ai/clis" ] && [ ! -e "$SMOKE2/.ai-logs/ai-clis" ] \
      && cmp -s "$DIR/MODEL-ROUTING.md" "$SMOKE2/.ai/model-routing.md"; then
     ok "install.sh orchestrates every layer and forwards --no-design"
@@ -508,6 +517,13 @@ if command -v jq >/dev/null 2>&1; then
     && [ -L "$SMOKE2/.codex/AGENTS.md" ]; } \
     && ok "claude pointer preserves hand additions across re-renders" \
     || bad "claude pointer preserves hand additions across re-renders"
+
+  # loop.md is seed-only: a tuned copy survives re-renders untouched.
+  echo "- my tuned loop rule" >> "$SMOKE2/.claude/loop.md"
+  HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+  grep -qF -- "- my tuned loop rule" "$SMOKE2/.claude/loop.md" \
+    && ok "loop.md seed never overwrites a tuned copy" \
+    || bad "loop.md seed never overwrites a tuned copy"
 
   # uninstall reverses the pointers: with no pre-existing backup they are
   # removed; ~/AGENTS.md itself stays.
@@ -595,6 +611,39 @@ if command -v jq >/dev/null 2>&1; then
   { [ "$dg_def" = y ] && [ "$dg_off" = n ]; } \
     && ok "customize --design-group defaults on, honors explicit INC_DESIGN=n" \
     || bad "customize --design-group (got default=$dg_def explicit-n=$dg_off)"
+
+  # --autonomy resolves the posture the same way (env var outranks context files).
+  au_def="$(AIGI_NO_USER_ENV=1 "$CUSTOMIZE" --autonomy 2>/dev/null)"
+  au_bal="$(AIGI_NO_USER_ENV=1 AUTONOMY=balanced "$CUSTOMIZE" --autonomy 2>/dev/null)"
+  { [ "$au_def" = aggressive ] && [ "$au_bal" = balanced ]; } \
+    && ok "customize --autonomy resolves the posture (default aggressive, env wins)" \
+    || bad "customize --autonomy (got default=$au_def balanced=$au_bal)"
+
+  # autonomy-reminder wires on aggressive installs only (claude + cursor), and a
+  # posture flipped to balanced prunes an already-wired reminder on re-install.
+  AR="$(mktemp -d)"
+  HOME="$AR" AUTONOMY=aggressive bash "$DIR/install-hooks.sh" claude cursor >/dev/null 2>&1
+  ar_cl="$(jq -r '[.hooks.SessionStart[].hooks[].command] | any(test("autonomy-reminder"))' "$AR/.claude/settings.json" 2>/dev/null)"
+  ar_cu="$(jq -r '[.hooks.sessionStart[].command] | any(test("autonomy-reminder"))' "$AR/.cursor/hooks.json" 2>/dev/null)"
+  HOME="$AR" AUTONOMY=balanced bash "$DIR/install-hooks.sh" claude cursor >/dev/null 2>&1
+  ar_cl2="$(jq -r '[.hooks.SessionStart[].hooks[].command] | any(test("autonomy-reminder"))' "$AR/.claude/settings.json" 2>/dev/null)"
+  ar_cu2="$(jq -r '[.hooks.sessionStart[]?.command] | any(test("autonomy-reminder"))' "$AR/.cursor/hooks.json" 2>/dev/null)"
+  { [ "$ar_cl" = true ] && [ "$ar_cu" = true ] && [ "$ar_cl2" = false ] && [ "$ar_cu2" = false ]; } \
+    && ok "autonomy-reminder wires on aggressive, prunes on balanced (claude+cursor)" \
+    || bad "autonomy-reminder wiring (agg cl=$ar_cl cu=$ar_cu / bal cl=$ar_cl2 cu=$ar_cu2)"
+  rm -rf "$AR"
+
+  # The hook emits the right SessionStart shape per platform, silent elsewhere.
+  arh_c="$(printf '{"source":"startup"}' | HOOK_PLATFORM=claude bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
+  arh_u="$(printf '{}' | HOOK_PLATFORM=cursor bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
+  arh_x="$(printf '{}' | HOOK_PLATFORM=codex bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
+  if printf '%s' "$arh_c" | jq -e '.hookSpecificOutput.additionalContext | test("/loop") and test("done-condition")' >/dev/null 2>&1 \
+     && printf '%s' "$arh_u" | jq -e '.additional_context | test("/loop")' >/dev/null 2>&1 \
+     && [ -z "$arh_x" ]; then
+    ok "autonomy-reminder emits per-platform context and stays silent for codex"
+  else
+    bad "autonomy-reminder emits per-platform context and stays silent for codex"
+  fi
 
   # Explicit flags gate the design pack and prune it when turned off. The design
   # command (/ux-audit) is skill-backed: on claude/cursor the vendored skill

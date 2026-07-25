@@ -32,6 +32,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Stop for:** destructive/irreversible actions, spending money, or external sends unless I asked.
 - **Confirmation gates always win.** Per-tool rules below (external sends, placing orders, etc.) override autonomy — ask at the gate.
 
+
 ## Agent teams & subagents
 
 - **Prefer agent teams when supported** — raise it as an option even when I don't.

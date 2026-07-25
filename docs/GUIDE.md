@@ -94,7 +94,13 @@ every option:
 
 - **About you** — what you care about; your environment (asked, never assumed).
 - **How you like work done** — autonomy posture (aggressive/balanced); whether
-  to encourage agent teams (and which roles); subagents for long work.
+  to encourage agent teams (and which roles); subagents for long work. The
+  aggressive posture also renders a **Long-running work** section — when a task
+  outlives the turn, the agent reaches for the host tool's long-run primitive
+  (`/loop` in Claude Code and Cursor, `/goal` in Codex) with an explicit
+  done-condition, instead of ending with "next steps"; the install seeds
+  `~/.claude/loop.md` (bare `/loop`'s default maintenance prompt, seed-only)
+  and wires the `autonomy-reminder` SessionStart hook.
 - **Where your memory lives** — a local file/db store (e.g. Hermes at
   `~/.hermes/`), a notes app over MCP (e.g. Notion, Obsidian), both, or
   generic. Set non-interactively with `MEM_KIND` + `MEM_PATH` / `MEM_TOOL` (or
@@ -207,6 +213,7 @@ present and skipping gracefully otherwise. Full detail in
 | `log-session-end` | session end | Append a `SessionEnd` record (with the end reason) to the audit log, closing the trail. Claude only. |
 | `scorecard-enqueue` | session end | Queue a **scorecard survey** for a non-trivial session (marker expires after 2 h; `resume` and already-rated sessions skipped). Claude only. |
 | `scorecard-survey` | session start | Offer the pending survey — rate the last session 1–5, why, what to do differently — recorded via `hooks/scorecard.sh`, lesson appended to the memoryOS (`~/.ai/memory-os` registry, written by `setup-memory-os.sh`) and re-injected by `load-memory` next session. Effortless dismissal; at most 2 offers; `AI_SCORECARD=0` disables. Claude + Cursor. |
+| `autonomy-reminder` | session start | Remind the agent that the tool has a long-run primitive (`/loop`) so ongoing work gets a loop with a done-condition instead of a "next steps" handoff. Advisory context only. Wired **only when the autonomy posture is aggressive** (resolved via `customize.sh --autonomy`; a posture flipped to balanced prunes it on re-install). Claude + Cursor; Codex learns `/goal` from the rendered instructions. |
 
 Read the audit trail with `./audit.sh` (`--stats`, `--follow`, `-n N`). The log
 lives at `~/.ai-logs/tool-calls.jsonl` (`$AI_TOOL_LOG`); set `AI_LOG_RESPONSES=0`

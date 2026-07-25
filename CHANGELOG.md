@@ -12,6 +12,42 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Added
+- **Encourage long autonomy: /loop and /goal as first-class primitives
+  (2026-07-25, Claude).** Added a `long-autonomy` template section (rendered
+  only under the aggressive posture) that teaches every tool its own long-run
+  primitive — `/loop` in Claude Code and Cursor's `agent`, `/goal <objective>`
+  in Codex — behind four rules: offer *or start* the loop when work outlives
+  the turn, write a testable done-condition first, confirmation gates apply
+  unchanged inside every iteration, and leave a file trail (WIP commits,
+  `STATE.md`) so a fresh session can resume. `customize.sh --global` now seeds
+  `~/.claude/loop.md` (bare `/loop`'s default maintenance prompt: continue
+  unfinished work → tend the PR → converge `ai/*` worktrees → otherwise report
+  "nothing to do"; seed-only, never overwritten), and a new `autonomy-reminder`
+  SessionStart hook (Claude + Cursor) injects a one-paragraph advisory that
+  `/loop` exists — wired only when the new `customize.sh --autonomy` query
+  resolves to aggressive, and pruned on re-install if the posture flips to
+  balanced.
+
+  Original ask: plan how this harness can encourage longer autonomy — sessions
+  ended with "next steps" lists instead of staying alive on ongoing work; use
+  `/loop` for claude and agent, `/goal` for codex.
+
+  Why this approach: prose in the one rendered `~/AGENTS.md` reaches all four
+  tools at once; gating on the existing aggressive/balanced posture reuses a
+  toggle that already means "keep going without me" instead of adding a new
+  interview question; and the hook mirrors `load-memory`'s advisory contract —
+  it reminds, never auto-starts anything, so the established "hooks never
+  auto-continue" stance holds.
+
+  Rejected: a Stop-hook "keep going" nudge (would invert the anti-auto-continue
+  contract `quality-nudge` deliberately enforces); writing `[features]
+  goals = true` into `~/.codex/config.toml` (duplicate-table risk could corrupt
+  a user config, and goals is default-on since codex 0.133 — the prose instead
+  suggests `codex features enable goals` when `/goal` is missing); shipping an
+  external while-loop wrapper for Cursor (its `/loop` is treated as native per
+  Joe, though current Cursor docs don't list it — revisit if a session reports
+  it unknown).
+
 - **Local models as first-class delegates (2026-07-24, Claude).** Added a
   machine-local registry (`~/.ai/local-models`, written by
   `customize.sh --global`: probes a running Ollama at `:11434` and the

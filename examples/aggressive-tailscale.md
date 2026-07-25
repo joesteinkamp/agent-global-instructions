@@ -33,6 +33,14 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Stop only for:** destructive/irreversible actions, spending money, or external sends (email/posts/commits) unless I asked.
 - **"Finish the task" never overrides a confirmation gate.** Per-tool rules below (external sends, placing orders, etc.) and the stops above always win over autonomy — when in doubt at a gate, ask.
 
+## Long-running work
+
+- **When work outlives the turn, reach for the host tool's long-run primitive** instead of ending with a list of next steps: in Claude Code and Cursor (`agent`) that's `/loop` (`/loop <prompt>` self-paces, `/loop 10m <prompt>` fixes the interval, bare `/loop` runs the default maintenance prompt at `~/.claude/loop.md`); in Codex it's `/goal <objective>` — a durable goal pursued turn after turn (`/goal` shows status; `pause`/`resume`/`clear` manage it; if goals are unavailable, suggest `codex features enable goals`).
+- **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop/goal yourself and say what cadence you picked and why. If the long tail is optional, offer it in one line at handoff.
+- **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges"), check it each iteration, and end the loop yourself when it's met — then report what happened.
+- **Loops don't loosen gates.** Every confirmation gate above applies inside every iteration — external sends, spending, and destructive actions still stop and ask. When an iteration hits a gate, pause on it; don't bypass it.
+- **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the loop stopped.
+
 ## Agent teams & subagents
 
 - **Prefer agent teams when supported** — raise it as an option even when I don't.

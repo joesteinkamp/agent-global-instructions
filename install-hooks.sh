@@ -26,7 +26,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 # mentions the bare name; not end-anchored since wired commands end in .sh").
 # memory-os and scorecard are not event hooks: memory-os.sh is a sourced lib and
 # scorecard.sh the survey recorder CLI — both installed beside the hooks that use them.
-HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge load-memory precompact-archive log-session-end memory-os scorecard scorecard-enqueue scorecard-survey)
+HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge load-memory precompact-archive log-session-end memory-os scorecard scorecard-enqueue scorecard-survey autonomy-reminder)
 # Keep retired names in the matcher so an update removes the three aggressive
 # legacy Stop entries instead of leaving them active beside quality-nudge.
 RETIRED_HOOK_SCRIPTS=(improve-nudge verify-nudge changelog-nudge)
@@ -92,14 +92,25 @@ merge_json() {  # $1 = settings file, $2 = hooks object json
 
 cmd() { printf 'env HOOK_PLATFORM=%s "%s/%s.sh"' "$1" "$2" "$3"; }  # platform, hookdir, script
 
+# The SessionStart autonomy-reminder (offer /loop for ongoing work) only wires
+# under the aggressive posture — resolved via customize.sh --autonomy, the same
+# seam install-commands.sh uses for the design group (my-context.env answers;
+# an explicit AUTONOMY env var outranks them). On resolver failure fall back to
+# the render's own default (aggressive) rather than aborting the install.
+# merge_json strips our prior entries every run, so a posture flipped to
+# balanced prunes an already-wired reminder on the next install.
+AUTONOMY_MODE="$("$DIR/customize.sh" --autonomy 2>/dev/null || true)"
+[ "$AUTONOMY_MODE" = "balanced" ] || AUTONOMY_MODE=aggressive
+WIRE_AR=false; [ "$AUTONOMY_MODE" = "aggressive" ] && WIRE_AR=true
+
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg sq "$(cmd claude "$hd" scorecard-enqueue)" --arg ss "$(cmd claude "$hd" scorecard-survey)" '{
-    SessionStart: [
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg sq "$(cmd claude "$hd" scorecard-enqueue)" --arg ss "$(cmd claude "$hd" scorecard-survey)" --arg ar "$(cmd claude "$hd" autonomy-reminder)" --argjson arw "$WIRE_AR" '{
+    SessionStart: ([
       {matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$lm}]},
       {matcher:"startup|resume|clear", hooks:[{type:"command",command:$ss}]}
-    ],
+    ] + (if $arw then [{matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$ar}]}] else [] end)),
     PreToolUse: [
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
       {matcher:"Edit|Write|MultiEdit|NotebookEdit", hooks:[{type:"command",command:$gp}]},
@@ -116,7 +127,7 @@ install_claude() {
       {matcher:"clear|logout|prompt_input_exit|other", hooks:[{type:"command",command:$sq}]}
     ]
   }')"
-  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, precompact-archive, session-end, scorecard survey)"
+  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, precompact-archive, session-end, scorecard survey$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
 }
 
 install_codex() {
@@ -171,14 +182,16 @@ install_cursor() {
     --arg lg "$(cmd cursor "$hd" log-tool)" \
     --arg lm "$(cmd cursor "$hd" load-memory)" \
     --arg ss "$(cmd cursor "$hd" scorecard-survey)" \
-    --arg qn "$(cmd cursor "$hd" quality-nudge)" '{
-    sessionStart: [ {command:$lm}, {command:$ss} ],
+    --arg qn "$(cmd cursor "$hd" quality-nudge)" \
+    --arg ar "$(cmd cursor "$hd" autonomy-reminder)" \
+    --argjson arw "$WIRE_AR" '{
+    sessionStart: ([ {command:$lm}, {command:$ss} ] + (if $arw then [{command:$ar}] else [] end)),
     beforeShellExecution: [ {command:$lg}, {command:$gb} ],
     beforeReadFile: [ {command:$gpr} ],
     afterFileEdit: [ {command:$lg}, {command:$gp}, {command:$fm} ],
     stop: [ {command:$qn, loop_limit:1} ]
   }')"
-  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, advisory quality-nudge; write-block via permissions)"
+  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, advisory quality-nudge$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"); write-block via permissions)"
 }
 
 # Antigravity reads its own ~/.gemini/antigravity-cli/
