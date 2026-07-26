@@ -1,5 +1,5 @@
 ---
-description: Run a multi-role review team on recent changes to find improvement opportunities
+description: Run a multi-role review team in the background against a pinned snapshot of recent changes to find improvement opportunities
 argument-hint: [optional focus, e.g. "perf" or a path]
 allowed-tools: Bash(git:*), Bash(command:*), Bash(codex:*), Bash(agy:*), Bash(claude:*), Bash(agent:*), Bash(cursor-agent:*), Bash(lm:*), Task, Read, Grep, Glob
 ---
@@ -11,6 +11,26 @@ Other AI CLIs installed: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex 
 Local models registered: !`cat "$HOME/.ai/local-models" 2>/dev/null || true`
 
 Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). $ARGUMENTS
+
+**Background by default.** This review is advisory and read-only — it must not block the session while
+the panel runs. Invocation still requires my explicit ask (backgrounding changes *how it runs*, never
+*when it may start*). Run it like this:
+
+- **Pin a snapshot first.** The main thread keeps editing while the review runs, so the panel must judge
+  a frozen target, not a moving one. At invocation: `mkdir -p ~/.ai-context/<repo>-improve/agents`, then
+  capture `SNAP=$(git stash create || true); SNAP=${SNAP:-$(git rev-parse HEAD)}` and write the frozen
+  evidence into the context dir — `git --no-pager diff HEAD > diff.patch`, plus copies of any untracked
+  files in scope (`git stash create` doesn't capture those). Every lens reviews the frozen diff/files, and
+  every `file:line` in the findings refers to snapshot `$SNAP` — stamp the report with it.
+- **Detach the whole review.** Run steps 1–4 below inside one background task (in Claude Code / Cursor:
+  a background subagent) so control returns to me immediately — say so in one line, with the snapshot SHA
+  and where findings will land. If the host has no background tasks (e.g. the Codex port), run inline as
+  before and say that instead.
+- **Findings are durable, not just chat.** The background review writes its deduped, prioritized findings
+  to `~/.ai-context/<repo>-improve/findings.md` (stamped with `$SNAP`) before finishing, so a fresh
+  session — or another tool — inherits them even if this one ends first. When the completion notification
+  arrives, deliver steps 5–6 inline as usual, and **flag staleness**: list any finding whose file changed
+  between `$SNAP` and the current tree.
 
 1. Scope the changes and decide whether they touch UI.
 2. Spin up the review team **in parallel** — one subagent per lens (Task/Agent tool):

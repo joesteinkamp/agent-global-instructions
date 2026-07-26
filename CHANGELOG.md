@@ -85,6 +85,41 @@ so the log reads as the project's decision history, not just a list of diffs.
   note).
 
 ### Changed
+- **`/improve` backgrounds by default; `/verify` gains `--bg`
+  (2026-07-26, Claude).** `/improve` now runs its review panel as one
+  background task pinned to a snapshot taken at invocation (`git stash
+  create`, else `HEAD`, plus the frozen `diff.patch` and untracked copies in
+  the context dir), returning control immediately and landing findings as a
+  completion notification plus a durable
+  `~/.ai-context/<repo>-improve/findings.md` stamped with the snapshot SHA —
+  with staleness flags for files that changed since. Explicit-only invocation
+  is unchanged (backgrounding changes *how it runs*, never *when it may
+  start*), and hosts without background tasks (the Codex port) degrade to
+  inline. `/verify` is now explicitly **synchronous by default** — it's a
+  handoff gate, and a gate that hasn't finished can't gate — with a new
+  `--bg` deferred mode: snapshot-pinned the same way, tied to an explicit
+  done-condition ("done when this verify reports its grade") that handoff
+  waits on, and forbidden from colliding with the live dev server. Template
+  `improve` section, `docs/GUIDE.md`, the codex/cursor ports, and the
+  `aggressive-tailscale` example render updated to match.
+
+  Original ask: Joe asked whether hook-style background correction could run
+  without blocking work linearly; discussion converged on making the quality
+  passes themselves async where that's sound.
+
+  Why this approach: the two commands differ in kind — `/improve` is advisory
+  and read-only, so blocking the session is pure cost, while `/verify`'s
+  whole value is blocking "done." Snapshot pinning solves the moving-target
+  problem (findings' `file:line` referencing code that no longer exists once
+  the main thread keeps editing); durable findings files survive the session
+  ending before the notification is read.
+
+  Rejected: backgrounding both symmetrically (an async verify is a report you
+  might ignore — it either breaks the gate or saves nothing); fire-and-forget
+  `--bg` for verify (deferred-with-done-condition keeps the handoff honest);
+  hook-triggered auto-runs of either pass (would violate the explicit-only
+  rule the `quality-nudge` contract enforces).
+
 - **Model routing refresh — hard coding & long-context now split at the top
   (2026-07-24, Claude).** Re-researched all 7 categories against current
   public benchmarks. Two real changes, driven by GPT-5.6 Sol's independent

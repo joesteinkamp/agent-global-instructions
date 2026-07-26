@@ -1,6 +1,6 @@
 ---
 description: Product-grade evaluation of recent work — prove it runs, then grade how well it serves this session's goal, briefs held as reference (and flag docs the code has outgrown)
-argument-hint: [optional route/url, the goal, or a focus]
+argument-hint: [optional route/url, the goal, or a focus; --bg to run deferred in the background]
 allowed-tools: Bash, Read, Grep, Glob, Skill, Task
 ---
 
@@ -14,6 +14,22 @@ Prior runs: !`ls -dt verify/*/ 2>/dev/null | head -3 || true`
 floor) and not code taste (that's `/improve`), but *how well does this actually serve the user's goal for
 this session?* Evidence is the foundation, the briefs are reference, and the honest yardstick is the goal
 this piece of work set out to hit. $ARGUMENTS
+
+**Synchronous by default — verify is a handoff gate, not a report.** Its whole value is blocking "done":
+work isn't verified until this pass finishes, so run it inline and don't hand off around it. The **`--bg`**
+escape hatch exists for long runs (big suites, multi-route browser sweeps) when there is genuinely
+independent work to overlap — it makes verify *deferred*, never fire-and-forget:
+
+- **Pin a snapshot** exactly as `/improve` does (`git stash create` / `git rev-parse HEAD` + frozen
+  `diff.patch` and untracked copies in `~/.ai-context/<repo>-verify/`); grade the snapshot and stamp the
+  report with its SHA.
+- **State the done-condition before detaching** — "done when this verify reports its grade" — and hold it:
+  the session must not call the work verified, hand it off, or ship it until the background run reports.
+  Deliver the scorecard when the completion notification arrives, and flag any file that changed since the
+  snapshot.
+- **Don't fight the live dev server.** One dev server rule applies: if the session's server is already up,
+  drive it read-only; otherwise boot on a **different port** and shut it down when grading ends.
+- If the host has no background tasks, `--bg` degrades to a normal inline run — say so.
 
 This project is built **bit by bit across sessions**, and the code often runs ahead of the docs — briefs
 get updated *after* the code lands. Treat the briefs as context, not gospel: where the work diverges from

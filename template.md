@@ -109,6 +109,10 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Skip marker:** `d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"; mkdir -p "$d"; touch "$d/.nudge-skip-quality.$k"`
 
 **The review itself (`/improve`):** default panel — technical architect, back-end engineer, front-end engineer, plus a UI/UX lens when UI changed. Run them in parallel as subagents; each returns concrete, prioritized suggestions (`file:line` + fix). Whichever tool is running the review, spread the lenses across the *other* installed AI CLIs as delegates (per the orchestration rules) — more independent vendors is better, and a model checking its own work is not a check. Then dedupe and summarize, top impact first. It's a review pass — surface opportunities and any real bugs; don't apply changes unless I say so.
+
+**`/improve` runs in the background by default.** It's advisory and read-only, so it must not block the session: pin the review to a snapshot at invocation (`git stash create`, else `HEAD`, plus the frozen diff in the context dir), run the panel against that SHA while work continues, and land findings both as a completion notification and a durable `findings.md` stamped with the SHA. Explicit-only still applies — backgrounding changes how it runs, never when it may start. On hosts without background tasks it runs inline.
+
+**`/verify` stays synchronous — it's a handoff gate.** Don't call work done, hand it off, or ship while a verify is pending. `/verify --bg` is the deliberate exception for long runs: snapshot-pinned like `/improve` and tied to an explicit done-condition ("done when this verify reports its grade") that the handoff waits on — deferred, never fire-and-forget.
 <!--/SECTION:improve-->
 
 <!--SECTION:tools-mcp-->

@@ -159,8 +159,8 @@ command once as `commands/<name>.md` and every tool picks it up.
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/worktrees` | One worktree per parallel agent (`ai/<agent>`), converged into a single integration tree a lone dev server watches — several models, near-live. Pairs with `converge.sh`. |
 | `/grill-me` | A relentless interview to sharpen a plan or design before you build it — one question at a time, recommended answers offered, environment facts looked up rather than asked, nothing acted on until we reach a shared understanding. |
-| `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. |
-| `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. |
+| `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. **Backgrounds by default**: pins a snapshot SHA, reviews it while work continues, lands findings as a notification + durable `findings.md`. |
+| `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. **Synchronous by default** (it gates handoff); `--bg` defers it behind an explicit done-condition for long runs. |
 | `/update-model-routing` | Deep-research current public model benchmarks (SWE-bench Verified, Terminal-Bench, LMArena, …) and refresh `MODEL-ROUTING.md` — the advisory per-task-type vendor rankings mirrored to `~/.ai/model-routing.md`. Shows the diff for approval before anything is kept. Runs in this repo's checkout only. |
 | `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots). Writes + serves a self-contained HTML report. |
 
@@ -249,7 +249,12 @@ point polishing a change that doesn't render).
 
 - **`/improve`** spins up parallel subagents — technical architect, back-end,
   front-end, and a UI/UX lens when UI changed — each returning concrete,
-  prioritized fixes with `file:line`, then deduped into one summary.
+  prioritized fixes with `file:line`, then deduped into one summary. It runs
+  **in the background by default**: the review is pinned to a snapshot taken at
+  invocation (so `file:line` findings can't chase a moving tree), the session
+  keeps working, and findings arrive as a completion notification plus a durable
+  `findings.md` stamped with the snapshot SHA. Still explicit-only — async
+  changes how it runs, not when it's allowed to start.
 - **`/verify`** runs a lens stack, each emitting **PASS / FAIL / N/A** with
   evidence: ① builds & runs (detects the project's tooling); ② renders in a headless
   browser (`playwright-cli`) — responsive screenshots, console & network gates,
@@ -259,7 +264,12 @@ point polishing a change that doesn't render).
   pairs with the [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack));
   ⑥ does what it claimed (re-runs the PR/task acceptance criteria). It writes a
   self-contained `verify/<slug>-<date>/report.html` and serves it over your
-  preview method — verdict + link inline, findings in the artifact.
+  preview method — verdict + link inline, findings in the artifact. It stays
+  **synchronous by default** — verify is a handoff gate, and a gate that hasn't
+  finished can't gate. `/verify --bg` is the escape hatch for long runs:
+  snapshot-pinned and tied to a done-condition the handoff waits on (deferred,
+  never fire-and-forget), booting any server it needs on a port that doesn't
+  collide with the live one.
 - **`quality-nudge`** (Stop hook — Claude, Codex, Cursor) emits one advisory after a
   material code diff. It stays silent for small, documentation-only, and
   artifact-only work; never auto-runs either pass; and never blocks or continues
