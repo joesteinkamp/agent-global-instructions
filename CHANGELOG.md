@@ -85,6 +85,32 @@ so the log reads as the project's decision history, not just a list of diffs.
   note).
 
 ### Changed
+- **Verify-pass hardening of the async quality contracts (2026-07-26,
+  Claude).** A cross-vendor `/verify` of the async-quality-passes commit
+  (Antigravity D, Cursor C, own grade B−) confirmed three contract holes,
+  fixed here: `/verify --bg` claimed to grade a pinned snapshot but ran
+  whatever tree it was in — it now materializes the SHA in a disposable
+  worktree (`git worktree add --detach`, untracked copies re-applied, removed
+  after grading) and branches explicitly on the `--bg` flag; the deferred gate
+  was honor-system — a durable `PENDING.md` marker (goal, SNAP,
+  done-condition) now survives session death and `/ship` checks it (new step
+  0); and the `/improve` snapshot recipe mis-landed `diff.patch` in the repo
+  CWD, ignored untracked-only WIP (where `$SNAP` falls back to a HEAD that
+  never contained the change), and never named an authoritative artifact —
+  all specified now, with the frozen evidence declared to win over both
+  `$SNAP` and the live tree. `commands/README.md` descriptions refreshed;
+  template/GUIDE aligned to the same contract.
+
+  Refuted and not acted on: delegate claims that the diff "missed the
+  generated ports" (they are gitignored renders by design, regenerated on
+  every install) and that verify prose inside `SECTION:improve` breaks
+  parsing (the section's established "When to verify & improve" shape,
+  covered by the section-wiring test). Codex could not grade — usage quota
+  exhausted until 2026-08-11 — so the second opinion ran on two vendors.
+
+  Rejected: enforcing the open gate via a hook (prose + the `/ship` step-0
+  check keeps enforcement in the same layer as the rest of the contract).
+
 - **`/improve` backgrounds by default; `/verify` gains `--bg`
   (2026-07-26, Claude).** `/improve` now runs its review panel as one
   background task pinned to a snapshot taken at invocation (`git stash
