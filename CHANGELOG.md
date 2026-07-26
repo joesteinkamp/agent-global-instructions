@@ -85,6 +85,33 @@ so the log reads as the project's decision history, not just a list of diffs.
   note).
 
 ### Changed
+- **Slim the resident instructions ~31% by extracting workflow mechanics into
+  on-demand playbooks (2026-07-26, Claude).** New `playbooks/` directory —
+  `orchestration.md` (full cross-tool delegation contract), `quality-workflows.md`
+  (`/improve` panel + background-snapshot mechanics, `/verify --bg`, the advisory
+  skip marker), `web-preview.md` (`playwright-cli` flows, the Vite/Astro
+  unknown-Host 403) — mirrored to `~/.ai/<name>.md` by `customize.sh --global`
+  (same cmp-guarded pattern as `MODEL-ROUTING.md`; removed, not left stale,
+  when a playbook's section is toggled off). The template's orchestration,
+  verify/improve, and artifacts sections now keep only always-relevant policy —
+  confirmation gates, the sole-checker rule, the "you *are* the delegate"
+  trigger, never-bypass-flags — plus a read-this-first pointer at the playbook.
+  Rendered `~/AGENTS.md` drops from 144 lines / ~3,100 words to 127 / ~2,100.
+
+  Original ask: Joe asked whether the 144-line render was too long, given the
+  "cut your CLAUDE.md by 80%" discourse.
+
+  Why this approach: the real cost of a long instruction file is attention
+  dilution, not tokens — and the fat was mid-task mechanics resident on every
+  turn. Moving mechanics behind pointers keeps every gate always-loaded while
+  detail loads only when actually delegating, reviewing, or serving.
+
+  Rejected: chasing an 80% cut (this file is behavioral policy, not `/init`
+  bloat — compressing that far would delete gates); relying on the
+  improve/verify skills alone to carry the mechanics (other tools read the
+  rendered instructions without those skills installed, so the playbooks keep
+  the contract tool-agnostic).
+
 - **Verify-pass hardening of the async quality contracts (2026-07-26,
   Claude).** A cross-vendor `/verify` of the async-quality-passes commit
   (Antigravity D, Cursor C, own grade B−) confirmed three contract holes,
