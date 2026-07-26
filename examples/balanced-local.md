@@ -49,7 +49,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Use Markdown for** issues, PR descriptions, notes apps, commits, or specs under ~100 lines.
 - **Reviews, audits, and multi-finding syntheses are artifacts, not chat.** When the work is a set of findings, options, or results (code reviews, audits, research, comparisons), build the HTML artifact **first** and hand me the link — don't dump the findings inline as the primary deliverable.
 - Don't ask which format — pick and proceed.
-- **Browser testing & verification — `playwright-cli`.** After serving a route, drive it with `playwright-cli` (`open`/`goto`, `screenshot`, `console`, and the network log; `run-code` when you need Playwright APIs like axe-core or `emulateMedia`). Read `playwright-cli --help` before inventing flows; don't use curl-only smoke checks for UI work.
+- **Browser testing & verification — `playwright-cli`,** never curl-only smoke checks for UI work. Flows, flags, and serving gotchas (incl. the Vite/Astro unknown-Host 403) are in `~/.ai/web-preview.md` — read it before driving or serving a route.
 - **Serve/open artifacts locally** (`localhost`) and give me the path/URL.
 
 ## Design system & UI

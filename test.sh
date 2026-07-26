@@ -42,6 +42,14 @@ assert_has "default render points at the CLI roster" '~/.ai/clis'
 assert_has "default render points at the model-routing table" '~/.ai/model-routing.md'
 assert_has "default render includes the local-models bullets" 'Local models are delegates'
 assert_has "default render points at the local-model registry" '~/.ai/local-models'
+assert_has "default render points at the orchestration playbook" '~/.ai/orchestration.md'
+assert_has "default render points at the quality-workflows playbook" '~/.ai/quality-workflows.md'
+assert_has "default render points at the web-preview playbook" '~/.ai/web-preview.md'
+INC_ORCHESTRATION=n render
+assert_no "INC_ORCHESTRATION=n removes the orchestration-playbook pointer" '~/.ai/orchestration.md'
+INC_IMPROVE=n render
+assert_no "INC_IMPROVE=n removes the quality-workflows pointer" '~/.ai/quality-workflows.md'
+assert_no "INC_IMPROVE=n leaves no marker leak" 'SECTION:'
 
 INC_LOCAL_MODELS=n render
 assert_no "INC_LOCAL_MODELS=n removes the local-models bullets" 'Local models are delegates'
@@ -507,6 +515,22 @@ if command -v jq >/dev/null 2>&1; then
   else
     bad "install.sh orchestrates every layer and forwards --no-design"
   fi
+
+  # --global installs the on-demand playbooks next to the other ~/.ai files,
+  # and a section toggled off removes its playbook instead of leaving it stale.
+  if [ -f "$SMOKE2/.ai/orchestration.md" ] \
+     && [ -f "$SMOKE2/.ai/quality-workflows.md" ] \
+     && [ -f "$SMOKE2/.ai/web-preview.md" ] \
+     && cmp -s "$DIR/playbooks/orchestration.md" "$SMOKE2/.ai/orchestration.md"; then
+    ok "install.sh installs the on-demand playbooks to ~/.ai/"
+  else
+    bad "install.sh installs the on-demand playbooks to ~/.ai/"
+  fi
+  HOME="$SMOKE2" AIGI_NO_USER_ENV=1 INC_ORCHESTRATION=n bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+  { [ ! -e "$SMOKE2/.ai/orchestration.md" ] && [ -f "$SMOKE2/.ai/quality-workflows.md" ]; } \
+    && ok "INC_ORCHESTRATION=n --global removes only the orchestration playbook" \
+    || bad "INC_ORCHESTRATION=n --global removes only the orchestration playbook"
+  HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
 
   # Claude pointer: hand additions below the @import survive a re-render;
   # the codex pointer stays a symlink.

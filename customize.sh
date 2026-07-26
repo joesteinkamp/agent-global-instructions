@@ -598,6 +598,27 @@ write_global() {
         && echo "  wrote ~/.ai/model-routing.md (model-routing table)"
     fi
   fi
+  # On-demand playbooks — the rendered instructions keep short resident rules
+  # and point at these for the full contracts (orchestration, verify/improve
+  # mechanics, web preview how-to), so resident context stays small. Mirrored
+  # like model-routing (repo copy is the source of truth, cmp-guarded); when a
+  # playbook's section is toggled off, its file is removed, not left stale.
+  local pb name gate
+  for pb in "orchestration:$INC_ORCHESTRATION" \
+            "quality-workflows:$INC_IMPROVE" \
+            "web-preview:$INC_ARTIFACTS"; do
+    name="${pb%%:*}"; gate="${pb##*:}"
+    if [ "$gate" = "y" ] && [ -f "$DIR/playbooks/$name.md" ]; then
+      if cmp -s "$DIR/playbooks/$name.md" "$HOME/.ai/$name.md" 2>/dev/null; then
+        echo "  ok ~/.ai/$name.md (up to date)"
+      else
+        cp "$DIR/playbooks/$name.md" "$HOME/.ai/$name.md" \
+          && echo "  wrote ~/.ai/$name.md (on-demand playbook)"
+      fi
+    else
+      rm -f "$HOME/.ai/$name.md"
+    fi
+  done
   # Seed the default /loop maintenance prompt for Claude Code — bare `/loop`
   # runs it instead of the tool's built-in one. Seed-only: never overwrite,
   # the installed copy is the user's to tune. (Codex/Cursor need no file:

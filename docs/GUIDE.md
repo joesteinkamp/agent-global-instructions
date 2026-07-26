@@ -66,6 +66,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `*-permissions.snippet.*` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
 | `converge.sh` | Daemon for the `/worktrees` flow: folds parallel agent branches (`ai/*`) into the integration branch as they advance. |
+| `playbooks/` | On-demand contracts the rendered instructions point at instead of inlining (`orchestration.md`, `quality-workflows.md`, `web-preview.md`). `customize.sh --global` mirrors each to `~/.ai/<name>.md` when its section is on (and removes it when off), keeping the resident instruction file short — agents load the detail only when the task needs it. |
 | `MODEL-ROUTING.md` | Advisory, benchmark-derived table of which installed AI CLI is strongest per task type (hard coding, review, research, planning, UI, cheap fan-out, long-context). Mirrored to `~/.ai/model-routing.md` by `customize.sh --global` so the rendered instructions can point agents at it; refreshed on demand with `/update-model-routing`. |
 | `CHANGELOG.md` | Human-readable decision history of AI-made changes — each entry records what changed, the original ask, why that approach, and what was rejected. Proposed by the assistant at session end, written only after you approve. `customize.sh --global` seeds a copy into `~/.claude/` (seed-only; never overwrites). |
 | `.github/workflows/ci.yml` | CI: shellcheck every script + run `test.sh` on push / PR. |
@@ -310,9 +311,11 @@ Run `./test.sh` after any change.
   project for the external import — accept it.
 
 It also maintains the `~/.ai/` governance layer: the CLI roster (`clis`), the
-local-model registry (`local-models`) + the `~/.local/bin/lm` shim, and the
+local-model registry (`local-models`) + the `~/.local/bin/lm` shim, the
 model-routing mirror (`model-routing.md`, plus the machine-local
-`model-routing.local.md` that `/update-model-routing` writes for local models).
+`model-routing.local.md` that `/update-model-routing` writes for local models),
+and the on-demand playbooks (`orchestration.md`, `quality-workflows.md`,
+`web-preview.md`) that the short resident sections point at.
 
 `uninstall.sh` reverses the pointers: each is restored from its newest backup
 (taken when the pointer was first installed), or removed if none exists;
