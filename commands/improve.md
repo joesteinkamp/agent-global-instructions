@@ -17,11 +17,15 @@ the panel runs. Invocation still requires my explicit ask (backgrounding changes
 *when it may start*). Run it like this:
 
 - **Pin a snapshot first.** The main thread keeps editing while the review runs, so the panel must judge
-  a frozen target, not a moving one. At invocation: `mkdir -p ~/.ai-context/<repo>-improve/agents`, then
-  capture `SNAP=$(git stash create || true); SNAP=${SNAP:-$(git rev-parse HEAD)}` and write the frozen
-  evidence into the context dir — `git --no-pager diff HEAD > diff.patch`, plus copies of any untracked
-  files in scope (`git stash create` doesn't capture those). Every lens reviews the frozen diff/files, and
-  every `file:line` in the findings refers to snapshot `$SNAP` — stamp the report with it.
+  a frozen target, not a moving one. At invocation: `ctx=~/.ai-context/<repo>-improve; mkdir -p "$ctx"/agents`,
+  then capture `SNAP=$(git stash create || true); SNAP=${SNAP:-$(git rev-parse HEAD)}` and write the frozen
+  evidence into the context dir — `git --no-pager diff HEAD > "$ctx"/diff.patch`, plus every untracked file
+  from `git status --porcelain` (the `??` lines) mirrored under `"$ctx"/untracked/` with paths preserved
+  (`git stash create` doesn't capture those — and when the WIP is *only* untracked files it returns nothing,
+  so `$SNAP` falls back to a HEAD that never contained them). **The frozen evidence is authoritative:**
+  lenses review `diff.patch` + `untracked/`, not the live tree, and where `$SNAP` and the frozen files
+  disagree, the frozen files win — `$SNAP` is the stamp. Every `file:line` in the findings refers to that
+  frozen state; stamp the report with `$SNAP`.
 - **Detach the whole review.** Run steps 1–4 below inside one background task (in Claude Code / Cursor:
   a background subagent) so control returns to me immediately — say so in one line, with the snapshot SHA
   and where findings will land. If the host has no background tasks (e.g. the Codex port), run inline as

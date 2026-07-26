@@ -18,6 +18,9 @@ First, figure out which forge this repo lives on, from the `origin` remote URL a
 - If the host is ambiguous, prefer whichever of `gh` / `glab` is installed (`command -v`). If neither is available, do steps 1–4 (commit + push) and stop, telling me to open the PR/MR manually.
 
 Steps:
+0. **Open verify gate?** If `~/.ai-context/<repo>-verify/PENDING.md` exists, a deferred
+   `/verify --bg` hasn't reported its grade yet — stop and say so (goal + snapshot SHA are in the
+   file); don't ship around an open gate unless I explicitly override.
 1. If there are no changes and nothing unpushed, say so and stop.
 2. **Tidy gate.** Detect the project's tooling — `package.json` scripts, or
    configs like prettier/eslint/ruff/black/gofmt/rubocop, a `Makefile`, etc.

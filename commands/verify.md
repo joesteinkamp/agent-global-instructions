@@ -18,11 +18,20 @@ this piece of work set out to hit. $ARGUMENTS
 **Synchronous by default — verify is a handoff gate, not a report.** Its whole value is blocking "done":
 work isn't verified until this pass finishes, so run it inline and don't hand off around it. The **`--bg`**
 escape hatch exists for long runs (big suites, multi-route browser sweeps) when there is genuinely
-independent work to overlap — it makes verify *deferred*, never fire-and-forget:
+independent work to overlap — it makes verify *deferred*, never fire-and-forget. **Branch on the flag:**
+only run the deferred mode below when the arguments contain `--bg`; any other invocation runs inline top
+to bottom, and `--bg` is never implied.
 
-- **Pin a snapshot** exactly as `/improve` does (`git stash create` / `git rev-parse HEAD` + frozen
-  `diff.patch` and untracked copies in `~/.ai-context/<repo>-verify/`); grade the snapshot and stamp the
-  report with its SHA.
+- **Pin a snapshot and materialize it.** Pin exactly as `/improve` does (`git stash create` /
+  `git rev-parse HEAD` + frozen `diff.patch` and untracked copies in `~/.ai-context/<repo>-verify/`) —
+  then, because this pass *builds, boots, and browses* code, give it a real tree at that SHA:
+  `git worktree add --detach <tmp-dir> "$SNAP"` (re-apply the untracked copies on top), run every
+  build/test/browser step **in that temp worktree, never the live tree** (which keeps moving), and
+  `git worktree remove` it when grading ends. Stamp the report with `$SNAP`.
+- **Leave a durable open-gate marker.** Before detaching, write
+  `~/.ai-context/<repo>-verify/PENDING.md` — the goal, `$SNAP`, and the done-condition — and delete it
+  when the scorecard is delivered. `/ship` checks for this file, so the gate survives the session dying:
+  a fresh session finds the marker and knows a verify is still owed.
 - **State the done-condition before detaching** — "done when this verify reports its grade" — and hold it:
   the session must not call the work verified, hand it off, or ship it until the background run reports.
   Deliver the scorecard when the completion notification arrives, and flag any file that changed since the

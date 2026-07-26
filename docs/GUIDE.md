@@ -267,9 +267,11 @@ point polishing a change that doesn't render).
   preview method — verdict + link inline, findings in the artifact. It stays
   **synchronous by default** — verify is a handoff gate, and a gate that hasn't
   finished can't gate. `/verify --bg` is the escape hatch for long runs:
-  snapshot-pinned and tied to a done-condition the handoff waits on (deferred,
-  never fire-and-forget), booting any server it needs on a port that doesn't
-  collide with the live one.
+  snapshot-pinned and materialized in a disposable worktree at that SHA (verify
+  runs code, so it grades a real frozen tree, not the moving one), marked by a
+  durable `PENDING.md` open-gate file `/ship` refuses to ship past, and tied to
+  a done-condition the handoff waits on (deferred, never fire-and-forget),
+  booting any server it needs on a port that doesn't collide with the live one.
 - **`quality-nudge`** (Stop hook — Claude, Codex, Cursor) emits one advisory after a
   material code diff. It stays silent for small, documentation-only, and
   artifact-only work; never auto-runs either pass; and never blocks or continues
