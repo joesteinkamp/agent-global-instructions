@@ -251,10 +251,40 @@ if command -v jq >/dev/null 2>&1; then
 
   # install-settings merges the Claude-only permissions layer, idempotently.
   if HOME="$SMOKE" bash "$DIR/install-settings.sh" >/dev/null 2>&1 \
-     && jq -e '.permissions.deny | index("Read(./.env)")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+     && jq -e '.permissions.deny | index("Read(**/.env)")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
     ok "install-settings merges the permissions deny layer"
   else
     bad "install-settings merges the permissions deny layer"
+  fi
+
+  # Only Read(...)/Edit(...) file rules ship: Claude Code parses Write/NotebookEdit/
+  # Glob path rules but never matches them, and warns about each at startup.
+  # Edit(...) already covers Edit + Write + NotebookEdit.
+  if jq -e '[.permissions[]?[]? | select(test("^(Write|NotebookEdit|Glob)\\("))] | length == 0' \
+       "$DIR/settings-permissions.snippet.json" >/dev/null 2>&1; then
+    ok "claude snippet has no dead Write/NotebookEdit/Glob permission rules"
+  else
+    bad "claude snippet has no dead Write/NotebookEdit/Glob permission rules"
+  fi
+
+  # Bare filenames match at any depth, so a ./x rule paired with a **/x one is a dupe.
+  if jq -e '[.permissions[]?[]? | select(test("\\(\\./"))] | length == 0' \
+       "$DIR/settings-permissions.snippet.json" >/dev/null 2>&1; then
+    ok "claude snippet has no redundant ./ + **/ rule pairs"
+  else
+    bad "claude snippet has no redundant ./ + **/ rule pairs"
+  fi
+
+  # Retired rules are pruned from an existing settings.json, not left orphaned.
+  jq '.permissions.deny += ["Write(**/build/**)","Read(./.env)"]' \
+     "$SMOKE/.claude/settings.json" > "$SMOKE/.claude/settings.json.t" \
+    && mv "$SMOKE/.claude/settings.json.t" "$SMOKE/.claude/settings.json"
+  HOME="$SMOKE" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  if jq -e '[.permissions.deny[] | select(. == "Write(**/build/**)" or . == "Read(./.env)")] | length == 0' \
+       "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
+    ok "install-settings prunes retired permission rules from an existing file"
+  else
+    bad "install-settings prunes retired permission rules from an existing file"
   fi
   p1="$(jq '.permissions.deny | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
   HOME="$SMOKE" bash "$DIR/install-settings.sh" >/dev/null 2>&1

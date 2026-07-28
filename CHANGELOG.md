@@ -11,6 +11,52 @@ so the log reads as the project's decision history, not just a list of diffs.
 
 ## [Unreleased]
 
+### Fixed
+- **Finish the permission-rule cleanup: drop the redundant `./` read rules and
+  prune retired rules from existing installs (2026-07-28, Claude).** The ask:
+  Joe reported his global Claude settings had needed hand-fixing, with a defect
+  report naming two installer bugs. Issue 1 (dead `Write(...)` rules causing
+  startup warnings) was already fixed — see the earlier "Remove redundant
+  `Write(...)` deny rules" entry below. Issue 2 was not:
+  `settings-permissions.snippet.json` emitted both `Read(./.env)` and
+  `Read(**/.env)` (same for `.env.*`), where the docs confirm bare filenames
+  follow gitignore semantics and match at any depth — `Read(.env)` and
+  `Read(**/.env)` are equivalent — so the `./` form is fully subsumed. Removed
+  both, and rewrote the snippet's `_comment` into an explicit generation rule:
+  only `Read`/`Edit` are matched for files, `Edit(...)` covers Edit + Write +
+  NotebookEdit (so never emit `Write(...)`/`NotebookEdit(...)`/`Glob(...)`),
+  one rule per pattern, and the cwd-relative anchoring is *intended* for a
+  user-level file — a `//**/` prefix would extend the block to the whole
+  filesystem.
+
+  Why this approach: the deeper problem was that dropping a rule from a snippet
+  doesn't clean existing installs. `uninstall.sh` subtracts exactly what the
+  snippet holds *today*, so a retired rule orphans in `~/.claude/settings.json`
+  forever — which is precisely why the earlier `Write(...)` fix had to be
+  hand-applied to the live file. Added `CLAUDE_RETIRED_PERMS` to
+  `install-settings.sh` (the 15 dead `Write(...)` rules plus the 2 `./` dupes),
+  subtracted before the union so a re-run heals an old install, mirroring
+  `remove_commands_dir`'s retired-command-names pattern. Three regression tests
+  pin all of it: no `Write`/`NotebookEdit`/`Glob` rules in the snippet, no
+  `./` + `**/` pairs, and retired rules actually pruned from a pre-existing
+  file. Deny rules 17 → 15, functional coverage unchanged; verified with a
+  clean `claude --debug -p` run (zero warnings) and 144/144 tests.
+
+  Considered and rejected: removing the rules from the snippet only (leaves
+  every existing install carrying the orphans, repeating the manual-fix cycle
+  that prompted this report); converting the `Write(...)` rules to `Edit(...)`
+  rather than deleting them (the `Edit(...)` twins already exist — conversion
+  would just recreate duplicates); rewriting the relative patterns to `//**/`
+  (over-broadens a user-level rule from "the current project" to every
+  directory on the machine — explicitly called out as a non-fix); dropping the
+  `Edit(.env)` rules as redundant with the `Read` deny (true on v2.1.208+, but
+  keeping them is harmless, clearer about intent, and works on older
+  versions); applying the same dedup to
+  `settings-permissions.cursor.snippet.json` (a different engine whose matcher
+  the Claude Code docs don't govern, and whose `Write(...)` rules have no
+  `Edit(...)` counterparts — converting blind would risk dropping real
+  protection; left for a separate pass against Cursor's own docs).
+
 ### Added
 - **Encourage long autonomy: /loop and /goal as first-class primitives
   (2026-07-25, Claude).** Added a `long-autonomy` template section (rendered

@@ -32,20 +32,44 @@ backup_file() {  # $1 = file to back up
   return 0
 }
 
+# Rules we used to install and have since retired. Dropping a rule from a snippet
+# only stops NEW installs from getting it — an existing settings.json keeps the
+# orphan forever, since uninstall.sh subtracts exactly what the snippet holds
+# today. So the merge subtracts these first (same idea as remove_commands_dir's
+# retired command names). Only ever list rules WE wrote; a rule the user added
+# themselves must never appear here.
+CLAUDE_RETIRED_PERMS='{
+  "deny": [
+    "Write(.env)", "Write(.env.*)", "Write(**/.env)", "Write(**/.env.*)",
+    "Write(**/build/**)", "Write(**/dist/**)", "Write(**/.next/**)",
+    "Write(**/out/**)", "Write(**/coverage/**)", "Write(**/node_modules/**)",
+    "Write(**/.git/**)", "Write(**/package-lock.json)", "Write(**/pnpm-lock.yaml)",
+    "Write(**/yarn.lock)", "Write(**/bun.lockb)",
+    "Read(./.env)", "Read(./.env.*)"
+  ]
+}'
+
 # Order-preserving union of each permission array from a JSON snippet (.permissions)
-# into a JSON settings file. Idempotent: a re-run never duplicates a rule.
-merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label
-  local sf="$1" snippet="$2" label="$3" perms tmp
+# into a JSON settings file, minus any retired rules ($4). Idempotent: a re-run
+# never duplicates a rule.
+merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label  [$4 = retired JSON]
+  local sf="$1" snippet="$2" label="$3" retired="${4:-{\}}" perms tmp
   [ -f "$snippet" ] || { echo "    no snippet at $snippet" >&2; return 1; }
   mkdir -p "$(dirname "$sf")"
   [ -f "$sf" ] || echo '{}' > "$sf"
   perms="$(jq '.permissions' "$snippet")"
   tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")  # same-dir: atomic mv + valid BSD template
-  jq --argjson add "$perms" '
+  # Subtract retired rules BEFORE the union, so a rule that is both retired and
+  # currently shipped (shouldn't happen, but) ends up present rather than dropped.
+  jq --argjson add "$perms" --argjson gone "$retired" '
     .permissions = (.permissions // {})
+    | reduce ($gone | to_entries[]) as $e (.;
+        if (.permissions[$e.key] | type) == "array"
+        then .permissions[$e.key] -= $e.value else . end)
     | reduce ($add | to_entries[]) as $e (.;
         .permissions[$e.key] =
           ((.permissions[$e.key] // []) as $cur | $cur + ($e.value - $cur)))
+    | .permissions |= with_entries(select((.value | type) != "array" or (.value | length) > 0))
   ' "$sf" > "$tmp" || { echo "    merge failed for $sf (left unchanged)" >&2; return 1; }
   if cmp -s "$tmp" "$sf"; then
     echo "    $sf (permissions already current, no change)"
@@ -56,7 +80,7 @@ merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label
 
 install_claude_settings() {
   echo "  claude:"
-  merge_perms_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json" claude
+  merge_perms_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json" claude "$CLAUDE_RETIRED_PERMS"
 }
 
 install_cursor_settings() {

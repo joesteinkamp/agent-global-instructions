@@ -1,9 +1,7 @@
 {
-  "_comment": "Claude-only. install-settings.sh unions the rules below into ~/.claude/settings.json; uninstall.sh subtracts exactly these. This is the CLIENT-ENFORCED layer that complements the best-effort guard hooks: deny mirrors guard-paths.sh (no prompt — the edit/read is simply refused), ask adds a confirmation gate, allow pre-approves the read-only local-model shim (lm) so delegation to local models never prompts. Patterns are glob-style (* within a segment, ** across dirs). Want more friction? Add e.g. \"Bash(git push:*)\", \"Bash(curl:*)\", \"Bash(rm:*)\" to ask — they're left out by default to avoid prompting on everyday commands the guard hooks already cover.",
+  "_comment": "Claude-only. install-settings.sh unions the rules below into ~/.claude/settings.json; uninstall.sh subtracts exactly these. This is the CLIENT-ENFORCED layer that complements the best-effort guard hooks: deny mirrors guard-paths.sh (no prompt — the edit/read is simply refused), ask adds a confirmation gate, allow pre-approves the read-only local-model shim (lm) so delegation to local models never prompts. Patterns are gitignore-style (* within a segment, ** across dirs) and anchor to the cwd — the project being worked in — which is what we want from a user-level file; a `//**/` prefix would extend the block to the whole filesystem. Rule types: only Read(path) and Edit(path) are matched for files. Edit(...) covers Edit + Write + NotebookEdit, so never add Write(...)/NotebookEdit(...)/Glob(...) rules — they are dead weight and emit a startup warning. Bare filenames already match at any depth (Read(**/.env) == Read(.env)), so never pair a ./x rule with a **/x one. Want more friction? Add e.g. \"Bash(git push:*)\", \"Bash(curl:*)\", \"Bash(rm:*)\" to ask — they're left out by default to avoid prompting on everyday commands the guard hooks already cover.",
   "permissions": {
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
       "Read(**/.env)",
       "Read(**/.env.*)",
       "Edit(**/.env)",
