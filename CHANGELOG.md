@@ -11,6 +11,24 @@ so the log reads as the project's decision history, not just a list of diffs.
 
 ## [Unreleased]
 
+### Changed
+- **Scale artifact verification to the artifact — no Playwright/axe on simple
+  read-only artifacts (2026-07-28, Claude).** The ask: Joe reported agents were
+  over-verifying simple internal HTML reports and comparisons with full
+  Playwright/axe runs, and brought suggested carve-out wording from another
+  agent. What changed: a new bullet in the template's Output artifacts section
+  ("Scale verification to the artifact" — lightweight structural checks for
+  read-only artifacts; full browser verification only on request, real
+  interaction complexity, or product UI changes) plus a matching **Scope** note
+  in `playbooks/web-preview.md`, since that playbook is what agents read right
+  before driving a browser and previously implied Playwright for all "UI work".
+  Examples re-rendered to match. Why this approach: the blanket
+  "playwright-cli, never curl-only" rule had no lower bound; a carve-out at the
+  point of the rule (and in the playbook) fixes the over-checking without
+  weakening verification for real product UI. Considered and rejected: the
+  suggesting agent's verbatim wording — restyled to the template's bold-lead
+  bullet convention, same meaning.
+
 ### Fixed
 - **Finish the permission-rule cleanup: drop the redundant `./` read rules and
   prune retired rules from existing installs (2026-07-28, Claude).** The ask:

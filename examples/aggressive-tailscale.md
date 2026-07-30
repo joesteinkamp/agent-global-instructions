@@ -84,6 +84,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Reviews, audits, and multi-finding syntheses are artifacts, not chat.** When the work is a set of findings, options, or results (code reviews, audits, research, comparisons), build the HTML artifact **first** and hand me the link — don't dump the findings inline as the primary deliverable.
 - Don't ask which format — pick and proceed.
 - **Browser testing & verification — `playwright-cli`,** never curl-only smoke checks for UI work. Flows, flags, and serving gotchas (incl. the Vite/Astro unknown-Host 403) are in `~/.ai/web-preview.md` — read it before driving or serving a route.
+- **Scale verification to the artifact.** For simple internal HTML reports, comparisons, and other read-only artifacts, don't run Playwright or axe — a lightweight structural check (it renders, links resolve) is enough. Full browser verification only when I ask, the artifact has real interaction complexity, or it changes product UI.
 - **Headless — serve over Tailscale, no local browser.** Start a webserver on `0.0.0.0` (never `127.0.0.1`), verify it returns 200, then give me `http://alex-dev.example.ts.net:PORT/`. Keep it running.
 
 ## Design system & UI
