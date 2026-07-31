@@ -73,8 +73,22 @@ up**. Grade A–F; an **A** means you'd ship it proudly, not merely that it work
 - **Experience quality** — the real user journey: friction, clarity, and the states that get skipped —
   empty, loading, error, first-run, no-permission, long-content. Would the user it's for get their job done
   without confusion?
-- **Design & accessibility** — where a reference exists, compare rendered values to `DESIGN.json` tokens (or
-  a Figma node via MCP); drift = a computed value (color, type, spacing, radius, motion) off the scale.
+- **Design & accessibility** — where a reference exists, check the code against it. `DESIGN.md` is where
+  the design system is articulated — read it for the token structure (its own, or one adopted from an
+  imported design system) and the component library in use (imported or built locally) — then verify both
+  functionally:
+  - **Token usage** — compare rendered computed values against the articulated tokens: `DESIGN.json` (or a
+    Figma node via MCP) when present, else the token structure `DESIGN.md` describes. Drift = a computed
+    value (color, type, spacing, radius, motion) off the articulated scale.
+  - **Component usage** — where `DESIGN.md` names a design system or component library, confirm the touched
+    UI uses its components as much as possible: a hand-rolled equivalent of a component the system already
+    provides is drift, same as an off-scale value. Report each with `file:line` and the component it should
+    have used; a justified, documented divergence isn't a defect — say why.
+  - **Missing articulation** — if there's no `DESIGN.md`, or it doesn't articulate a token structure or
+    component system, don't silently skip: mark these sub-checks N/A, flag the gap in the report, and
+    prompt me to add the articulation — offer to draft that `DESIGN.md` section from what the code
+    already does.
+
   Screenshot the touched routes at the project's breakpoints (`DESIGN.json` `breakpoints` if present, else
   390 / 768 / 1280) via `playwright-cli resize` + `screenshot`. **Run axe-core on every touched route** —
   it's the primary automated a11y gate; drive it through `playwright-cli run-code`, report each violation

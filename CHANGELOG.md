@@ -12,6 +12,25 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **`/verify` checks token and component usage against the design system
+  `DESIGN.md` articulates (2026-07-31, Claude).** The ask: Joe wanted `/verify`
+  to go beyond `DESIGN.json`/Figma — verify token structure pulled from an
+  imported design system, and check that touched UI adheres to the project's
+  component library (imported or built locally). What changed: the Design &
+  accessibility dimension now reads `DESIGN.md` as the articulation of the
+  system and verifies **Token usage** and **Component usage** as named
+  sub-checks (hand-rolled duplicates of provided components are drift, same as
+  off-scale values); a **Missing articulation** sub-check prompts the user when
+  `DESIGN.md` is absent or silent on tokens/components, offering to draft the
+  section from the code; the template's "Build to the system" bullet states the
+  matching build-time contract; GUIDE lens ④ and the commands README refreshed;
+  ports and examples re-rendered. Why this approach: one declaration point
+  keeps the check deterministic and portable — the command grades against what
+  the project says its system is, not what a heuristic guesses, and a missing
+  declaration becomes a visible gap instead of a silent skip. Considered and
+  rejected: auto-detecting design systems via config probes and `package.json`
+  greps (first draft) — Joe rejected it; detection logic doesn't belong in the
+  command when `DESIGN.md` should articulate the system.
 - **Scale artifact verification to the artifact — no Playwright/axe on simple
   read-only artifacts (2026-07-28, Claude).** The ask: Joe reported agents were
   over-verifying simple internal HTML reports and comparisons with full

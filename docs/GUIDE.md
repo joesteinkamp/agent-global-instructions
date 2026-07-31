@@ -260,7 +260,9 @@ point polishing a change that doesn't render).
   evidence: ① builds & runs (detects the project's tooling); ② renders in a headless
   browser (`playwright-cli`) — responsive screenshots, console & network gates,
   axe-core a11y (required on touched routes — report rule ID, impact, selector); ③ visual regression vs the last run or the default branch;
-  ④ matches the design (Figma via MCP, or `DESIGN.md` + `DESIGN.json` tokens);
+  ④ matches the design system `DESIGN.md` articulates — token usage against the
+  articulated structure (`DESIGN.json`, a Figma node via MCP, or an imported
+  design system's tokens) and component usage against its component library;
   ⑤ conforms to the briefs (`PRODUCT.md`/`DESIGN.md`/`CODE.md` + guardrails —
   pairs with the [project-starter-pack](https://github.com/joesteinkamp/project-starter-pack));
   ⑥ does what it claimed (re-runs the PR/task acceptance criteria). It writes a
