@@ -12,6 +12,17 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Add a no-editing-on-the-default-branch rule to both autonomy variants
+  (2026-08-01, Claude).** The ask: Joe noticed the globals only encourage
+  worktrees in the multi-agent context ("Parallel AI models on one repo"), so
+  solo sessions could legitimately edit `main` directly. What changed: a new
+  bullet in both `autonomy-aggressive` and `autonomy-balanced` — "Never edit on
+  the default branch. Create a feature branch (or a worktree) before changing
+  files — even when working solo" — with examples re-rendered. Why this
+  approach: placing it inside both variants keeps each variant self-contained
+  and guarantees the rule renders under any configuration. Considered and
+  rejected: adding it only to the `parallel-worktrees` section — it wouldn't
+  cover solo work and disappears entirely when that section is toggled off.
 - **`/verify` checks token and component usage against the design system
   `DESIGN.md` articulates (2026-07-31, Claude).** The ask: Joe wanted `/verify`
   to go beyond `DESIGN.json`/Figma — verify token structure pulled from an
