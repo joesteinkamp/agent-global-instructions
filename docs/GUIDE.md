@@ -156,7 +156,7 @@ command once as `commands/<name>.md` and every tool picks it up.
 
 | Command | Does |
 |---------|------|
-| `/ship` | Tidy gate (format/lint/test, stop if broken) → stage → commit → push, and on a feature branch open + **merge** the PR/MR (squash, delete branch), then return to default. Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
+| `/ship` | Tidy gate (format/lint/test, stop if broken) → move off the default branch if that's where the work sits (**it never pushes the default directly**) → stage → commit → push → open the PR/MR, then **merge only on your explicit go-ahead** (squash, delete branch, return to default). Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/worktrees` | One worktree per parallel agent (`ai/<agent>`), converged into a single integration tree a lone dev server watches — several models, near-live. Pairs with `converge.sh`. |
 | `/grill-me` | A relentless interview to sharpen a plan or design before you build it — one question at a time, recommended answers offered, environment facts looked up rather than asked, nothing acted on until we reach a shared understanding. |

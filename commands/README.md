@@ -7,7 +7,7 @@ Portable workflow shortcuts. Each top-level `.md` file is the canonical
 
 | Command | What it does |
 |---------|--------------|
-| `/ship` | Tidy gate (format/lint/test, stop if broken) → stage → commit → push, and on a feature branch open + **merge** the PR/MR (squash, delete branch), then return to default. Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
+| `/ship` | Tidy gate (format/lint/test, stop if broken) → move off the default branch if that's where the work sits (**it never pushes the default directly**) → stage → commit → push → open the PR/MR, then **merge only on your explicit go-ahead** (squash, delete branch, return to default). Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch. |
 | `/worktrees` | Set up one git worktree per parallel agent (`ai/<agent>` branches) and converge them into a single integration tree a lone dev server watches — so several models' changes show up near-live. Pairs with `converge.sh`. |
 | `/grill-me` | A relentless interview to sharpen a plan or design before you build it — one question at a time, recommended answers offered, facts looked up rather than asked, nothing acted on until we reach a shared understanding. |
