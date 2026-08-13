@@ -12,6 +12,22 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **/ship never pushes the default branch directly (2026-08-13, Claude).** The
+  ask: Joe asked whether `/ship` / `$ship` always create a PR/MR before
+  merging — merges already did (the only merge path is `gh pr merge` /
+  `glab mr merge` behind a confirmation gate), but shipping *from* the default
+  branch committed and pushed straight to it with no PR, conflicting with the
+  no-default-branch-edits rule (#22). What changed: the default-branch check
+  moved ahead of commit/push as a new step 3 — work found on the default is
+  moved to an `ai/<slug>` feature branch (uncommitted changes and any unpushed
+  local commits ride along; local default reset to `origin/<default>`), so
+  every ship lands as a PR/MR; stale `/ship` rows in the commands README and
+  GUIDE (which still claimed auto-merge) refreshed. Why this approach:
+  branching before the commit exists means the default branch never even
+  receives the commit locally, and the rest of the flow needs no changes.
+  Considered and rejected: refusing to ship from the default and telling the
+  user to branch manually — safe but leaves mechanical work the command can do
+  itself, against the repo's bias-to-action stance.
 - **Remove the unintentionally committed Gemini command ports
   (2026-08-13, Claude).** The ask: a PR merge surfaced commit `64c083d`,
   which had landed 8 hand-authored `commands/gemini/*.toml` ports directly on

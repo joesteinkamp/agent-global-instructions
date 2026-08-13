@@ -1,5 +1,5 @@
 ---
-description: Commit, push, and (on a feature branch) open the PR/MR — merging only on explicit go-ahead
+description: Commit on a feature branch (moving off the default first if needed), push, and open the PR/MR — merging only on explicit go-ahead
 argument-hint: [optional commit message / PR title]
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(glab:*)
 ---
@@ -15,7 +15,7 @@ Ship the current work in one shot. $ARGUMENTS
 First, figure out which forge this repo lives on, from the `origin` remote URL above:
 - **github.com** (or a GitHub Enterprise host) → use the `gh` CLI; the change is a **PR**.
 - **gitlab.com** (or a self-hosted GitLab) → use the `glab` CLI; the change is a **MR** (merge request).
-- If the host is ambiguous, prefer whichever of `gh` / `glab` is installed (`command -v`). If neither is available, do steps 1–4 (commit + push) and stop, telling me to open the PR/MR manually.
+- If the host is ambiguous, prefer whichever of `gh` / `glab` is installed (`command -v`). If neither is available, do steps 1–6 (commit + push) and stop, telling me to open the PR/MR manually.
 
 Steps:
 0. **Open verify gate?** If `~/.ai-context/<repo>-verify/PENDING.md` exists, a deferred
@@ -28,25 +28,33 @@ Steps:
    Auto-fix what's safe (formatting, lint autofixes). If linting or tests still
    fail after autofix, **stop here** and report what failed — do not commit
    broken code. (No project tooling detected → skip this step.)
-3. Stage everything (`git add -A`).
-4. Commit with a concise message that follows this repo's existing convention
+3. **Get off the default branch.** Figure out the default branch. Prefer a
+   forge-independent lookup so this works anywhere:
+   `git symbolic-ref --short refs/remotes/origin/HEAD` (strip the `origin/`
+   prefix), falling back to `git remote show origin` ("HEAD branch").
+   If the current branch IS the default, never push it directly — move the
+   work to a feature branch first:
+   - `git switch -c ai/<short-slug>` (name it from the change); uncommitted
+     changes ride along.
+   - If the default branch also has local commits ahead of `origin/<default>`,
+     the new branch keeps them — point the local default back at the remote
+     (`git branch -f <default> origin/<default>`) and say so in the report.
+4. Stage everything (`git add -A`).
+5. Commit with a concise message that follows this repo's existing convention
    (check `git log --oneline -5`). If I passed text in $ARGUMENTS, use it as the
    message/title; otherwise generate one from the diff.
-5. Push, setting upstream if the branch has none.
-6. Figure out the default branch. Prefer a forge-independent lookup so this works
-   anywhere: `git symbolic-ref --short refs/remotes/origin/HEAD` (strip the
-   `origin/` prefix), falling back to `git remote show origin` ("HEAD branch").
-   - **If the current branch IS the default branch:** stop here — committed and pushed.
-   - **If it's a feature branch:** open the change (reuse the existing one if there
-     is one) with a generated title/body:
-     - GitHub: `gh pr create …`. GitLab: `glab mr create …`.
-     Then **stop and ask whether to merge** — nudge, don't act: hand me the
-     PR/MR URL and ask "merge it?". This is a confirmation gate; never merge
-     without my explicit go-ahead in this session ("ship" alone is not it).
-7. **Only if I say merge:** GitHub `gh pr merge --squash --delete-branch`;
+6. Push, setting upstream if the branch has none.
+7. Open the change (reuse the existing one if there is one) with a generated
+   title/body:
+   - GitHub: `gh pr create …`. GitLab: `glab mr create …`.
+   Then **stop and ask whether to merge** — nudge, don't act: hand me the
+   PR/MR URL and ask "merge it?". This is a confirmation gate; never merge
+   without my explicit go-ahead in this session ("ship" alone is not it).
+8. **Only if I say merge:** GitHub `gh pr merge --squash --delete-branch`;
    GitLab `glab mr merge --squash --remove-source-branch`. After merge,
    `git checkout` the default branch and `git pull`. If the merge is blocked
    (failing checks, conflicts, branch protection), stop and report exactly
    what blocked it — do not force anything.
-8. Report what happened: tidy results (if run), commit hash, push, PR/MR URL,
-   and the merge result or the pending merge question.
+9. Report what happened: tidy results (if run), the branch it shipped on (and
+   whether step 3 moved the work off the default), commit hash, push, PR/MR
+   URL, and the merge result or the pending merge question.
