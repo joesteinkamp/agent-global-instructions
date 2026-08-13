@@ -12,6 +12,18 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Changelog entries now require a date + authoring-model stamp
+  (2026-08-12, Claude).** The ask: Joe asked whether the changelog
+  instructions require timestamping entries — they didn't, even though every
+  entry in this repo's own CHANGELOG.md already carries a
+  `(2026-08-01, Claude)` style stamp by convention. What changed: a new
+  bullet in the template's `changelog` section requiring the stamp and
+  resolving the date against the user's timezone; examples re-rendered. Why
+  this approach: codifying the emergent convention in the one section that
+  defines entry format keeps it portable — a fresh session on any machine now
+  produces dated, attributed entries without having seen this repo's log.
+  Considered and rejected: leaving it as convention-by-example — only works
+  in repos whose changelog already models the format.
 - **Add a no-editing-on-the-default-branch rule to both autonomy variants
   (2026-08-01, Claude).** The ask: Joe noticed the globals only encourage
   worktrees in the multi-agent context ("Parallel AI models on one repo"), so
