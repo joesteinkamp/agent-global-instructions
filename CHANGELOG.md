@@ -12,6 +12,18 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Remove the unintentionally committed Gemini command ports
+  (2026-08-13, Claude).** The ask: a PR merge surfaced commit `64c083d`,
+  which had landed 8 hand-authored `commands/gemini/*.toml` ports directly on
+  `main` — no PR, no changelog entry; Joe confirmed it was unintentional.
+  What changed: `commands/gemini/` deleted and gitignored alongside the other
+  per-tool port dirs. Why this approach: Gemini is retired (Antigravity
+  replaced it) and `render-commands.sh` has no gemini support, so the files
+  were dead weight nothing generates or consumes; the gitignore guard makes
+  the mistake unrepeatable rather than just reverted. Considered and
+  rejected: keeping the ports and adding gemini support to
+  `render-commands.sh` — it would revive a retired integration the installer
+  deliberately no longer targets.
 - **Changelog entries now require a date + authoring-model stamp
   (2026-08-12, Claude).** The ask: Joe asked whether the changelog
   instructions require timestamping entries — they didn't, even though every
