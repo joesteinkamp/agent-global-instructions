@@ -13,6 +13,9 @@ extras.local.md
 # every install; only commands/*.md (the canonical Claude dialect) is committed
 /commands/codex/
 /commands/cursor/
+# Gemini is retired (Antigravity replaced it) — its ports must never be
+# committed; this guards against a session hand-authoring them again
+/commands/gemini/
 
 # Generated review/audit/verify + design-command artifacts — local, never commit
 # (anchored to repo root: unanchored patterns would also match the generated
