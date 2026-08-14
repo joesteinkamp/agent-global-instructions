@@ -53,7 +53,10 @@ CLAUDE_RETIRED_PERMS='{
 # into a JSON settings file, minus any retired rules ($4). Idempotent: a re-run
 # never duplicates a rule.
 merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label  [$4 = retired JSON]
-  local sf="$1" snippet="$2" label="$3" retired="${4:-{\}}" perms tmp
+  # `${4:-{\}}` would keep the backslash literally ({\}), which jq --argjson
+  # rejects — so default the retired-rules JSON on its own line instead.
+  local sf="$1" snippet="$2" label="$3" retired="${4:-}" perms tmp
+  [ -n "$retired" ] || retired='{}'
   [ -f "$snippet" ] || { echo "    no snippet at $snippet" >&2; return 1; }
   mkdir -p "$(dirname "$sf")"
   [ -f "$sf" ] || echo '{}' > "$sf"
