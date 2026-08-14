@@ -37,7 +37,13 @@ audit() {  # $1 = action (record/dismiss), $2 = session, $3 = detail
 
 append_row() {  # $1 = jsonl row
   mkdir -p "$SCDIR" 2>/dev/null
-  { flock 9; printf '%s\n' "$1" >&9; } 9>>"$FILE"
+  # flock ships on Linux but not stock macOS; fall back to a plain append there
+  # rather than dying with "flock: command not found" (same as log-tool.sh).
+  if command -v flock >/dev/null 2>&1; then
+    { flock 9 2>/dev/null; printf '%s\n' "$1" >&9; } 9>>"$FILE"
+  else
+    printf '%s\n' "$1" >> "$FILE"
+  fi
 }
 
 marker_for() {  # $1 = session id -> sanitized marker path

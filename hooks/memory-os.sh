@@ -38,7 +38,8 @@ memoryos_load() {
 }
 
 # memoryos_append_lesson <text> [meta]  — one line per lesson, newest last, so
-# readers can `tail` the most recent. Appends under flock for parallel agents.
+# readers can `tail` the most recent. Appends under flock for parallel agents
+# where it exists — stock macOS lacks it, so fall back to a plain append.
 memoryos_append_lesson() {
   local text="${1:-}" meta="${2:-}"
   [ -n "$text" ] || return 0
@@ -48,9 +49,14 @@ memoryos_append_lesson() {
     printf '# Session lessons\n\nAppended by the session scorecard survey (agent-global-instructions).\nOne line per lesson; newest last. Safe to curate by hand — the survey only appends.\n\n' \
       > "$MEMORYOS_LESSONS" 2>/dev/null || return 0
   fi
-  {
-    flock 9
-    printf -- '- %s · %s — %s\n' "$(date +%F)" "${meta:-session survey}" "$text" >&9
-  } 9>>"$MEMORYOS_LESSONS" 2>/dev/null || true
+  if command -v flock >/dev/null 2>&1; then
+    {
+      flock 9 2>/dev/null
+      printf -- '- %s · %s — %s\n' "$(date +%F)" "${meta:-session survey}" "$text" >&9
+    } 9>>"$MEMORYOS_LESSONS" 2>/dev/null || true
+  else
+    printf -- '- %s · %s — %s\n' "$(date +%F)" "${meta:-session survey}" "$text" \
+      >> "$MEMORYOS_LESSONS" 2>/dev/null || true
+  fi
   return 0
 }

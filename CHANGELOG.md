@@ -100,6 +100,27 @@ so the log reads as the project's decision history, not just a list of diffs.
   bullet convention, same meaning.
 
 ### Fixed
+- **Cursor permission merge and the macOS scorecard loop
+  (2026-08-13, Claude Opus 5).** The ask: Joe asked to install the latest
+  instructions on this machine; `./install.sh --yes` failed the Cursor settings
+  step, and the test suite showed 5 pre-existing failures. What changed:
+  (a) `merge_perms_json`'s retired-rules default `"${4:-{\}}"` kept the
+  backslash literally, so `jq --argjson gone` rejected `{\}` as invalid JSON —
+  every Cursor install had silently skipped its deny layer since the
+  retired-rules parameter was added, while Claude passed `$4` explicitly and
+  never hit it; the default now sits on its own line. (b) `scorecard.sh` and
+  `memory-os.sh` called `flock` unguarded, which stock macOS lacks —
+  `scorecard.sh record` died at exit 127, so no rating was stored and no lesson
+  reached the memoryOS, making the advertised session-scorecard feedback loop a
+  no-op on every Mac. Both now use the `command -v flock` guard `log-tool.sh`
+  already carried. Why this approach: `log-tool.sh` had solved the flock
+  portability problem in-repo already, so mirroring its idiom keeps one pattern
+  instead of two; the shell-default fix is the minimal change that keeps the
+  same call signature. Considered and rejected: requiring `flock` via
+  `brew install util-linux` — pushes a dependency onto every macOS user for
+  best-effort append locking the log layer already treats as optional; and
+  quoting the default as `'{}'` inline, which reads as working but repeats the
+  same brace-escaping trap the next editor would hit.
 - **Finish the permission-rule cleanup: drop the redundant `./` read rules and
   prune retired rules from existing installs (2026-07-28, Claude).** The ask:
   Joe reported his global Claude settings had needed hand-fixing, with a defect
