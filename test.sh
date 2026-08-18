@@ -226,6 +226,14 @@ if command -v jq >/dev/null 2>&1; then
   n2="$(jq '.hooks.PreToolUse | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
   [ -n "$n1" ] && [ "$n1" = "$n2" ] && ok "install-hooks is idempotent (no duplication)" \
                                     || bad "install-hooks is idempotent (no duplication)"
+  # Every SessionEnd hook must declare a timeout. Claude Code aborts the whole
+  # SessionEnd batch after max(1500ms, largest declared timeout), and an abort
+  # is user-visible ("Hook cancelled") — undeclared means a 1.5s shutdown race.
+  se_total="$(jq '[.hooks.SessionEnd[].hooks[]] | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
+  se_timed="$(jq '[.hooks.SessionEnd[].hooks[] | select((.timeout // 0) >= 5)] | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
+  { [ -n "$se_total" ] && [ "$se_total" -gt 0 ] && [ "$se_total" = "$se_timed" ]; } \
+    && ok "claude SessionEnd hooks declare a timeout (no 1.5s shutdown race)" \
+    || bad "claude SessionEnd hooks declare a timeout (total=$se_total timed=$se_timed)"
   if HOME="$SMOKE" bash "$DIR/install-commands.sh" >/dev/null 2>&1 \
      && [ -f "$SMOKE/.claude/commands/ship.md" ]; then
     ok "install-commands installs command files"

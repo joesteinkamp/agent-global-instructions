@@ -103,6 +103,14 @@ AUTONOMY_MODE="$("$DIR/customize.sh" --autonomy 2>/dev/null || true)"
 [ "$AUTONOMY_MODE" = "balanced" ] || AUTONOMY_MODE=aggressive
 WIRE_AR=false; [ "$AUTONOMY_MODE" = "aggressive" ] && WIRE_AR=true
 
+# The SessionEnd `timeout: 10` is load-bearing, not decoration. Claude Code
+# aborts the whole SessionEnd batch on a signal built from
+# `max(1500ms, min(largest declared SessionEnd hook timeout, 60s))` — so with no
+# timeout declared, both hooks plus their jq subprocesses must finish inside
+# **1.5 seconds** of a shutdown that is already awaiting other teardown work. On
+# a loaded or few-core box that window is routinely missed, and the abort
+# surfaces to the user as `SessionEnd hook [...] failed: Hook cancelled`.
+# Declaring 10s widens the batch window to 10s; the hooks still finish in ~0.2s.
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
@@ -123,8 +131,8 @@ install_claude() {
     PreCompact: [ {matcher:"manual|auto", hooks:[{type:"command",command:$pc}]} ],
     Stop: [ {hooks:[{type:"command",command:$qn}]} ],
     SessionEnd: [
-      {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se}]},
-      {matcher:"clear|logout|prompt_input_exit|other", hooks:[{type:"command",command:$sq}]}
+      {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se,timeout:10}]},
+      {matcher:"clear|logout|prompt_input_exit|other", hooks:[{type:"command",command:$sq,timeout:10}]}
     ]
   }')"
   echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, precompact-archive, session-end, scorecard survey$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
