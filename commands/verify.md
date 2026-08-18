@@ -62,7 +62,8 @@ This gates everything: a great idea that doesn't run isn't a product.
   (`open`/`goto`, `screenshot`, `console`, `requests`; `run-code` when a grading step needs Playwright
   APIs — read `playwright-cli --help` first). If `playwright-cli` isn't available, say so and grade the UX
   from the code instead — don't fake evidence. Any uncaught console error or 4xx/5xx request is a real
-  defect that drags the grade down.
+  defect that drags the grade down. **Close the browser (`playwright-cli close`) once the evidence is
+  captured** — a leaked session outlives the run and takes over my real Chrome; see `~/.ai/web-preview.md`.
 
 ### 3. Grade the increment as a product
 Score each dimension that applies (skip N/A) with the **evidence** behind it and the **gap to the next grade

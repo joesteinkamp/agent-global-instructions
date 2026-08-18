@@ -12,6 +12,35 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Closing the browser is now a resident rule, not playbook trivia
+  (2026-08-17, Claude Opus 5).** The ask: on Joe's Mac, `playwright-cli` left
+  a headless instance running that made Chrome unusable — a session found
+  alive after three days. Mechanism (from that machine's diagnosis):
+  `playwright-cli` drives the real `Google Chrome.app` binary, whose headless
+  instance registers with LaunchServices under `bundleID="com.google.Chrome"`;
+  macOS permits one instance per bundle ID, so clicking Chrome in the Dock
+  *activates* the headless process instead of launching a browser, and
+  `--no-startup-window` means no window ever appears. Chrome looks broken
+  until it is force-quit. What changed: a full section in
+  `playbooks/web-preview.md` (macOS + Linux diagnosis, "not a profile lock",
+  "`list` is not proof", "`kill-all` leaves browsers behind", the `$TMPDIR`
+  sweep, and `close-all` — which is in `--help` but was missing from the
+  original notes); a resident one-liner in `template.md`; and a closing step
+  in `/verify`, the heaviest browser driver we ship. Why this approach: the
+  playbook is loaded on demand, so a rule that only lived there would be read
+  *after* the browser was already open — but the failure damages the user's
+  own machine and outlives the session, so the "always close" half has to be
+  resident while the diagnostic detail stays on demand. Considered and
+  rejected: (a) playbook-only, for the reason above; (b) a hook or wrapper
+  that reaps sessions automatically — the leak is cross-tool (any CLI can
+  drive `playwright-cli`) and a reaper cannot tell a live session's browser
+  from an abandoned one, which is exactly the mistake made while
+  investigating this: five `@playwright/mcp` processes on the Linux box were
+  first read as orphans and were in fact MCP servers of still-running Claude
+  sessions. Only the stale `$TMPDIR` dirs were genuinely leaked. Note: the
+  "`playwright-cli list` reports `(no browsers)` while sessions are alive"
+  claim rests on the macOS diagnosis; the attempt to corroborate it on Linux
+  was that same false positive.
 - **/ship never pushes the default branch directly (2026-08-13, Claude).** The
   ask: Joe asked whether `/ship` / `$ship` always create a PR/MR before
   merging — merges already did (the only merge path is `gh pr merge` /
@@ -100,6 +129,36 @@ so the log reads as the project's decision history, not just a list of diffs.
   bullet convention, same meaning.
 
 ### Fixed
+- **SessionEnd hooks no longer lose a 1.5-second shutdown race
+  (2026-08-17, Claude Opus 5).** The ask: Joe hit a recurring machine error,
+  `SessionEnd hook [env HOOK_PLATFORM=claude ".../scorecard-enqueue.sh"]
+  failed: Hook cancelled`. Root cause, read out of the Claude Code 2.1.234
+  binary rather than inferred: shutdown aborts the whole SessionEnd batch on
+  `AbortSignal.timeout(max(1500ms, min(largest declared SessionEnd hook
+  timeout, 60s)))`, and an `ABORT_ERR` surfaces as "Hook cancelled". The
+  Claude block in `install-hooks.sh` was the only one declaring no `timeout`
+  (Codex/Cursor already used 30), so both SessionEnd hooks — seven `jq`
+  spawns plus a ~60ms shell-snapshot source each — had to finish inside 1.5s
+  of a shutdown already awaiting other teardown, on a 2-core box running
+  several AI CLIs. Intermittent by construction. What changed: `timeout: 10`
+  on both SessionEnd hooks (widening the batch window to 10s), plus two
+  robustness fixes in `scorecard-enqueue.sh` — the materiality scan now reads
+  only the audit log's last 8MB (`AI_SCORECARD_SCAN_BYTES`, 0 = full file),
+  and the pending marker lands via an atomic rename. A regression test asserts
+  every Claude SessionEnd hook declares a timeout. Why this approach: the hook
+  was never slow — it measured ~0.1s before and after, so optimizing it would
+  have narrowed the race without closing it; only the declared timeout changes
+  the deadline itself. The scan bound matters independently: the log was
+  already 39MB and grows without limit, so a full-file grep inside a shutdown
+  deadline degrades every month (verified the bounded scan returns an
+  identical count, 75 = 75, on the real log). The atomic write closes the
+  failure the abort could still cause — a truncated marker that every later
+  SessionStart would fail to parse. Considered and rejected: (a) moving the
+  materiality gate to the SessionStart survey hook so the shutdown path does
+  no work at all — architecturally cleaner, but it changes two hooks and the
+  marker schema for a window that is now 10s; (b) collapsing three `jq` parses
+  into one line-oriented read — actually written, then reverted, because it
+  desyncs if `cwd` contains a newline and the saved spawns were unmeasurable.
 - **Cursor permission merge and the macOS scorecard loop
   (2026-08-13, Claude Opus 5).** The ask: Joe asked to install the latest
   instructions on this machine; `./install.sh --yes` failed the Cursor settings

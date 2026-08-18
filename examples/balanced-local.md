@@ -51,6 +51,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Reviews, audits, and multi-finding syntheses are artifacts, not chat.** When the work is a set of findings, options, or results (code reviews, audits, research, comparisons), build the HTML artifact **first** and hand me the link — don't dump the findings inline as the primary deliverable.
 - Don't ask which format — pick and proceed.
 - **Browser testing & verification — `playwright-cli`,** never curl-only smoke checks for UI work. Flows, flags, and serving gotchas (incl. the Vite/Astro unknown-Host 403) are in `~/.ai/web-preview.md` — read it before driving or serving a route.
+- **Always `playwright-cli close` when you're done.** Sessions outlive the turn and nothing reaps them — a leaked headless instance takes over my real Chrome (on macOS it steals the `com.google.Chrome` bundle ID, so Chrome opens no window and looks broken). `playwright-cli list` says `(no browsers)` even when zombies are alive; the process check and cleanup are in `~/.ai/web-preview.md`.
 - **Scale verification to the artifact.** For simple internal HTML reports, comparisons, and other read-only artifacts, don't run Playwright or axe — a lightweight structural check (it renders, links resolve) is enough. Full browser verification only when I ask, the artifact has real interaction complexity, or it changes product UI.
 - **Serve/open artifacts locally** (`localhost`) and give me the path/URL.
 
