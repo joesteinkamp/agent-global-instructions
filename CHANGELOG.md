@@ -12,6 +12,21 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Gitignored-only changes no longer earn a Change Log entry
+  (2026-08-18, Claude Opus 5).** The ask: Joe wanted the instruction set to
+  stop proposing changelog entries for work that only touched gitignored
+  files, since those are local, temporary artifacts. What changed: one bullet
+  in `template.md`'s `changelog` section scoping the log to tracked files, and
+  telling the agent to log only the tracked part of a mixed change; the
+  committed examples re-rendered. Why this approach: the rule is a scoping
+  clause on an existing gate, so it belongs as a bullet inside the section it
+  qualifies rather than a new section — and putting it in `template.md` means
+  every render (global, project, examples) inherits it. Considered and
+  rejected: teaching `hooks/quality-nudge.sh` to skip ignored files —
+  unnecessary, it already counts via `git diff HEAD` plus `ls-files --others
+  --exclude-standard`, so ignored paths never reach the thresholds; and
+  wording it as "untracked files" — too broad, a new tracked-to-be file is
+  real work that should be logged.
 - **Closing the browser is now a resident rule, not playbook trivia
   (2026-08-17, Claude Opus 5).** The ask: on Joe's Mac, `playwright-cli` left
   a headless instance running that made Chrome unusable — a session found
