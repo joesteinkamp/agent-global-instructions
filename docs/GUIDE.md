@@ -96,6 +96,16 @@ every option:
 - **About you** — what you care about; your environment (asked, never assumed).
 - **How you like work done** — autonomy posture (aggressive/balanced); whether
   to encourage agent teams (and which roles); subagents for long work. The
+  agent-teams section makes a **team the default** for multi-dimension work and
+  has the agent derive the roster from the task rather than asking, always
+  including a `refuter` lens — because an agent must never be the sole checker
+  of its own work. Those roles are installed as real definitions
+  (`~/.claude/agents/<role>.md`, `~/.codex/agents/<role>.toml`) by
+  `install-roles.sh`, rendered from one canonical source in `roles/`, so a role
+  behaves the same in every tool; the per-tool mechanics live in the on-demand
+  playbook `~/.ai/agent-teams.md`. The install also sets
+  `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (seed-only, never overwriting a value
+  you set), since Claude Code's team construct is off by default. The
   aggressive posture also renders a **Long-running work** section — when a task
   outlives the turn, the agent reaches for the host tool's long-run primitive
   (`/loop` in Claude Code and Cursor, `/goal` in Codex) with an explicit
@@ -316,8 +326,18 @@ It also maintains the `~/.ai/` governance layer: the CLI roster (`clis`), the
 local-model registry (`local-models`) + the `~/.local/bin/lm` shim, the
 model-routing mirror (`model-routing.md`, plus the machine-local
 `model-routing.local.md` that `/update-model-routing` writes for local models),
-and the on-demand playbooks (`orchestration.md`, `quality-workflows.md`,
-`web-preview.md`) that the short resident sections point at.
+and the on-demand playbooks (`orchestration.md`, `agent-teams.md`,
+`quality-workflows.md`, `web-preview.md`) that the short resident sections point
+at.
+
+`install-roles.sh` adds the team-role layer beside it: `roles/<role>.md` is the
+canonical definition, `render-roles.sh` renders the Codex dialect, and the two
+land in `~/.claude/agents/<role>.md` and `~/.codex/agents/<role>.toml`. Both
+formats matter — Claude Code can improvise a teammate from a prompt, but Codex
+resolves an unknown agent name to its generic built-in without erroring, so
+without the `.toml` files every Codex "role" is the same agent under a different
+label. Neither dialect pins a model, so a role runs on whatever the session is
+running. `uninstall.sh` removes them, backing up any you hand-tuned.
 
 `uninstall.sh` reverses the pointers: each is restored from its newest backup
 (taken when the pointer was first installed), or removed if none exists;

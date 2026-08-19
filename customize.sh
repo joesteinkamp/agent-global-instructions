@@ -599,12 +599,14 @@ write_global() {
     fi
   fi
   # On-demand playbooks — the rendered instructions keep short resident rules
-  # and point at these for the full contracts (orchestration, verify/improve
-  # mechanics, web preview how-to), so resident context stays small. Mirrored
+  # and point at these for the full contracts (orchestration, agent-team
+  # mechanics per tool, verify/improve mechanics, web preview how-to), so
+  # resident context stays small. Mirrored
   # like model-routing (repo copy is the source of truth, cmp-guarded); when a
   # playbook's section is toggled off, its file is removed, not left stale.
   local pb name gate
   for pb in "orchestration:$INC_ORCHESTRATION" \
+            "agent-teams:$INC_TEAMS" \
             "quality-workflows:$INC_IMPROVE" \
             "web-preview:$INC_ARTIFACTS"; do
     name="${pb%%:*}"; gate="${pb##*:}"

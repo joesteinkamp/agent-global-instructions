@@ -37,7 +37,11 @@ the panel runs. Invocation still requires my explicit ask (backgrounding changes
   between `$SNAP` and the current tree.
 
 1. Scope the changes and decide whether they touch UI.
-2. Spin up the review team **in parallel** — one subagent per lens (Task/Agent tool):
+2. Spin up the review team **in parallel** — one subagent per lens (Task/Agent tool).
+   **Leave these subagents unnamed.** This review collects what each lens returns, and where agent
+   teams are enabled a *named* subagent launches as a teammate instead — a teammate reports only that
+   it went idle, without its output, so a named lens would silently return nothing here. Unnamed
+   subagents return their results normally whether or not teams are on. The lenses:
    - **Technical architect** — structure, coupling, boundaries, risk, missing abstractions.
    - **Back-end engineer** — correctness, data handling, error paths, performance.
    - **Front-end engineer** — component design, state, accessibility, UX edge cases.

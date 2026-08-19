@@ -101,6 +101,26 @@ strip_hooks() {  # $1 = settings file
 }
 
 # Subtract the permission arrays in a JSON snippet from a settings file.
+# Reverse enable_agent_teams. Only removes the value WE write ("1") — any other
+# value is the user's own choice and stays. Drops an .env object that this leaves
+# empty, so uninstalling doesn't leave a bare key behind.
+disable_agent_teams() {  # $1 = claude settings.json
+  local sf="$1" cur tmp
+  [ -f "$sf" ] || return 0
+  cur="$(jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS // empty' "$sf" 2>/dev/null)" || return 0
+  [ "$cur" = "1" ] || return 0
+  tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"
+  if jq 'del(.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS)
+         | if (.env | type) == "object" and (.env | length) == 0 then del(.env) else . end' \
+       "$sf" > "$tmp" 2>/dev/null; then
+    backup_file "$sf"; mv "$tmp" "$sf"
+    echo "  removed CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS from $sf"
+  else
+    rm -f "$tmp"
+  fi
+  return 0
+}
+
 strip_permissions_json() {  # $1 = settings file  $2 = snippet file
   [ -f "$2" ] || return 0
   local perms; perms="$(jq '.permissions' "$2")"
@@ -129,6 +149,31 @@ strip_codex_block() {  # $1 = config.toml
 
 # Remove the command files WE installed for a tool (by basename, from our source),
 # plus retired names — never touching the user's own commands.
+# Remove the team-role definitions we installed (~/.claude/agents/<role>.md,
+# ~/.codex/agents/<role>.toml). Basenames come from the canonical roles/*.md, so
+# this works whether or not the generated Codex port is present locally. A dest
+# file that no longer matches ours has been hand-tuned — back it up before
+# removing, since install-roles.sh would have overwritten it silently.
+remove_roles_dir() {  # $1 = dest dir  $2 = ext  [$3 = rendered src dir, for the compare]
+  local dest="$1" ext="$2" src="${3:-}" f base n=0
+  [ -d "$dest" ] || return 0
+  [ -d "$DIR/roles" ] || return 0
+  for f in "$DIR/roles"/*.md; do
+    [ -e "$f" ] || continue
+    base="$(basename "$f" .md)"
+    [ "$base" = "README" ] && continue
+    [ -f "$dest/$base.$ext" ] || continue
+    if [ -n "$src" ] && [ -f "$src/$base.$ext" ] && ! cmp -s "$src/$base.$ext" "$dest/$base.$ext"; then
+      backup_file "$dest/$base.$ext"
+    elif [ -z "$src" ] && [ -f "$DIR/roles/$base.$ext" ] && ! cmp -s "$DIR/roles/$base.$ext" "$dest/$base.$ext"; then
+      backup_file "$dest/$base.$ext"
+    fi
+    rm -f "$dest/$base.$ext"; n=$((n+1))
+  done
+  [ "$n" -gt 0 ] && echo "  removed $n role file(s) from $dest"
+  return 0
+}
+
 remove_commands_dir() {  # $1 = dest dir  $2 = src dir  $3 = ext
   local dest="$1" src="$2" ext="$3" f base n=0 old
   [ -d "$dest" ] || return 0
@@ -240,15 +285,17 @@ done
 if [ "$PROJECT" = 1 ]; then
   for t in "${targets[@]}"; do
     case "$t" in
-      claude)      remove_commands_dir "$DIR/.claude/commands"  "$DIR/commands"        md;;
-      codex)       echo "  Codex skills are global; --project has no effect for codex";;
+      claude)      remove_commands_dir "$DIR/.claude/commands"  "$DIR/commands"        md
+                   remove_roles_dir "$DIR/.claude/agents" md;;
+      codex)       echo "  Codex skills are global; --project has no effect for codex"
+                   remove_roles_dir "$DIR/.codex/agents" toml "$DIR/roles/codex";;
       cursor)      remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md;;
       gemini)      remove_generated_toml "$DIR/.gemini/commands";;
       antigravity) echo "  antigravity installs no command files; --project has no effect for antigravity";;
       *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
     esac
   done
-  echo "Done. Removed in-repo (--project) command files only."
+  echo "Done. Removed in-repo (--project) command and role files only."
   exit 0
 fi
 
@@ -256,13 +303,16 @@ for t in "${targets[@]}"; do
   case "$t" in
     claude)
       remove_commands_dir "$HOME/.claude/commands" "$DIR/commands" md
+      remove_roles_dir "$HOME/.claude/agents" md
       remove_skill_links "$HOME/.claude/skills"
       strip_hooks "$HOME/.claude/settings.json"
       strip_permissions_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
+      disable_agent_teams "$HOME/.claude/settings.json"
       restore_global_pointer "$HOME/.claude/CLAUDE.md"
       ;;
     codex)
       remove_codex_skills "$HOME/.codex/skills" "$DIR/commands/codex"
+      remove_roles_dir "$HOME/.codex/agents" toml "$DIR/roles/codex"
       remove_skill_links "$HOME/.codex/skills"
       strip_hooks "$HOME/.codex/hooks.json"
       strip_codex_block "$HOME/.codex/config.toml"

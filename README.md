@@ -36,6 +36,12 @@ left in place).
 - **Commands** — the same slash commands in all four tools: `/ship`, `/sync`,
   `/worktrees`, `/grill-me`, `/improve`, `/verify`, `/update-model-routing`,
   `/ux-audit`.
+- **Agent teams** — the instructions make a **team of specialized agents the
+  default** for anything with more than one dimension, with the roster derived
+  from the task and a `refuter` lens on every conclusion. The roles ship as real
+  definitions in both dialects (`~/.claude/agents/*.md`, `~/.codex/agents/*.toml`)
+  from one canonical source, so a role behaves the same in every tool — and the
+  install turns Claude Code's team construct on, since it's off by default.
 - **Local models** — machines serving local models (Ollama, llama.cpp,
   MLX, or a remote box over your tailnet — all one OpenAI-compatible contract)
   get them auto-registered at `~/.ai/local-models` and wired into cross-tool
