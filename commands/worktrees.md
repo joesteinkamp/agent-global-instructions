@@ -15,9 +15,18 @@ server watches — so I see everyone's changes near-live. $ARGUMENTS are the age
 names (default: `claude codex antigravity`).
 
 Steps:
-1. **Pick the integration tree.** The current checkout is it. If I'm on a
-   throwaway/feature branch, suggest creating or switching to `integration`
-   (`git switch -c integration`) so merges land somewhere stable.
+0. **Validate the workspace before changing anything.** Run
+   `git worktree list --porcelain` and check the working-tree status. If this
+   isn't a Git repository, `git init` and make a root commit so worktrees are
+   possible — don't stop to ask for that. Do stop and ask when ownership is
+   ambiguous: the tree holds work you didn't create, `HEAD` won't resolve, or
+   another agent may own it. If a requested agent worktree or branch already
+   exists, inspect and reuse it — never overwrite it.
+1. **Pick the integration tree.** Identify the primary checkout from
+   `git worktree list --porcelain`; don't assume the current checkout is
+   integration. If I'm on a throwaway/feature branch, suggest creating or
+   switching to `integration` (`git switch -c integration`) so merges land
+   somewhere stable.
 2. **Spin a worktree per agent** as a sibling dir, each on its own branch — skip
    any that already exist:
    `git worktree add ../<repo>-<agent> -b ai/<agent>`.
