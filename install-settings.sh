@@ -10,6 +10,9 @@
 #
 # Per tool (and what it enforces natively vs. via the guard hooks):
 #   claude  ~/.claude/settings.json       permissions.deny/ask (JSON union)    — hard-enforced
+#                                         + env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1, which turns on
+#                                           the agent-team construct the instructions default to
+#                                           (seed-only: an existing value is never overwritten)
 #   codex   ~/.codex/config.toml          approval_policy + sandbox_mode       — coarse; path-deny via hook
 #   cursor  ~/.cursor/cli-config.json     permissions.deny (JSON union)        — CLI agent; GUI via hook
 set -euo pipefail
@@ -52,6 +55,28 @@ CLAUDE_RETIRED_PERMS='{
 # Order-preserving union of each permission array from a JSON snippet (.permissions)
 # into a JSON settings file, minus any retired rules ($4). Idempotent: a re-run
 # never duplicates a rule.
+# Turn on Claude Code's agent teams (experimental, off by default). Without this
+# the resident "default to a team" instruction degrades to ordinary subagents:
+# same parallelism and same roles, but teammates can't message each other and
+# can't be opened or steered from the agent panel. Seed-only — an existing value
+# is the user's explicit choice (including a deliberate "0"), so we never
+# overwrite it, the same way the codex approval_policy merge behaves.
+enable_agent_teams() {  # $1 = claude settings.json
+  local sf="$1" cur tmp
+  [ -f "$sf" ] || echo '{}' > "$sf"
+  cur="$(jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS // empty' "$sf" 2>/dev/null)" || return 1
+  if [ -n "$cur" ]; then
+    echo "    agent teams left at your setting (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=$cur)"
+    return 0
+  fi
+  tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
+  jq '.env = ((.env // {}) + {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"})' "$sf" > "$tmp" \
+    || { echo "    agent-teams merge failed for $sf (left unchanged)" >&2; return 1; }
+  backup_file "$sf"; mv "$tmp" "$sf"
+  echo "    agent teams enabled (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1) -> $sf"
+  return 0
+}
+
 merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label  [$4 = retired JSON]
   # `${4:-{\}}` would keep the backslash literally ({\}), which jq --argjson
   # rejects — so default the retired-rules JSON on its own line instead.
@@ -134,7 +159,7 @@ targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigra
 # `set -e` (the merge_* helpers return 1 on bad jq / missing snippet).
 for t in "${targets[@]}"; do
   case "$t" in
-    claude)             install_claude_settings || echo "  claude: skipped (error above)" >&2;;
+    claude)             if install_claude_settings; then enable_agent_teams "$HOME/.claude/settings.json"; else echo "  claude: skipped (error above)" >&2; fi;;
     codex)              install_codex_settings  || echo "  codex: skipped (error above)" >&2;;
     cursor)             install_cursor_settings || echo "  cursor: skipped (error above)" >&2;;
     antigravity)        echo "  antigravity: uses its own permission model (~/.gemini/antigravity-cli/settings.json); not wired here — guardrails come from its hooks (install-hooks.sh antigravity)";;

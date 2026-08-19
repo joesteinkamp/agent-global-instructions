@@ -51,6 +51,18 @@ INC_IMPROVE=n render
 assert_no "INC_IMPROVE=n removes the quality-workflows pointer" '~/.ai/quality-workflows.md'
 assert_no "INC_IMPROVE=n leaves no marker leak" 'SECTION:'
 
+render
+assert_has "default render points at the agent-teams playbook" '~/.ai/agent-teams.md'
+assert_has "default render defaults to a team" 'Default to a team'
+assert_has "default render derives roles instead of asking" "Derive the roles from the task"
+assert_has "default render names the role-definition files" '~/.codex/agents/<role>.toml'
+assert_has "default render requires an adversarial lens" 'refuter'
+assert_no  "default render no longer tells the agent to ask for roles" 'Never assume roles'
+INC_TEAMS=n render
+assert_no "INC_TEAMS=n removes the agent-teams heading" 'Agent teams & subagents'
+assert_no "INC_TEAMS=n removes the agent-teams playbook pointer" '~/.ai/agent-teams.md'
+assert_no "INC_TEAMS=n leaves no marker leak" 'SECTION:'
+
 INC_LOCAL_MODELS=n render
 assert_no "INC_LOCAL_MODELS=n removes the local-models bullets" 'Local models are delegates'
 assert_no "INC_LOCAL_MODELS=n leaves no marker leak" 'SECTION:'
@@ -241,6 +253,54 @@ if command -v jq >/dev/null 2>&1; then
     bad "install-commands installs command files"
   fi
 
+  # ---- team roles: one canonical definition per role, rendered to both tools.
+  # Codex CANNOT improvise a role — an unknown agent name silently falls back to
+  # its generic built-in — so the .toml files existing and parsing is the whole
+  # point of this layer, not a nicety. Own throwaway HOME: this block runs a full
+  # uninstall, which would strip $SMOKE's hooks/commands out from under the
+  # assertions that follow.
+  ROLESH="$(mktemp -d)"
+  if HOME="$ROLESH" bash "$DIR/install-roles.sh" claude codex >/dev/null 2>&1 \
+     && [ -f "$ROLESH/.claude/agents/refuter.md" ] \
+     && [ -f "$ROLESH/.codex/agents/refuter.toml" ]; then
+    ok "install-roles installs role files for claude and codex"
+  else
+    bad "install-roles installs role files for claude and codex"
+  fi
+  # Every canonical role reaches BOTH tools — a role that renders for one and
+  # not the other is exactly the drift the single source is meant to prevent.
+  n_src="$(find "$DIR/roles" -maxdepth 1 -name '*.md' ! -name 'README.md' | wc -l | tr -d ' ')"
+  n_cl="$(find "$ROLESH/.claude/agents" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+  n_cx="$(find "$ROLESH/.codex/agents" -name '*.toml' 2>/dev/null | wc -l | tr -d ' ')"
+  { [ "$n_src" -gt 0 ] && [ "$n_src" = "$n_cl" ] && [ "$n_src" = "$n_cx" ]; } \
+    && ok "every canonical role renders to both dialects ($n_src)" \
+    || bad "every canonical role renders to both dialects (src=$n_src claude=$n_cl codex=$n_cx)"
+  # The Codex port must be parseable TOML carrying the three required keys.
+  if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$ROLESH/.codex/agents" <<'PYEOF' >/dev/null 2>&1
+import sys, glob, tomllib
+bad = 0
+for f in glob.glob(sys.argv[1] + "/*.toml"):
+    with open(f, "rb") as fh:
+        d = tomllib.load(fh)
+    if not (d.get("name") and d.get("description") and d.get("developer_instructions", "").strip()):
+        bad += 1
+sys.exit(1 if bad else 0)
+PYEOF
+    then ok "codex role files are valid TOML with name/description/instructions"
+    else bad "codex role files are valid TOML with name/description/instructions"
+    fi
+  fi
+  # Re-running must not duplicate or churn, and uninstall must take them back out.
+  HOME="$ROLESH" bash "$DIR/install-roles.sh" claude codex >/dev/null 2>&1
+  n_cl2="$(find "$ROLESH/.claude/agents" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$n_cl" = "$n_cl2" ] && ok "install-roles is idempotent" || bad "install-roles is idempotent"
+  HOME="$ROLESH" bash "$DIR/uninstall.sh" claude codex >/dev/null 2>&1
+  { [ ! -e "$ROLESH/.claude/agents/refuter.md" ] && [ ! -e "$ROLESH/.codex/agents/refuter.toml" ]; } \
+    && ok "uninstall removes the installed role files" \
+    || bad "uninstall removes the installed role files"
+  rm -rf "$ROLESH"
+
   # A renamed command (validate -> improve) is pruned on reinstall so an old
   # machine doesn't keep /validate alongside /improve.
   printf 'stale\n' > "$SMOKE/.claude/commands/validate.md"
@@ -256,6 +316,31 @@ if command -v jq >/dev/null 2>&1; then
   else
     bad "settings-permissions.snippet.json is valid with deny rules"
   fi
+
+  # Agent teams: the instructions default to a team, so the installer turns the
+  # construct on. Seed-only — an explicit value the user set is never overwritten
+  # — and uninstall takes back only the "1" we wrote.
+  TEAMSH="$(mktemp -d)"
+  HOME="$TEAMSH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  [ "$(jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' "$TEAMSH/.claude/settings.json" 2>/dev/null)" = "1" ] \
+    && ok "install-settings enables agent teams" || bad "install-settings enables agent teams"
+  jq '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="0"' "$TEAMSH/.claude/settings.json" > "$TEAMSH/t" \
+    && mv "$TEAMSH/t" "$TEAMSH/.claude/settings.json"
+  HOME="$TEAMSH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  [ "$(jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' "$TEAMSH/.claude/settings.json" 2>/dev/null)" = "0" ] \
+    && ok "install-settings respects an explicit agent-teams setting" \
+    || bad "install-settings respects an explicit agent-teams setting"
+  HOME="$TEAMSH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+  [ "$(jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' "$TEAMSH/.claude/settings.json" 2>/dev/null)" = "0" ] \
+    && ok "uninstall keeps an agent-teams value it did not write" \
+    || bad "uninstall keeps an agent-teams value it did not write"
+  rm -rf "$TEAMSH"; TEAMSH="$(mktemp -d)"
+  HOME="$TEAMSH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  HOME="$TEAMSH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+  [ -z "$(jq -r '.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS // empty' "$TEAMSH/.claude/settings.json" 2>/dev/null)" ] \
+    && ok "uninstall removes the agent-teams flag it wrote" \
+    || bad "uninstall removes the agent-teams flag it wrote"
+  rm -rf "$TEAMSH"
 
   # install-settings merges the Claude-only permissions layer, idempotently.
   if HOME="$SMOKE" bash "$DIR/install-settings.sh" >/dev/null 2>&1 \

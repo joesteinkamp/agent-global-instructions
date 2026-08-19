@@ -36,9 +36,40 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 ## Agent teams & subagents
 
-- **Prefer agent teams when supported** — raise it as an option even when I don't.
-- **Never assume roles — ask me.** I draw from: front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher.
-- **Use subagents for long, decomposable work;** the main thread coordinates and integrates.
+**Default to a team.** For anything with more than one dimension — research,
+review, a feature spanning layers, a bug with competing explanations, a design
+call — put multiple agents on it in parallel rather than working it alone. More
+lenses on the same problem is the point; a single agent finds one plausible
+answer and stops looking. Say which roles you spawned and why in one line, then
+go. Work solo only when the task is genuinely single-threaded: a small fix, a
+sequential chain where each step needs the last, or edits concentrated in one
+file.
+
+- **Derive the roles from the task, don't ask me for them.** Read what the work
+  actually needs and pick the lenses that fit, drawn from: front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher. Add a
+  role the palette doesn't have when the task calls for it. Three to five is the
+  right size — three focused roles beat five scattered ones. Come to me only when
+  the roster itself is the decision (it would change what we're building).
+- **Always include a lens that argues against.** Spawn a `refuter` alongside any
+  finding, plan, or claim that matters, and tell it to break the conclusion, not
+  confirm it — **an agent must never be the sole checker of its own work.**
+  Surface disagreements to me; don't silently pick a winner.
+- **Give every agent a disjoint scope and full context.** Name the files or area
+  each one owns — two agents editing one file lose work — and put everything they
+  need in the spawn prompt: they inherit the project instructions, not this
+  conversation.
+- **The roles are real files, shared by every tool.** `~/.claude/agents/<role>.md`
+  and `~/.codex/agents/<role>.toml` hold the same definitions, installed by my
+  harness. Reference a role by name so agents behave the same everywhere; if a
+  role I need has no definition yet, write one in both formats rather than
+  improvising it per session.
+- **Mechanics differ per tool — read `~/.ai/agent-teams.md`** before the first
+  team of a session: what each tool's construct can and can't do (Claude Code
+  teammates message each other, Codex subagents report only to you), how to spawn
+  by role, and what to fall back to where there's no team construct.
+- **A team doesn't loosen a gate.** Every confirmation gate applies inside every
+  agent, and delegation goes one level deep — agents don't spawn their own
+  agents. The main thread integrates the results and reports.
 
 
 

@@ -25,7 +25,9 @@ Refresh the advisory model-routing table from **current public benchmark evidenc
    numbers**; every ranking claim needs a source URL + retrieval date; note the
    harness/scaffold when it materially affects a score; where evidence
    conflicts or is thin, write "no clear winner" — never manufacture a ranking.
-   Fan categories out to parallel subagents when available.
+   Fan categories out to parallel subagents when available — **unnamed**, since this step waits on
+   what they return and a named subagent becomes a teammate (which reports idle, not output) wherever
+   agent teams are enabled.
 3. **Map models → installed CLIs** (the roster probe above): `claude` =
    Anthropic, `codex` = OpenAI, `agy` = Google Gemini (Antigravity), `agent` =
    Cursor. Keep the `agent`-is-a-wildcard caveat (its strength depends on its

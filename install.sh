@@ -2,15 +2,17 @@
 # One-shot installer — render the instructions and install every layer in one
 # go. Wraps the focused scripts so you don't have to remember the sequence.
 #
-#   ./install.sh                 # all tools: instructions + commands + hooks + settings
+#   ./install.sh                 # all tools: instructions + commands + roles + hooks + settings
 #   ./install.sh --yes           # same, but don't prompt to confirm the global render
 #   ./install.sh claude          # just Claude Code
-#   ./install.sh codex cursor    # instructions + commands + hooks + settings for those
+#   ./install.sh codex cursor    # instructions + commands + roles + hooks + settings for those
 #   ./install.sh --design        # force the design command group on (auto: on unless INC_DESIGN=n)
 #
 # Layers (each applied to whichever targets you name):
 #   - instructions (customize.sh --global): all tools, always — the portable core.
 #   - commands (install-commands.sh):       per tool (~/.claude, ~/.codex/skills, ~/.cursor).
+#   - roles (install-roles.sh):             per tool (~/.claude/agents, ~/.codex/agents) —
+#     the team-role definitions the instructions spawn agents by name from.
 #   - hooks (install-hooks.sh):             per tool.
 #   - memory OS registry (setup-memory-os.sh): machine-wide — where session-survey
 #     lessons land (~/.ai/memory-os; detects Hermes, falls back to markdown).
@@ -42,6 +44,9 @@ if [ -n "$yes_flag" ]; then "$DIR/customize.sh" --global --yes; else "$DIR/custo
 
 echo "== commands =="
 "$DIR/install-commands.sh" ${design_flag[@]+"${design_flag[@]}"} "${targets[@]}"
+
+echo "== roles (reusable agent/teammate definitions) =="
+"$DIR/install-roles.sh" "${targets[@]}"
 
 echo "== hooks =="
 "$DIR/install-hooks.sh" "${targets[@]}"
