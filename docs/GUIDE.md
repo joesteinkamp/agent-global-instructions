@@ -63,7 +63,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor}/`, gitignored — regenerated on every install) → `install-commands.sh` installs Claude/Cursor commands and Codex skills (`~/.codex/skills/`); skill-backed commands symlink globally for Claude, Codex, and Cursor. |
 | `.agents/skills/` (+ `.claude/skills/` + `.cursor/skills/` symlinks) + `skills-lock.json` | Third-party Skills vendored via [`npx skills`](https://skills.sh), project-scoped so they ship with the repo. `.agents/skills/` is the canonical Agent-Skills-standard tree; `.claude/skills/` and `.cursor/skills/` entries are symlinks into it. Currently: `grill-me` / `grill-with-docs` plus their primitives `grilling` and `domain-modeling`, and `ux-audit` (from [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill); skill-backed — `install-commands.sh` symlinks it globally for Claude/Codex/Cursor in place of the `/ux-audit` wrapper). Re-sync with `npx skills update`; the lockfile pins each skill's upstream source + hash. `grill-me` is also promoted to a globally-installed command (see `commands/grill-me.md` below) so `/grill-me` works in any project, not just this repo's checkout. |
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Antigravity). |
-| `*-permissions.snippet.*` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON, Codex `config.toml` sandbox+approval (idempotent, backed up). |
+| `*-permissions.snippet.*` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON; Codex `config.toml` sandbox+approval plus actionable native notifications (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
 | `converge.sh` | Daemon for the `/worktrees` flow: folds parallel agent branches (`ai/*`) into the integration branch as they advance. |
 | `playbooks/` | On-demand contracts the rendered instructions point at instead of inlining (`orchestration.md`, `quality-workflows.md`, `web-preview.md`). `customize.sh --global` mirrors each to `~/.ai/<name>.md` when its section is on (and removes it when off), keeping the resident instruction file short — agents load the detail only when the task needs it. |
@@ -245,9 +245,19 @@ adds the **client-enforced** half, mapped to each tool's native model:
 - **Codex** — `approval_policy = "on-request"` + `sandbox_mode = "workspace-write"`
   in `~/.codex/config.toml` (a managed, sentinel-delimited block; skipped if you
   already set those keys). Codex's sandbox is directory-scoped, so fine-grained
-  path-deny stays with the `guard-paths` hook. Tune via `codex-permissions.snippet.toml`.
+  path-deny stays with the `guard-paths` hook. The same installer preserves the
+  enabled `warp@codex-warp` plugin but disables only its pre-routing
+  `PermissionRequest` notifier, which fires even when automatic review approves
+  the action. Warp's `Stop` hook continues to announce completed turns; native,
+  unfocused-only TUI `approval-requested` notifications cover genuine approval
+  waits without duplicating completion alerts. The routing is seeded only when
+  the enabled Warp plugin and its exact handler are discoverable in Codex's
+  active marketplace checkout; otherwise this compatibility workaround fails
+  closed. Explicit existing TUI or hook-state values win. Tune the coarse policy
+  via `codex-permissions.snippet.toml`.
 
-Merges are idempotent and backed up; `./uninstall.sh` removes exactly these.
+Merges are idempotent and backed up; `./uninstall.sh` removes exactly the keys
+owned by the installer.
 
 ## 4. Validation & verification
 

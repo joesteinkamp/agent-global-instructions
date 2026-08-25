@@ -13,7 +13,7 @@
 #                                         + env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1, which turns on
 #                                           the agent-team construct the instructions default to
 #                                           (seed-only: an existing value is never overwritten)
-#   codex   ~/.codex/config.toml          approval_policy + sandbox_mode       — coarse; path-deny via hook
+#   codex   ~/.codex/config.toml          approval/sandbox + quiet, actionable notifications
 #   cursor  ~/.cursor/cli-config.json     permissions.deny (JSON union)        — CLI agent; GUI via hook
 set -euo pipefail
 
@@ -116,6 +116,124 @@ install_cursor_settings() {
   merge_perms_json "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json" cursor
 }
 
+# Seed one key inside an exact TOML table without rewriting or reformatting the
+# rest of the user's config. Existing values are explicit user choices and win.
+# Newly added keys carry an ownership marker so uninstall.sh can remove only
+# what this installer wrote. The table header itself is harmless if left empty.
+seed_toml_table_key() {  # $1 = file  $2 = table  $3 = key  $4 = TOML value
+  local f="$1" table="$2" key="$3" value="$4" marker="# agent-global-instructions: codex notification defaults"
+  local tmp; tmp="$(mktemp "$(dirname "$f")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
+  awk -v table="$table" -v key="$key" -v value="$value" -v marker="$marker" '
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    function unquote(s, q) {
+      q = substr(s, 1, 1)
+      if ((q == "\"" || q == sprintf("%c", 39)) && substr(s, length(s), 1) == q) return substr(s, 2, length(s) - 2)
+      return s
+    }
+    function table_name(s) {
+      sub(/^[[:space:]]*\[\[?/, "", s)
+      sub(/\]\]?[[:space:]]*(#.*)?$/, "", s)
+      s = trim(s); gsub(sprintf("%c", 39), "\"", s)
+      return unquote(s)
+    }
+    function key_name(s, p) {
+      sub(/[[:space:]]*#.*/, "", s)
+      p = index(s, "=")
+      return p ? unquote(trim(substr(s, 1, p - 1))) : ""
+    }
+    /^[[:space:]]*\[\[?[^]]+\]\]?[[:space:]]*(#.*)?$/ {
+      if (inside && !key_seen) print key " = " value " " marker
+      is_array = ($0 ~ /^[[:space:]]*\[\[/)
+      inside = (!is_array && table_name($0) == table)
+      if (inside) { table_seen = 1; key_seen = 0 }
+      print
+      next
+    }
+    {
+      if (inside && key_name($0) == key) key_seen = 1
+      print
+    }
+    END {
+      if (inside && !key_seen) print key " = " value " " marker
+      if (!table_seen) {
+        if (NR > 0) print ""
+        print "[" table "]"
+        print key " = " value " " marker
+      }
+    }
+  ' "$f" > "$tmp"
+  mv "$tmp" "$f"
+}
+
+toml_table_key_is() {  # $1 = file  $2 = table  $3 = key  $4 = normalized value
+  awk -v table="$2" -v key="$3" -v wanted="$4" '
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    function unquote(s, q) {
+      q = substr(s, 1, 1)
+      if ((q == "\"" || q == sprintf("%c", 39)) && substr(s, length(s), 1) == q) return substr(s, 2, length(s) - 2)
+      return s
+    }
+    function table_name(s) {
+      sub(/^[[:space:]]*\[/, "", s); sub(/\][[:space:]]*(#.*)?$/, "", s)
+      s = trim(s); gsub(sprintf("%c", 39), "\"", s); return unquote(s)
+    }
+    /^[[:space:]]*\[[^]]+\][[:space:]]*(#.*)?$/ { inside = (table_name($0) == table); next }
+    inside {
+      line = $0; sub(/[[:space:]]*#.*/, "", line)
+      p = index(line, "=")
+      if (p && unquote(trim(substr(line, 1, p - 1))) == key && trim(substr(line, p + 1)) == wanted) found = 1
+    }
+    END { exit found ? 0 : 1 }
+  ' "$1"
+}
+
+# True when native TUI notifications already cover approval waits. `true`
+# enables every native event; an explicit list must name approval-requested.
+# False, unsupported/multiline forms, and lists that omit it fail closed.
+codex_tui_approval_is_covered() {  # $1 = config.toml
+  awk '
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    function unquote(s, q) {
+      q = substr(s, 1, 1)
+      if ((q == "\"" || q == sprintf("%c", 39)) && substr(s, length(s), 1) == q) return substr(s, 2, length(s) - 2)
+      return s
+    }
+    function table_name(s) {
+      sub(/^[[:space:]]*\[/, "", s); sub(/\][[:space:]]*(#.*)?$/, "", s); return unquote(trim(s))
+    }
+    /^[[:space:]]*\[[^]]+\][[:space:]]*(#.*)?$/ { inside = (table_name($0) == "tui"); next }
+    inside {
+      line = $0; sub(/[[:space:]]*#.*/, "", line)
+      p = index(line, "="); if (!p) next
+      lhs = unquote(trim(substr(line, 1, p - 1))); rhs = trim(substr(line, p + 1))
+      if (lhs == "notifications" && (rhs == "true" || rhs ~ /["\047]approval-requested["\047]/)) covered = 1
+    }
+    END { exit covered ? 0 : 1 }
+  ' "$1"
+}
+
+# Resolve the current Warp PermissionRequest handler instead of hard-coding its
+# matcher-group/handler indices. Hook state is an internal persistence key; only
+# seed it when Warp is explicitly enabled and the installed manifest proves the
+# exact handler exists. A future plugin reorder therefore produces the right key
+# rather than silently disabling a different hook.
+codex_warp_permission_hook_table() {  # $1 = config.toml
+  local cf="$1" manifest="$HOME/.codex/.tmp/marketplaces/codex-warp/plugins/warp/hooks/hooks.json" matches coords count
+  toml_table_key_is "$cf" 'plugins."warp@codex-warp"' "enabled" "true" || return 1
+  [ -f "$manifest" ] || return 1
+  matches="$(jq -r '
+    (.hooks.PermissionRequest // []) | to_entries[] as $group
+    | ($group.value.hooks // []) | to_entries[]
+    | select(.value.type == "command")
+    | select((.value.command // "") | endswith("/on-permission-request.sh"))
+    | "\($group.key):\(.key)"
+  ' "$manifest" 2>/dev/null)"
+  count="$(printf '%s\n' "$matches" | grep -c . || true)"
+  [ "$count" = 1 ] || return 1
+  coords="$matches"
+  printf 'hooks.state."warp@codex-warp:hooks/hooks.json:permission_request:%s"\n' "$coords"
+}
+
 install_codex_settings() {
   local cf="$HOME/.codex/config.toml" snip="$DIR/codex-permissions.snippet.toml"
   local begin="# >>> agent-global-instructions (codex permissions) >>>"
@@ -136,21 +254,43 @@ install_codex_settings() {
   # different key and is no conflict.
   local toplevel
   toplevel="$(awk '/^[[:space:]]*\[/{exit} {print}' "$body")"
+  local tmp; tmp="$(mktemp "$(dirname "$cf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
   if printf '%s\n' "$toplevel" | grep -Eq '^[[:space:]]*(approval_policy|sandbox_mode)[[:space:]]*='; then
     echo "    config.toml already sets approval_policy/sandbox_mode at top level — leaving yours untouched."
     echo "    (recommended: approval_policy=\"on-request\", sandbox_mode=\"workspace-write\";"
     echo "     fine-grained path-deny is enforced by the guard-paths hook.)"
-    return 0
+    cp "$body" "$tmp"
+  else
+    # PREPEND the block: top-level keys must precede any [table], or TOML would fold
+    # them into the last table (inert guardrail + corrupted user table).
+    cat "$snip" > "$tmp"
+    if [ -s "$body" ]; then printf '\n' >> "$tmp"; cat "$body" >> "$tmp"; fi
   fi
-  # PREPEND the block: top-level keys must precede any [table], or TOML would fold
-  # them into the last table (inert guardrail + corrupted user table).
-  local tmp; tmp="$(mktemp "$(dirname "$cf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
-  cat "$snip" > "$tmp"
-  if [ -s "$body" ]; then printf '\n' >> "$tmp"; cat "$body" >> "$tmp"; fi
+
+  # Warp's PermissionRequest lifecycle hook fires before approval routing, so it
+  # also toasts for requests that Codex auto-review immediately approves. Keep
+  # Warp's Stop notifier for completed turns and every other Warp hook untouched;
+  # native TUI approval notifications cover requests that actually reach the
+  # user. Existing values remain explicit user choices. Only touch this routing
+  # when the enabled plugin's installed manifest confirms the exact hook ID.
+  local warp_permission_table=""
+  if warp_permission_table="$(codex_warp_permission_hook_table "$tmp")"; then
+    seed_toml_table_key "$tmp" "tui" "notifications" '[ "approval-requested" ]'
+    if codex_tui_approval_is_covered "$tmp"; then
+      seed_toml_table_key "$tmp" "tui" "notification_method" '"osc9"'
+      seed_toml_table_key "$tmp" "tui" "notification_condition" '"unfocused"'
+      seed_toml_table_key "$tmp" "$warp_permission_table" "enabled" "false"
+    else
+      echo "    Existing TUI notifications omit approval-requested — Warp permission notifier left enabled."
+    fi
+  else
+    echo "    Warp plugin not enabled/discoverable — notification routing left untouched."
+  fi
+
   if cmp -s "$tmp" "$cf"; then
     echo "    $cf (already current, no change)"
   else
-    backup_file "$cf"; mv "$tmp" "$cf"; echo "    permissions block prepended -> $cf"
+    backup_file "$cf"; mv "$tmp" "$cf"; echo "    permissions + notification defaults merged -> $cf"
   fi
 }
 

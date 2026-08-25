@@ -147,6 +147,18 @@ strip_codex_block() {  # $1 = config.toml
   backup_file "$f"; mv "$tmp" "$f"; echo "  cleaned $f (removed codex permissions block)"
 }
 
+# Remove only notification keys installed by install-settings.sh. Empty table
+# headers may remain; removing a header could re-scope user keys added later.
+strip_codex_notification_defaults() {  # $1 = config.toml
+  local f="$1" marker="# agent-global-instructions: codex notification defaults"
+  [ -f "$f" ] || return 0
+  grep -qF "$marker" "$f" || return 0
+  local tmp; tmp="$(mktemp "$(dirname "$f")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
+  grep -vF "$marker" "$f" > "$tmp" || true
+  if cmp -s "$tmp" "$f"; then rm -f "$tmp"; return 0; fi
+  backup_file "$f"; mv "$tmp" "$f"; echo "  cleaned $f (removed codex notification defaults)"
+}
+
 # Remove the command files WE installed for a tool (by basename, from our source),
 # plus retired names — never touching the user's own commands.
 # Remove the team-role definitions we installed (~/.claude/agents/<role>.md,
@@ -316,6 +328,7 @@ for t in "${targets[@]}"; do
       remove_skill_links "$HOME/.codex/skills"
       strip_hooks "$HOME/.codex/hooks.json"
       strip_codex_block "$HOME/.codex/config.toml"
+      strip_codex_notification_defaults "$HOME/.codex/config.toml"
       restore_global_pointer "$HOME/.codex/AGENTS.md"
       ;;
     cursor)
