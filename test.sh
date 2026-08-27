@@ -1124,6 +1124,137 @@ PY
   [ "$s_ok" = 1 ] && ok "install-settings wires cursor/codex permissions (idempotent)" \
                   || bad "install-settings wires cursor/codex permissions (idempotent)"
 
+  # Codex notification routing: preserve Warp itself and all sibling hook state,
+  # disable only its premature PermissionRequest notifier, and use native TUI
+  # events for approvals that actually reach the user.
+  NT="$(mktemp -d)"; mkdir -p "$NT/.codex"
+  cat > "$NT/.codex/config.toml" <<'TOML'
+approval_policy = "never"
+
+[plugins."warp@codex-warp"]
+enabled = true
+
+[tui.model_availability_nux]
+"gpt-test" = 1
+
+[hooks.state."warp@codex-warp:hooks/hooks.json:permission_request:1:1"]
+trusted_hash = "keep-me"
+
+[hooks.state."warp@codex-warp:hooks/hooks.json:stop:0:0"]
+trusted_hash = "keep-stop"
+TOML
+  mkdir -p "$NT/.codex/.tmp/marketplaces/codex-warp/plugins/warp/hooks"
+  cat > "$NT/.codex/.tmp/marketplaces/codex-warp/plugins/warp/hooks/hooks.json" <<'JSON'
+{"hooks":{"PermissionRequest":[{"hooks":[{"type":"command","command":"${PLUGIN_ROOT}/scripts/other.sh"}]},{"hooks":[{"type":"command","command":"${PLUGIN_ROOT}/scripts/other.sh"},{"type":"command","command":"${PLUGIN_ROOT}/scripts/on-permission-request.sh"}]}]}}
+JSON
+  HOME="$NT" bash "$DIR/install-settings.sh" codex >/dev/null 2>&1
+  n1="$(cksum < "$NT/.codex/config.toml")"
+  HOME="$NT" bash "$DIR/install-settings.sh" codex >/dev/null 2>&1
+  n2="$(cksum < "$NT/.codex/config.toml")"
+  nt_ok=1
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$NT/.codex/config.toml" <<'PY' 2>/dev/null || nt_ok=0
+import sys, tomllib
+d = tomllib.load(open(sys.argv[1], "rb"))
+assert d["approval_policy"] == "never"
+assert d["plugins"]["warp@codex-warp"]["enabled"] is True
+assert d["tui"]["notifications"] == ["approval-requested"]
+assert d["tui"]["notification_method"] == "osc9"
+assert d["tui"]["notification_condition"] == "unfocused"
+assert d["tui"]["model_availability_nux"]["gpt-test"] == 1
+states = d["hooks"]["state"]
+permission = states["warp@codex-warp:hooks/hooks.json:permission_request:1:1"]
+assert permission["enabled"] is False and permission["trusted_hash"] == "keep-me"
+assert states["warp@codex-warp:hooks/hooks.json:stop:0:0"]["trusted_hash"] == "keep-stop"
+PY
+  fi
+  [ "$n1" = "$n2" ] || nt_ok=0
+  [ "$nt_ok" = 1 ] && ok "codex notifications are actionable, scoped, and idempotent" \
+                       || bad "codex notification routing"
+  HOME="$NT" bash "$DIR/uninstall.sh" codex >/dev/null 2>&1
+  if ! grep -qF 'agent-global-instructions: codex notification defaults' "$NT/.codex/config.toml" \
+     && grep -q 'enabled = true' "$NT/.codex/config.toml" \
+     && grep -q 'trusted_hash = "keep-stop"' "$NT/.codex/config.toml"; then
+    ok "uninstall removes only owned codex notification defaults"
+  else
+    bad "uninstall preserves user codex notification/plugin state"
+  fi
+  rm -rf "$NT"
+
+  # No phantom Warp state or notification defaults on machines where Warp is
+  # absent/disabled; the harness does not install or take ownership of plugins.
+  NW="$(mktemp -d)"; mkdir -p "$NW/.codex"
+  printf '[plugins."warp@codex-warp"]\nenabled = false\n' > "$NW/.codex/config.toml"
+  HOME="$NW" bash "$DIR/install-settings.sh" codex >/dev/null 2>&1
+  if ! grep -q 'codex notification defaults' "$NW/.codex/config.toml" \
+     && ! grep -q 'permission_request' "$NW/.codex/config.toml"; then
+    ok "install-settings skips Warp routing when the plugin is disabled"
+  else
+    bad "install-settings synthesized state for disabled Warp plugin"
+  fi
+  rm -rf "$NW"
+
+  # Explicit user choices win, quoted keys are recognized, and an array-of-tables
+  # boundary cannot absorb newly seeded keys into the wrong TOML scope.
+  UX="$(mktemp -d)"; mkdir -p "$UX/.codex/.tmp/marketplaces/codex-warp/plugins/warp/hooks"
+  cat > "$UX/.codex/config.toml" <<'TOML'
+[plugins."warp@codex-warp"]
+enabled = true
+
+[tui]
+"notifications" = false
+notification_method = "bel"
+
+[[some_array]]
+name = "keep"
+
+[hooks.state.'warp@codex-warp:hooks/hooks.json:permission_request:0:0']
+enabled = true
+trusted_hash = "user-choice"
+TOML
+  cat > "$UX/.codex/.tmp/marketplaces/codex-warp/plugins/warp/hooks/hooks.json" <<'JSON'
+{"hooks":{"PermissionRequest":[{"hooks":[{"type":"command","command":"${PLUGIN_ROOT}/scripts/on-permission-request.sh"}]}]}}
+JSON
+  HOME="$UX" bash "$DIR/install-settings.sh" codex >/dev/null 2>&1
+  ux_ok=1
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$UX/.codex/config.toml" <<'PY' 2>/dev/null || ux_ok=0
+import sys, tomllib
+d = tomllib.load(open(sys.argv[1], "rb"))
+assert d["tui"]["notifications"] is False
+assert d["tui"]["notification_method"] == "bel"
+assert "notification_condition" not in d["tui"]
+assert d["some_array"] == [{"name": "keep"}]
+permission = d["hooks"]["state"]["warp@codex-warp:hooks/hooks.json:permission_request:0:0"]
+assert permission["enabled"] is True and permission["trusted_hash"] == "user-choice"
+PY
+  fi
+  [ "$ux_ok" = 1 ] && ok "codex notification merge preserves explicit values and TOML scopes" \
+                       || bad "codex notification merge overwrote user TOML"
+  rm -rf "$UX"
+
+  # Never silence Warp approval alerts when an explicit native event filter does
+  # not include approval-requested. A noisy alert is safer than an invisible
+  # genuine approval wait.
+  FC="$(mktemp -d)"; mkdir -p "$FC/.codex/.tmp/marketplaces/codex-warp/plugins/warp/hooks"
+  cat > "$FC/.codex/config.toml" <<'TOML'
+[plugins."warp@codex-warp"]
+enabled = true
+[tui]
+notifications = [ "agent-turn-complete" ]
+TOML
+  cat > "$FC/.codex/.tmp/marketplaces/codex-warp/plugins/warp/hooks/hooks.json" <<'JSON'
+{"hooks":{"PermissionRequest":[{"hooks":[{"type":"command","command":"${PLUGIN_ROOT}/scripts/on-permission-request.sh"}]}]}}
+JSON
+  HOME="$FC" bash "$DIR/install-settings.sh" codex >/dev/null 2>&1
+  if grep -q 'notifications = \[ "agent-turn-complete" \]' "$FC/.codex/config.toml" \
+     && ! grep -q 'permission_request' "$FC/.codex/config.toml"; then
+    ok "codex routing keeps Warp approval alerts when native coverage is absent"
+  else
+    bad "codex routing could hide a genuine approval wait"
+  fi
+  rm -rf "$FC"
+
   # Codex duplicate-key guard: never append when the user already set the keys.
   printf 'approval_policy = "never"\n' > "$MT/.codex/config.toml"
   HOME="$MT" bash "$DIR/install-settings.sh" codex >/dev/null 2>&1

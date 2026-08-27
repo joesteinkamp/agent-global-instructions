@@ -57,8 +57,11 @@ left in place).
   a 30-second survey (rate it 1–5, why, what to do differently); lessons land in
   your memoryOS (Hermes, Obsidian, or plain markdown — `setup-memory-os.sh`)
   and are read back at every session start.
-- **Permissions** — each tool's native enforcement (deny rules, sandbox,
-  policy engine) backing the hooks with rules the model can't bypass.
+- **Permissions and actionable notifications** — each tool's native enforcement
+  backs the hooks with rules the model can't bypass. On Codex, native TUI alerts
+  cover real approval prompts when an enabled Warp integration is detected;
+  Warp continues to announce completed turns without its premature pre-routing
+  permission toast.
 
 Full detail on every layer: **[docs/GUIDE.md](docs/GUIDE.md)**. Finished sample
 renders: [`examples/`](examples/).
