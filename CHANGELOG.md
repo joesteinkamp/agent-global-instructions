@@ -12,6 +12,24 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Make Codex approval notifications actionable
+  (2026-08-25, Codex + Claude Opus 5).** The ask: suppress Warp notifications
+  for permission requests that Codex automatically approves, without disabling
+  `warp@codex-warp` or hiding genuine approval waits. What changed:
+  `install-settings.sh` now preserves Warp's completion notifier, disables only
+  its premature pre-routing `PermissionRequest` handler, and seeds native,
+  unfocused-only `approval-requested` notifications. The installer resolves the
+  handler from Codex's active Warp marketplace manifest, preserves explicit
+  settings and sibling hook state, fails closed when discovery or native
+  approval coverage is ambiguous, and marks owned keys for precise uninstall;
+  tests and documentation cover the behavior. Why this approach: Warp's hook
+  fires before approval routing, while the native event is the appropriate
+  surface for approvals that actually reach the user; keeping Warp's `Stop`
+  hook also avoids losing completion alerts. Considered and rejected: disabling
+  Warp entirely; enabling native `agent-turn-complete`, which would duplicate
+  Warp's completion toast; hard-coding hook indices or trust hashes; resolving
+  from stale versioned caches; patching Warp's installed files; and static TOML
+  insertion, which risks duplicate tables and overwriting user configuration.
 - **Gitignored-only changes no longer earn a Change Log entry
   (2026-08-18, Claude Opus 5).** The ask: Joe wanted the instruction set to
   stop proposing changelog entries for work that only touched gitignored
