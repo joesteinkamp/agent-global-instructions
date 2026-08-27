@@ -64,7 +64,8 @@ left in place).
   permission toast.
 
 Full detail on every layer: **[docs/GUIDE.md](docs/GUIDE.md)**. Finished sample
-renders: [`examples/`](examples/).
+renders: [`examples/`](examples/). Where this is going next:
+**[docs/ROADMAP.md](docs/ROADMAP.md)**.
 
 ## Your three personal layers
 
