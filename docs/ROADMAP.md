@@ -49,7 +49,7 @@ Every gap below is a place with none of these.
 agent-global-instructions    the person layer      (this repo)
   what's true regardless of which project is open
   reply shape, truthfulness, safety, autonomy, memory, teams
-      │  gates Plan 3 via skills-lock.json directory mode
+      │  gates Plan 3 via the skill distribution path
       ▼
 project-starter-pack         the project layer
   what this product is, and what it may not look or sound like
@@ -167,21 +167,39 @@ catch it.
 *Done when:* a deliberately bad edit to `template.md` makes `evals/run.sh` fail.
 Seed the first cases from scorecard history.
 
-### 6. Teach `skills-lock.json` about directories — **gates Plan 3**
+### 6. Establish how a multi-skill pack is distributed — **gates Plan 3**
 
-The lock pins one `skillPath` to one file with one SHA-256. That suits the five
-skills vendored today. A layer-3 skill built to the `ux-audit` shape is a tree —
-`references/`, `scripts/`, `fixtures/`, `assets/` — and vendoring only the entry
-`SKILL.md` leaves every `references/` link resolving against an unpinned
-upstream, defeating the point of a lock.
+The existing mechanism already does more than it looks like it does, so this
+phase is mostly verification, not construction. What is known:
 
-Add a directory mode: a `skillDir` alongside `skillPath`, with a manifest hash
-computed over the sorted file list plus each file's hash. Decide it deliberately
-now rather than discovering it when the first pack skill fails to install.
+- `.agents/skills/ux-audit/` is vendored as a **full tree** — `references/`,
+  `scripts/`, `fixtures/`, `assets/` all present — so directory vendoring works
+  today. `skillPath` naming `SKILL.md` points at the entry file, not the extent
+  of what was copied.
+- The lock is written and re-synced by **`npx skills`**, not by anything in this
+  repo. Its schema is not ours to extend unilaterally.
+- `install-commands.sh` symlinks a vendored skill into `~/.claude/skills`,
+  `~/.codex/skills`, and `~/.cursor/skills` when a command declares
+  `skill-backed: true`. That is the install path, and it is per-skill.
 
-*Touches:* `skills-lock.json` schema, `install.sh`, `converge.sh`, `audit.sh`, `test.sh`.
-*Done when:* `ux-audit` re-locks as a directory and `./audit.sh` detects a
-single-byte change anywhere in its tree.
+Three things to settle before a five-skill pack exists:
+
+1. **What `computedHash` actually covers** — the entry file only, or the tree.
+   That determines whether a change inside `scripts/` is detected at all. Verify
+   against the tool; do not assume.
+2. **How a pack maps onto a per-skill install path.** Five skills means five
+   `skill-backed` commands, or a different arrangement.
+3. **The `.venv` bootstrap, which nothing currently handles.** `ux-audit`'s
+   scripts run via `.venv/bin/python` and Pillow is a non-stdlib dependency; the
+   venv is created by hand today and its README installs by manual `ln -s`.
+   Vendoring copies files, not environments. This is the real unsolved problem,
+   and it gets worse with a pack.
+
+*Touches:* `docs/GUIDE.md` §2, `install-commands.sh`, possibly a bootstrap
+script; `skills-lock.json` only if `npx skills` supports what is needed.
+*Done when:* the three questions above are answered in writing, and a second
+skill can be installed alongside `ux-audit` without a manual step that isn't
+documented.
 
 ### 7. Later — artifact policy and fingerprint memory
 
@@ -403,12 +421,12 @@ works; moving it early risks the one proven thing in the layer to serve tidiness
 Move it once the spec has survived contact with two skills built *to* it rather
 than derived *from* it — that's when the spec is real.
 
-The migration is also the acceptance test for Plan 1 phase 6: if directory lock
-mode can pin `ux-audit`'s full tree and `audit.sh` detects a single-byte change
-inside it, the lock format is correct.
+The migration is also the acceptance test for Plan 1 phase 6: if the pack's
+distribution path can carry `ux-audit`'s full tree — scripts, fixtures, and its
+Python environment — then the path is real.
 
-*Done when:* the pack installs as one locked directory and every skill's
-fixtures pass in one CI run.
+*Done when:* the pack installs alongside the other skills with no undocumented
+manual step, and every skill's fixtures pass in one run.
 
 ### Two decisions to make deliberately
 
@@ -416,7 +434,8 @@ fixtures pass in one CI run.
   its own repo, pinned by hash. That works at one skill and gets tedious at five,
   especially since they'll share token-resolution code and a fixture runner. The
   monorepo is the right call, and it's why Plan 1 phase 6 is a hard gate rather
-  than a nicety.
+  than a nicety — five skills sharing one venv and one fixture runner is a very
+  different distribution problem from one skill installed by hand.
 - **Where the registry lives.** `slop-detect` reads the guardrail registry *from
   the project*. That's correct — bans are project policy, not task craft. Resist
   bundling a canonical rule set into the skill; that recreates the same drift
@@ -437,7 +456,7 @@ The order that never leaves you blocked:
 | 4 | Guardrails past `/verify` | harness | `/improve`, design roles |
 | 5 | Route, don't restate | harness | Stops design drift |
 | 6 | Token validator | starter-pack | `design-extract`'s target |
-| 7 | Lock directory mode | harness | Plan 3 entirely |
+| 7 | Skill distribution path | harness | Plan 3 entirely |
 | 8 | Shape spec + repo | design-craft | Every layer-3 skill |
 | 9 | `slop-detect` | design-craft | Proves the seam |
 | 10 | `refuter` rubric | harness | `design-critique` |
