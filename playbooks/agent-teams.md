@@ -19,8 +19,9 @@ between them**, and this playbook covers the mechanics of the first once it has:
 - **Cross-vendor delegates** (`~/.ai/orchestration.md`). Another CLI entirely.
   Reach for it when you want a *different vendor's* judgment — above all for
   refutation, where a second opinion from the same model is worth much less.
-  Escalate to it on breadth (app-wide or architectural), on changes that are
-  expensive to reverse, or when a conclusion has to survive being wrong. **The
+  Escalate to it on a first product or project plan, on breadth (app-wide or
+  architectural), on changes that are expensive to reverse, or when a conclusion
+  has to survive being wrong. **The
   two compose:** on the biggest work the in-tool team produces and cross-vendor
   delegates attack the result, briefed from `STATE.md` rather than re-explained.
 - **Parallel worktrees** (the resident "Parallel AI models on one repo" rules).

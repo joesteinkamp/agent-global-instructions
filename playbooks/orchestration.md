@@ -30,6 +30,12 @@ from a single vendor correlate — they tend to miss the same things and agree f
 the same reasons, because they share a prior. Reach for another CLI when the work
 trips any of these:
 
+- **Foundational framing.** A first product or project plan — positioning,
+  architecture, the stack, the data model, the information architecture, the
+  briefs a repo will be built against. There is no code to check yet, evidence is
+  thinnest, and every later decision inherits the frame. Lock-in is highest
+  exactly when confidence should be lowest, which makes this the cheapest moment
+  to buy another vendor's judgment and the most expensive one to skip it.
 - **Breadth.** The change is app-wide or cross-cutting: architecture, the data
   model, an auth or routing layer, a dependency swap — anything touching most of
   the codebase rather than a corner of it.
@@ -41,6 +47,16 @@ trips any of these:
 - **Refutation that has to count.** A same-model refuter is a real check on the
   *agent* and a weak check on the *model*. When a claim has to survive being
   wrong, the refuter comes from a different vendor.
+
+**On a plan, ask for a rival — not a review.** Refutation is the right shape for
+a conclusion that already exists; a plan has none to attack yet, and a reviewer
+handed someone else's plan tends to improve it rather than question whether it is
+the right plan. So send the *same brief* to two or three vendors independently,
+before any of them sees the others' work, and diff what comes back. Agreement
+across vendors is the strongest signal you can get this early; divergence is
+usually a decision you were making implicitly without noticing. Reconcile in the
+main thread, surface the divergences to the user, and only then let a `refuter`
+attack the plan you picked.
 
 **Do both when the work earns it — the compound shape is the normal answer at the
 top of that list, not an exotic case.** The in-tool team produces; the outside

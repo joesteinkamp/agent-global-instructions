@@ -76,10 +76,12 @@ file.
   the roster itself is the decision (it would change what we're building).
 - **One system, two transports — escalate by stakes.** An in-tool team is the
   default. Add cross-vendor delegates when breadth or stakes make one model's
-  blind spots the risk: app-wide or architectural changes, decisions that are
-  expensive to reverse, explanations that stay contested, or a conclusion that
-  has to survive refutation — a same-model refuter checks the agent, not the
-  model. On the biggest work run both: the in-tool team produces, another vendor
+  blind spots the risk: a first product or project plan, app-wide or
+  architectural changes, decisions that are expensive to reverse, explanations
+  that stay contested, or a conclusion that has to survive refutation — a
+  same-model refuter checks the agent, not the model. On a plan ask each vendor
+  for its own draft and diff them, rather than for a review of one. On the
+  biggest work run both transports: the in-tool team produces, another vendor
   attacks the result. **`~/.ai/orchestration.md` is the entry point** — it picks
   the shape before anything spawns.
 - **Always include a lens that argues against.** Spawn a `refuter` alongside any
