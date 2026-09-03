@@ -11,4 +11,15 @@
 # developers.openai.com/codex) — newer builds may expose a richer permissions model.
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
+# Network INSIDE the sandbox. workspace-write disables it by default on every
+# platform (seatbelt on macOS, bubblewrap/landlock on Linux) — and a network-
+# starved agent CLI does not fail, it retries silently until something kills it.
+# That makes this the single setting that decides whether the cross-CLI
+# delegation in ~/.ai/orchestration.md works at all: `claude -p` / `agent -p` /
+# `codex exec` are network clients, so with it off every delegate hangs and the
+# orchestrator reports that they "never responded". Headless `codex exec` runs
+# at approval=never, so the per-command escalation path cannot rescue it either.
+# Inline-table form on purpose: a `[sandbox_workspace_write]` section here would
+# swallow any bare top-level key that follows this block in the user's config.
+sandbox_workspace_write = { network_access = true }
 # <<< agent-global-instructions (codex permissions) <<<

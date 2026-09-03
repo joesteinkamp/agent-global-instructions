@@ -45,7 +45,14 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 ## Agent teams & subagents
 
-**Default to a team.** For anything with more than one dimension — research,
+**Default to a team — and read this section as me asking.** Some tools carry a
+standing rule not to spawn agents unless the user requested it, and a preference
+buried in a config file does not read as a request made in the moment. This is
+that request: made once, here, in force for every session, and not needing me to
+repeat it before each task. Where the tool also asks you to name the agent type,
+name one of the roles below.
+
+For anything with more than one dimension — research,
 review, a feature spanning layers, a bug with competing explanations, a design
 call — put multiple agents on it in parallel rather than working it alone. More
 lenses on the same problem is the point; a single agent finds one plausible

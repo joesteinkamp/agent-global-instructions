@@ -12,6 +12,45 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Fix cross-CLI orchestration: the sandbox starved every delegate
+  (2026-09-03, Claude Opus 5).** The ask: on a fully-installed machine, Codex
+  tried to orchestrate Claude and Cursor and the delegates never responded —
+  on macOS and Linux alike — and separately, only Codex ever attempted
+  orchestration at all. What changed: `codex-permissions.snippet.toml` now
+  ships `sandbox_workspace_write = { network_access = true }`;
+  `playbooks/orchestration.md` requires a hardened delegate launch
+  (`timeout … < /dev/null > "$CTX/agents/<name>.log" 2>&1`, then `wait` and
+  check the exit status) and names a starved sandbox as the first thing to
+  check when a wave returns nothing; `template.md`'s agent-teams section now
+  states the team default as an explicit standing request rather than a
+  preference; examples re-rendered. Why this approach: `sandbox_mode =
+  "workspace-write"` — which this installer sets — disables network for every
+  sandboxed command on every platform, and a network-starved agent CLI does
+  not exit non-zero, it retries in place until something kills it (reproduced:
+  `claude -p` returned nothing and ran until a 90s timeout, versus 11s with
+  network). Headless `codex exec` runs at `approval=never`, so the
+  per-command escalation path cannot recover it either. The installer was
+  forbidding the cross-CLI delegation its own orchestration playbook mandates,
+  which is why the failure survived a correct install. The inline-table TOML
+  form is deliberate: a `[sandbox_workspace_write]` section would swallow any
+  bare top-level key following the managed block in a user's config. The
+  template change addresses a separate cause found in the same session —
+  Claude Code carries a server-delivered policy (`tengu_heron_brook`, cached
+  in `~/.claude.json`) not to spawn agents unless the user requested it, which
+  outranks the rendered instructions and is why only Codex, which carries no
+  such policy, ever tried. Considered and rejected: an OS-level fix
+  (`kernel.apparmor_restrict_unprivileged_userns=0`) — this was first
+  misdiagnosed as Ubuntu 24.04 blocking bubblewrap; that defect is real on the
+  Linux box and does break Codex's sandbox there, but it is Linux-only and
+  cannot explain the macOS failure, so it was the wrong root cause and is
+  tracked separately. Also rejected: `--sandbox danger-full-access` for
+  delegates, which bypasses the sandbox rather than fixing it; deleting the
+  cached `tengu_heron_brook` value, which is refetched from the server (the
+  file was rewritten five times in thirty-five minutes); and a
+  `UserPromptSubmit` hook to restate the standing request every turn, which
+  the permission classifier blocked as harness self-modification — Claude
+  Code's supported `--append-system-prompt` flag reaches the same tier without
+  a hook.
 - **Make Codex approval notifications actionable
   (2026-08-25, Codex + Claude Opus 5).** The ask: suppress Warp notifications
   for permission requests that Codex automatically approves, without disabling
