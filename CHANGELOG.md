@@ -12,6 +12,45 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Unify agent teams and cross-vendor delegates into one orchestration system
+  (2026-09-03, Claude Opus 5).** The ask: Joe asked for a single orchestration
+  and delegation system that intelligently designates in-tool subagents,
+  cross-vendor agents, or both — prompted by confirming that
+  `playbooks/orchestration.md` never defined agent roles during delegation, and
+  extended to cover initial product and project plans. What changed:
+  `playbooks/orchestration.md` becomes the single entry point and gains "One
+  system: choosing the shape" — an in-tool team is the default, escalating to
+  cross-vendor on foundational framing (a first product or project plan),
+  breadth (app-wide or architectural), reversibility, contested explanations, or
+  refutation that has to count, with the compound shape (in-tool team produces,
+  outside vendors attack a `STATE.md` summary, main thread reconciles)
+  documented as the normal answer for the largest work. A second new section,
+  "Roles are the interface", closes the delegation gap; a third pattern, "on a
+  plan, ask for a rival — not a review", covers the planning case.
+  `playbooks/agent-teams.md`'s "Which construct, and when" now defers to that
+  ladder instead of presenting three rival constructs, and `template.md` gains a
+  resident ladder bullet gated behind `INC_ORCHESTRATION`; examples re-rendered.
+  Why this approach: the two constructs were already one idea — more lenses on a
+  problem — split across two playbooks with no router between them, and roles
+  were the natural shared interface. Making them one closed a real defect: the
+  playbook routed purely by vendor strength, so a cross-vendor delegate was a
+  generic agent and the `refuter` role went unused at exactly the point the
+  "never the sole checker of its own work" rule is enforced across vendors.
+  Neither CLI can select a role by name across the boundary (`codex exec` has no
+  agent-selection flag; `claude --agents` defines a spawnable roster, not the
+  role the `-p` turn assumes), so the role definition is passed in via
+  `--append-system-prompt`. Routing on concrete triggers rather than judgment
+  keeps the decision checkable, cost is named explicitly so the ladder does not
+  read as permission to parallelize everything, and gating the resident bullet
+  keeps cross-vendor advice off machines with no second CLI. Considered and
+  rejected: putting the router in `agent-teams.md` — the shape has to be chosen
+  before you know which playbook applies; leaving the two playbooks independent
+  with cross-references, which is the status quo that produced the gap; making
+  cross-vendor the default, which most work does not need and every rung of
+  which multiplies tokens and wall time; and folding initial plans under the
+  reversibility trigger, which would have routed them to refutation — the wrong
+  shape for work that has no conclusion to attack yet, where independent rival
+  drafts diffed against each other are what surface the implicit decisions.
 - **Fix cross-CLI orchestration: the sandbox starved every delegate
   (2026-09-03, Claude Opus 5).** The ask: on a fully-installed machine, Codex
   tried to orchestrate Claude and Cursor and the delegates never responded —
