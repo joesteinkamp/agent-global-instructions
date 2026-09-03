@@ -74,6 +74,14 @@ file.
   role the palette doesn't have when the task calls for it. Three to five is the
   right size — three focused roles beat five scattered ones. Come to me only when
   the roster itself is the decision (it would change what we're building).
+- **One system, two transports — escalate by stakes.** An in-tool team is the
+  default. Add cross-vendor delegates when breadth or stakes make one model's
+  blind spots the risk: app-wide or architectural changes, decisions that are
+  expensive to reverse, explanations that stay contested, or a conclusion that
+  has to survive refutation — a same-model refuter checks the agent, not the
+  model. On the biggest work run both: the in-tool team produces, another vendor
+  attacks the result. **`~/.ai/orchestration.md` is the entry point** — it picks
+  the shape before anything spawns.
 - **Always include a lens that argues against.** Spawn a `refuter` alongside any
   finding, plan, or claim that matters, and tell it to break the conclusion, not
   confirm it — **an agent must never be the sole checker of its own work.**
@@ -106,8 +114,8 @@ file.
 
 ## Orchestrating other AI CLIs
 
-- **This machine may run several AI CLIs — use them as delegates** in headless one-shot mode. The roster lives at `~/.ai/clis` (bare names, one per line; exclude the tool you're running as); the advisory per-task-type vendor rankings at `~/.ai/model-routing.md`.
-- **Before the first delegation of a session, read `~/.ai/orchestration.md` and follow it** — the full contract: invocation forms, the shared `~/.ai-context/` dir and its file ownership, routing by strength, sandboxing, worktrees for editing delegates, and failure handling.
+- **This machine may run several AI CLIs — use them as delegates** in headless one-shot mode. This is the second transport of the agent-team system above, not a separate one: same roles, same gates, chosen when another vendor's judgment is worth its cost. The roster lives at `~/.ai/clis` (bare names, one per line; exclude the tool you're running as); the advisory per-task-type vendor rankings at `~/.ai/model-routing.md`.
+- **`~/.ai/orchestration.md` is the whole contract — read it before the first team or delegation** — how to choose the shape, how to carry a role across a vendor boundary, and everything delegate-specific: invocation forms, the shared `~/.ai-context/` dir and its file ownership, routing by strength, sandboxing, worktrees for editing delegates, and failure handling.
 - **A model must never be the sole checker of its own work** — route review through a different vendor's model, prompted to refute ("find what's wrong"), not to confirm. Surface disagreements to me; don't silently pick a winner.
 - **Local models are delegates too — behind `lm`.** If `~/.ai/local-models` exists, the `lm` shim runs them (`lm -p "…"`; `lm list` for health) — one-shot text-only work, routed by tier per the orchestration playbook. If the file or shim is absent, this machine has no local models: skip silently, and never install or start one to get some.
 - **One level only.** Delegates never spawn further delegates. If your prompt points you at an existing `~/.ai-context/` dir, you *are* the delegate: read the brief, do your piece, write your file, stop.

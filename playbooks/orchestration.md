@@ -1,10 +1,86 @@
-# Cross-tool orchestration playbook
+# Orchestration playbook
 
 On-demand contract, installed to `~/.ai/orchestration.md` by `customize.sh
 --global`. The resident instructions (`~/AGENTS.md`) point here so the full
-delegation contract doesn't sit in every session's context. **Read this top to
-bottom before the first delegation of a session, then follow it for every
+contract doesn't sit in every session's context. **Read this top to bottom
+before the first team or delegation of a session, then follow it for every
 wave.** The confirmation gates in the resident instructions apply unchanged.
+
+This is the single entry point for distributing work across agents, whichever
+side of a vendor boundary they sit on. Start with "choosing the shape" below to
+decide *what* to spawn; `~/.ai/agent-teams.md` carries the per-tool mechanics of
+spawning in-tool agents, and the rest of this file carries everything specific to
+delegates in another CLI.
+
+## One system: choosing the shape
+
+Agent teams and cross-vendor delegates are not two systems. They are two
+transports for the same thing — putting more than one lens on a problem — and
+choosing between them is a routing decision made per task, not a standing
+preference. Roles are the interface either way (next section); the transport is
+an implementation detail you pick from the work in front of you.
+
+**Default: an in-tool team.** Spawn same-vendor agents in the current tool for
+almost everything multi-dimensional. They start in milliseconds, inherit the
+project's instruction files, cost the least per lens, and their results land back
+in one thread. Per-tool mechanics live in `~/.ai/agent-teams.md`.
+
+**Escalate to cross-vendor when one model's blind spots are the risk.** Lenses
+from a single vendor correlate — they tend to miss the same things and agree for
+the same reasons, because they share a prior. Reach for another CLI when the work
+trips any of these:
+
+- **Breadth.** The change is app-wide or cross-cutting: architecture, the data
+  model, an auth or routing layer, a dependency swap — anything touching most of
+  the codebase rather than a corner of it.
+- **Reversibility.** Getting it wrong is expensive to undo — a migration, a
+  public API, a released artifact, a security boundary, or a decision the rest of
+  the work will be built on.
+- **Contested ground.** Competing explanations survive the first pass, or the
+  in-tool team converged suspiciously fast on something nobody stress-tested.
+- **Refutation that has to count.** A same-model refuter is a real check on the
+  *agent* and a weak check on the *model*. When a claim has to survive being
+  wrong, the refuter comes from a different vendor.
+
+**Do both when the work earns it — the compound shape is the normal answer at the
+top of that list, not an exotic case.** The in-tool team produces; the outside
+vendors attack:
+
+1. Spawn the in-tool team — roles derived from the task, disjoint scopes.
+2. Fold their results into `STATE.md`. That summary is the brief the outside
+   vendors read, so the cross-vendor wave costs one summary rather than a
+   re-explanation of the whole task.
+3. Launch cross-vendor delegates against it in the `refuter` role, prompted to
+   break the conclusion rather than confirm it.
+4. Reconcile in the main thread. Surface disagreements to the user; never
+   silently pick a winner.
+
+**Cost is why this is a ladder and not a default-everything.** Each rung
+multiplies tokens and wall time, and the compound shape adds a context dir, a
+summary, and a reconciliation pass on top. The ladder starts below the team: work
+that is small, sequential, or concentrated in one file takes no agents at all.
+
+## Roles are the interface
+
+The same role palette applies to both transports, so `refuter` means the same
+thing whether it is a subagent in this session or another vendor's CLI. That
+shared meaning is the point of keeping roles in files at all.
+
+- **In-tool:** reference the role by name and the host loads it itself, from
+  `~/.claude/agents/<role>.md` or `~/.codex/agents/<role>.toml`.
+- **Cross-vendor: the host cannot do this for you.** `codex exec` has no
+  agent-selection flag, and `claude --agents` defines the roster a session may
+  spawn — not the role its `-p` turn assumes. **A delegate is a generic agent
+  unless you put the role in the prompt**, so pass the definition in:
+
+      role=$(sed '1{/^---$/,/^---$/d}' ~/.claude/agents/refuter.md)
+      timeout 900 claude -p "…" --append-system-prompt "$role" \
+        < /dev/null > "$CTX/agents/refuter.log" 2>&1 &
+
+  For a CLI with no system-prompt flag, put the same body at the top of the
+  prompt instead. Name the delegate's output file after the role
+  (`agents/refuter.md`) so the context dir records which lens produced which
+  finding.
 
 ## Delegates & the roster
 
