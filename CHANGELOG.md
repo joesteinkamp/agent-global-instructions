@@ -12,6 +12,27 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Give each `test.sh` run its own scratch directory
+  (2026-09-03, Claude Opus 5).** The ask: concurrent runs of the suite produced
+  spurious example-reproducibility failures that vanished on retry and pointed
+  at nothing. What changed: four fixed paths (`/tmp/aigi_test.out`, `.err`,
+  `/tmp/aigi_ex.out`, `/tmp/aigi_pwned`) replaced with a per-run `mktemp -d`
+  directory removed by an `EXIT` trap; the code-injection canary's path is now
+  written with a single-quoted `printf` format so it reaches the fixture
+  unexpanded. Why this approach: the paths were shared state between runs in
+  *different* checkouts, which is the realistic case here — parallel agents each
+  work in their own worktree, and this was hit with another agent running the
+  suite from a sibling worktree during the orchestration work. The canary needed
+  the `printf` because its line sits inside a quoted heredoc: substituting the
+  path any other way fires the `$(touch …)` while writing the fixture instead of
+  while parsing it, silently inverting what the test proves. Verified with two
+  independent checkouts running concurrently, both reporting 168 passed.
+  Considered and rejected: redirecting the `render-commands` and
+  `install-commands` tests away from the repo's real `commands/` port
+  directories, which would also make same-checkout concurrency safe — those
+  tests exist to verify the real render against the real output paths, so the
+  limitation is documented instead and concurrent suites run from separate
+  checkouts.
 - **Unify agent teams and cross-vendor delegates into one orchestration system
   (2026-09-03, Claude Opus 5).** The ask: Joe asked for a single orchestration
   and delegation system that intelligently designates in-tool subagents,
