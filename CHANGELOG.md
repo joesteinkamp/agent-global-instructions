@@ -111,6 +111,42 @@ so the log reads as the project's decision history, not just a list of diffs.
   the permission classifier blocked as harness self-modification — Claude
   Code's supported `--append-system-prompt` flag reaches the same tier without
   a hook.
+- **Port prompt-rigor mechanics from `intent-hq/intent`'s specialist set, and
+  make the product designer a writer (2026-09-03, Claude Opus 5).** The ask:
+  review Intent's built-in agent roster against ours and recommend, then apply
+  what's worth taking. What changed: every role in `roles/` split into Hard
+  rules and Guidance; each `Return:` line replaced by a named field list with
+  mandatory `file:line` citation; read-only roles given a `Do not report` list
+  and a confidence floor (inverted for the `refuter`, deliberately); a
+  `reminder:` frontmatter key restated at the top and bottom of each body and
+  verified by `render-roles.sh`; a role source contract asserted in `test.sh`;
+  `product-designer` given `Edit`/`Write` plus the ownership rule; a new
+  `harness-steward` role; a task-brief schema in `playbooks/agent-teams.md`; a
+  new `Proposals, asks, and decisions` section in `template.md` behind
+  `INC_PROPOSALS`. Why this approach:
+  Intent's role files are better written than ours but decompose by workflow
+  stage and assume their daemon's runtime, so we kept our discipline-lens axis
+  and took only the mechanics that survive being portable. The reminder rides
+  inside `developer_instructions` rather than a new TOML key because Codex
+  documents no reminder field and an unknown key fails silently into the
+  generic agent — the exact failure the role layer exists to prevent.
+  `product-designer`'s `sandbox: read-only` (from #29) was wrong: four of the
+  five read-only roles critique an artifact someone else authored, but a
+  product designer authors one, and returning a flow as text forces the lead to
+  re-type the deliverable. Considered and rejected: adopting Intent's roster
+  wholesale, which loses the `refuter` — their nine specialists carry no
+  adversarial lens at all — along with the four lenses their pipeline assumes
+  are already answered; a spawnable `coordinator`, which is a second lead and
+  only works by spawning agents, breaking one-level-deep delegation, so its
+  spec schema went into the playbook instead; a spawnable `chief-of-staff`,
+  whose value is output-shape rules that belong in `template.md` plus a
+  tooling-subject agent that became `harness-steward`; their grep-the-codebase
+  design-system discovery, which reopens the settled decision that `DESIGN.md`
+  is the articulation point, so the `ui-designer` now hard-rules against
+  inferring a system when one is declared; and their harness-versioning
+  machinery, overkill for a file installer — the golden-test half is what we
+  took. A `security-reviewer` adapted from their `vulnerability-scanner`
+  remains open.
 - **Make Codex approval notifications actionable
   (2026-08-25, Codex + Claude Opus 5).** The ask: suppress Warp notifications
   for permission requests that Codex automatically approves, without disabling

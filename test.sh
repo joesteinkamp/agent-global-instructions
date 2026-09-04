@@ -62,6 +62,16 @@ assert_no "INC_IMPROVE=n removes the quality-workflows pointer" '~/.ai/quality-w
 assert_no "INC_IMPROVE=n leaves no marker leak" 'SECTION:'
 
 render
+assert_has "default render includes the proposals section" 'Proposals, asks, and decisions'
+assert_has "default render distinguishes proposal from confirmation" 'Never dress a confirmation up as a proposal'
+assert_has "default render puts the ask last" 'Put the ask last'
+assert_has "default render forbids inventing a field a wrong guess breaks" 'leave blank the one field a wrong guess breaks'
+INC_PROPOSALS=n render
+assert_no "INC_PROPOSALS=n removes the proposals heading" 'Proposals, asks, and decisions'
+assert_no "INC_PROPOSALS=n removes the ask-last rule" 'Put the ask last'
+assert_no "INC_PROPOSALS=n leaves no marker leak" 'SECTION:'
+
+render
 assert_has "default render points at the agent-teams playbook" '~/.ai/agent-teams.md'
 assert_has "default render defaults to a team" 'Default to a team'
 assert_has "default render derives roles instead of asking" "Derive the roles from the task"
@@ -233,6 +243,122 @@ pt_env="$(cd "$PT" && INC_DOCS=y bash ./customize.sh --print 2>/dev/null | grep 
   && ok "explicit shell env var outranks my-context.env" \
   || bad "explicit shell env var outranks my-context.env (file=$pt_file env=$pt_env)"
 rm -rf "$PT"
+
+# ---- role source contract — roles/*.md is the canonical source for BOTH
+#      dialects, and nothing downstream reads it strictly: install-roles.sh
+#      copies it, render-roles.sh renders it. A role with a typo'd tools: entry,
+#      a name that disagrees with its filename, or a missing Return section
+#      installs cleanly and then quietly behaves like a generic agent. Assert the
+#      contract in the source, where a break is cheap to find.
+echo ""
+echo "== role source contract =="
+
+# Extend deliberately: an unknown tool name in frontmatter is silently dropped by
+# the host, which is exactly the failure this list exists to catch.
+ROLE_TOOLS_OK=" Read Grep Glob Bash Edit Write WebFetch WebSearch "
+
+role_fm() {  # $1 = file, $2 = key -> trimmed value, surrounding quotes stripped
+  awk -v key="$2" '
+    { sub(/\r$/,"") }
+    NR==1 && $0=="---" { infm=1; next }
+    infm && $0=="---"  { exit }
+    infm && $0 ~ ("^" key ":") {
+      v=$0; sub("^" key ":[[:space:]]*","",v); gsub(/[[:space:]]+$/,"",v)
+      if (v ~ /^".*"$/) v = substr(v, 2, length(v) - 2)
+      print v; exit
+    }
+  ' "$1"
+}
+role_body() {
+  awk '
+    { sub(/\r$/,"") }
+    NR==1 && $0=="---" { infm=1; next }
+    infm && $0=="---"  { infm=0; started=1; next }
+    started
+  ' "$1"
+}
+
+r_fm=""; r_name=""; r_tools=""; r_sandbox=""; r_body=""; r_rem=""; r_sect=""; r_floor=""
+n_roles=0
+for f in "$DIR"/roles/*.md; do
+  [ -e "$f" ] || continue
+  base="$(basename "$f" .md)"
+  [ "$base" = "README" ] && continue
+  n_roles=$((n_roles+1))
+
+  head -n1 "$f" | grep -q '^---$' || r_fm="$r_fm $base(no-frontmatter)"
+  for k in name description tools effort reminder; do
+    [ -n "$(role_fm "$f" "$k")" ] || r_fm="$r_fm $base:$k"
+  done
+
+  # The agent is addressed by filename; a disagreeing name: is a role nobody can
+  # spawn under the name they typed.
+  [ "$(role_fm "$f" name)" = "$base" ] || r_name="$r_name $base"
+
+  for t in $(role_fm "$f" tools | tr ',' ' '); do
+    case "$ROLE_TOOLS_OK" in *" $t "*) ;; *) r_tools="$r_tools $base:$t";; esac
+  done
+
+  sb="$(role_fm "$f" sandbox)"
+  case "$sb" in ""|read-only) ;; *) r_sandbox="$r_sandbox $base:$sb";; esac
+
+  body="$(role_body "$f")"
+  [ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ] || r_body="$r_body $base"
+
+  # Same string in three places (frontmatter, first body line, last body line)
+  # only helps while the three agree.
+  want="**Reminder:** $(role_fm "$f" reminder)"
+  first="$(printf '%s\n' "$body" | grep -m1 -v '^[[:space:]]*$' || true)"
+  last="$(printf '%s\n' "$body" | grep -v '^[[:space:]]*$' | tail -n1 || true)"
+  { [ "$first" = "$want" ] && [ "$last" = "$want" ]; } || r_rem="$r_rem $base"
+
+  { grep -q '^## Hard rules$' "$f" && grep -q '^## Return$' "$f"; } || r_sect="$r_sect $base"
+
+  # A read-only role is a reporting role, and a reporting role with no stated
+  # floor reports everything it notices.
+  if [ "$sb" = "read-only" ]; then
+    { grep -q '^## Do not report$' "$f" && grep -qi 'confidence floor' "$f"; } || r_floor="$r_floor $base"
+  fi
+done
+
+[ "$n_roles" -gt 0 ] && ok "roles/ holds canonical role definitions ($n_roles)" \
+                     || bad "roles/ holds canonical role definitions (found none)"
+[ -z "$r_fm" ]      && ok "every role declares name/description/tools/effort/reminder" \
+                     || bad "role frontmatter keys missing:$r_fm"
+[ -z "$r_name" ]    && ok "every role's name matches its filename" \
+                     || bad "role name disagrees with filename:$r_name"
+[ -z "$r_tools" ]   && ok "every declared tool is a known tool name" \
+                     || bad "unknown tool in role frontmatter:$r_tools"
+[ -z "$r_sandbox" ] && ok "every declared sandbox value is in-enum" \
+                     || bad "unknown sandbox value:$r_sandbox"
+[ -z "$r_body" ]    && ok "no role ships an empty body" \
+                     || bad "role body is empty:$r_body"
+[ -z "$r_rem" ]     && ok "every role body opens and closes with its reminder" \
+                     || bad "reminder drifted from the body:$r_rem"
+[ -z "$r_sect" ]    && ok "every role states Hard rules and a Return contract" \
+                     || bad "role missing Hard rules or Return:$r_sect"
+[ -z "$r_floor" ]   && ok "every read-only role states what not to report and a confidence floor" \
+                     || bad "read-only role missing Do not report / confidence floor:$r_floor"
+
+# The render must FAIL on a drifted or missing reminder rather than shipping a
+# Codex dialect whose instructions disagree with the Claude one.
+RTMP="$(mktemp -d)"
+mkdir -p "$RTMP/roles"
+cp "$DIR"/roles/*.md "$RTMP/roles/"
+cp "$DIR/render-roles.sh" "$RTMP/"
+bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
+  && ok "render-roles renders the unmodified sources" \
+  || bad "render-roles renders the unmodified sources"
+sed -i '0,/^\*\*Reminder:\*\*/s//**Reminder:** drifted/' "$RTMP/roles/refuter.md"
+bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
+  && bad "render-roles fails loudly when the reminder and the body drift apart" \
+  || ok "render-roles fails loudly when the reminder and the body drift apart"
+cp "$DIR/roles/refuter.md" "$RTMP/roles/refuter.md"
+sed -i '/^reminder:/d' "$RTMP/roles/refuter.md"
+bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
+  && bad "render-roles fails loudly when a role has no reminder" \
+  || ok "render-roles fails loudly when a role has no reminder"
+rm -rf "$RTMP"
 
 # ---- installer smoke tests — run the installers into a throwaway HOME so a
 #      regression like "backup_file returns 1 and set -e aborts before merge"
