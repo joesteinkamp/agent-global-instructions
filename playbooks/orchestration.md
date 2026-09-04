@@ -115,6 +115,45 @@ shared meaning is the point of keeping roles in files at all.
 - **Route by strength — advisory.** When picking which CLI gets a subtask, consult `~/.ai/model-routing.md` — a benchmark-derived, per-task-type ranking of the installed vendors (hard coding, review/refutation, research, planning, UI, cheap fan-out, long-context). It's reference, not law: availability, cost, and your own observed results on this task outrank it, and the user's explicit choice always wins. If the file is absent, choose freely and skip the mention.
 - **Say when it's stale.** The table's `Last updated` header dates it; if that's older than ~2 months, still use it but note the staleness and offer `/update-model-routing` to refresh.
 
+## Running longer than a turn
+
+Orchestration and autonomy are the same problem at two time scales. A wave that
+outlives the turn needs exactly what a long task needs — a durable objective, a
+testable done-condition, and a trail on disk — so reach for the host's own
+primitives instead of hand-holding a long job through repeated prompts.
+
+- **The orchestrator gets a long-run primitive too.** Multi-wave work — spawn,
+  fold into `STATE.md`, spawn again, reconcile — rarely fits in one turn. Put the
+  whole orchestration under the host's loop or goal with the done-condition
+  stated up front, so the waves continue without the user re-prompting between
+  each one.
+- **Bound every delegate; give durable work a goal.** Each launch carries a
+  `timeout` (above). A delegate that is genuinely long-lived does not belong in a
+  longer timeout — it belongs in its own worktree making WIP commits, and a Codex
+  delegate can carry a `/goal` so its objective survives compaction and restarts.
+- **Background anything that blocks.** A wave of delegates, a test suite, a
+  build, a deploy watch: start it in the background and wait on it once rather
+  than polling on a sleep. Poll only external state the host cannot notify you
+  about, and pace the interval to how fast that state actually changes.
+- **A long run survives on files, not the transcript.** `STATE.md` and WIP
+  commits are what let any session — or another vendor — resume the wave. Write
+  them as you go, not at the end.
+- **Nudge the user once when a lever only they can pull would have helped.** Some
+  capabilities are theirs to trigger: a billed deep review, a scheduled routine, a
+  permission that unblocks a tool. Name it at handoff in one line, say what it
+  would have changed about *this* task, and drop it if they pass.
+
+**What each host offers.** Check the tool's own `--help` before depending on a
+row — vendors move fast, and a capability worth having is worth re-checking
+rather than assuming it is absent because you have not used it here.
+
+| Host | Runs past the turn | Parallel lenses | Also worth reaching for |
+|---|---|---|---|
+| Claude Code | `/loop`, self-paced or on a fixed interval; scheduled routines for recurring work | agent teams and subagents, roles from `~/.claude/agents/` | background shell jobs for anything slow · plan-before-execute on a broad change · session checkpoints, so a bad turn is cheap to undo · `--append-system-prompt` and `--agents` when driving it headless |
+| Codex | `/goal <objective>` — durable across turns and restarts; `codex features enable goals` if it is missing | `multi_agent` subagents, roles from `~/.codex/agents/` | `codex exec` for headless one-shots · `unified_exec` for a shell that persists across calls · hooks for guardrails |
+| Cursor (`agent`) | `/loop` | roles inline in the prompt — no reusable agent-definition format | `agent -p` for headless one-shots |
+| Antigravity (`agy`) | check `agy --help`; do not assume one exists | roles inline in the prompt | `agy -p` for headless one-shots, text output only |
+
 ## Local models (behind `lm`)
 
 - **Local models are roster delegates too.** If `~/.ai/local-models` exists (one endpoint per line: `name|backend|base_url|model|tier[|tok/s]` — Ollama, llama.cpp, MLX, or a remote box, all speaking the same OpenAI-compatible API), the `lm` shim runs them: `lm -p "…"` (`--model`/`--tier` to pick; `lm list` for health). If the file or shim is absent, this machine has no local models — skip silently, and never install or start one to get some.

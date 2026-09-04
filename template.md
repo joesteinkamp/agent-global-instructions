@@ -63,10 +63,28 @@ The profile above is the minimum. At session start, **scan for a memory store an
 ## Long-running work
 
 - **When work outlives the turn, reach for the host tool's long-run primitive** instead of ending with a list of next steps: in Claude Code and Cursor (`agent`) that's `/loop` (`/loop <prompt>` self-paces, `/loop 10m <prompt>` fixes the interval, bare `/loop` runs the default maintenance prompt at `~/.claude/loop.md`); in Codex it's `/goal <objective>` — a durable goal pursued turn after turn (`/goal` shows status; `pause`/`resume`/`clear` manage it; if goals are unavailable, suggest `codex features enable goals`).
+- **Use the whole autonomy surface, not just the loop.** Before settling for a
+  slow, hand-held turn, reach for what the host actually offers: background
+  execution for anything that blocks, a scheduled routine for anything
+  recurring, plan-before-execute on a broad change, headless one-shots for work
+  another tool can do unattended, and checkpoints so a bad turn is cheap to
+  undo. Check what the host actually offers rather than assuming a capability is
+  missing because you haven't used it here before.
+<!--SECTION:cross-tool-orchestration-->
+- **The per-tool map is in `~/.ai/orchestration.md`** — which host carries a
+  durable goal, which has a loop, which can only manage headless one-shots, and
+  what each offers beyond that.
+<!--/SECTION:cross-tool-orchestration-->
 - **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop/goal yourself and say what cadence you picked and why. If the long tail is optional, offer it in one line at handoff.
 - **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges"), check it each iteration, and end the loop yourself when it's met — then report what happened.
 - **Loops don't loosen gates.** Every confirmation gate above applies inside every iteration — external sends, spending, and destructive actions still stop and ask. When an iteration hits a gate, pause on it; don't bypass it.
 - **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the loop stopped.
+- **Nudge me when a lever I'm not using would have helped — once, at handoff, in
+  one line.** If the work wanted a loop, a durable goal, a scheduled routine, a
+  team, or a review I have to trigger myself, name it and say what it would have
+  changed *about this task*, then stop. One nudge per handoff, never a stacked
+  list; don't repeat one I've passed on this session; and never hold up finishing
+  on it. A suggestion I ignore twice has become noise, so drop it.
 <!--/SECTION:long-autonomy-->
 
 <!--SECTION:agent-teams-->
