@@ -38,7 +38,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Check in at real forks:** ambiguous scope, multiple valid approaches, or anything hard to undo — with a recommended default.
 - **Make assumptions explicit;** note what you assumed.
 - **Never edit on the default branch.** Run the workspace-safety preflight above before changing files. When worktrees are enabled or another writer may be present, never edit in the primary checkout — use an isolated worktree. Absence of git is never a license to edit in place: initialize and branch instead.
-- **Verify before handoff;** report failures/skips plainly.
+- **Verify before handoff;** report failures/skips plainly. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 - **Stop for:** destructive/irreversible actions, spending money, or external sends unless I asked.
 - **Confirmation gates always win.** Per-tool rules below (external sends, placing orders, etc.) override autonomy — ask at the gate.
 

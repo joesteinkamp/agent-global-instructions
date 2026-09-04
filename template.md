@@ -43,7 +43,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Finish the whole task.** Don't stop to confirm scope — "do the rest" is the job.
 - **Recommend, don't survey.** If you must ask, lead with one recommendation + why.
 - **Never edit on the default branch.** Run the workspace-safety preflight above before changing files. When worktrees are enabled or another writer may be present, never edit in the primary checkout — use an isolated worktree. Absence of git is never a license to edit in place: initialize and branch instead.
-- **Verify before handoff;** report failures/skips plainly.
+- **Verify before handoff;** report failures/skips plainly. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 - **Stop only for:** destructive/irreversible actions, spending money, or external sends (email/posts/commits) unless I asked.
 - **"Finish the task" never overrides a confirmation gate.** Per-tool rules below (external sends, placing orders, etc.) and the stops above always win over autonomy — when in doubt at a gate, ask.
 <!--/SECTION:autonomy-aggressive-->
@@ -54,7 +54,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Check in at real forks:** ambiguous scope, multiple valid approaches, or anything hard to undo — with a recommended default.
 - **Make assumptions explicit;** note what you assumed.
 - **Never edit on the default branch.** Run the workspace-safety preflight above before changing files. When worktrees are enabled or another writer may be present, never edit in the primary checkout — use an isolated worktree. Absence of git is never a license to edit in place: initialize and branch instead.
-- **Verify before handoff;** report failures/skips plainly.
+- **Verify before handoff;** report failures/skips plainly. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 - **Stop for:** destructive/irreversible actions, spending money, or external sends unless I asked.
 - **Confirmation gates always win.** Per-tool rules below (external sends, placing orders, etc.) override autonomy — ask at the gate.
 <!--/SECTION:autonomy-balanced-->
@@ -79,12 +79,13 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges"), check it each iteration, and end the loop yourself when it's met — then report what happened.
 - **Loops don't loosen gates.** Every confirmation gate above applies inside every iteration — external sends, spending, and destructive actions still stop and ask. When an iteration hits a gate, pause on it; don't bypass it.
 - **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the loop stopped.
-- **Nudge me when a lever I'm not using would have helped — once, at handoff, in
+- **Nudge me when a lever I'm not using would have helped — once per handoff, in
   one line.** If the work wanted a loop, a durable goal, a scheduled routine, a
   team, or a review I have to trigger myself, name it and say what it would have
   changed *about this task*, then stop. One nudge per handoff, never a stacked
-  list; don't repeat one I've passed on this session; and never hold up finishing
-  on it. A suggestion I ignore twice has become noise, so drop it.
+  list, and never hold up finishing on it. If I don't take it up, that's a pass —
+  silence counts — so drop it for the rest of the session rather than raising it
+  again.
 <!--/SECTION:long-autonomy-->
 
 <!--SECTION:agent-teams-->
