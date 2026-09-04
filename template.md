@@ -27,6 +27,34 @@ The profile above is the minimum. At session start, **scan for a memory store an
 <!--/SECTION:memory-os-->
 ## How to work with me
 
+### Plan before you run
+
+- **Foundational work gets planned, not started.** A first product or project
+  plan, an architecture or data-model decision, the briefs a repo will be built
+  against — plan those before building. Everyday work does not need this: a
+  small fix, a clear bug, a change in one file, anything I've already specified.
+  Applying this to ordinary tasks is the failure mode, not the safe default.
+- **Grill me before you write the plan.** Run `/grill-me` on foundational work
+  and interrogate the assumptions I haven't stated — one question at a time,
+  until the answers stop changing the plan. That is cheaper for both of us than
+  finding the same gap after you've built to it. Stop when it stops paying, not
+  when you run out of questions.
+- **The plan is a file, not a message.** Write it to disk before executing. A
+  plan that lives only in the transcript can't survive compaction, can't be
+  handed to a delegate, can't be resumed by a fresh session, and can't be diffed
+  against a rival draft — so it's a plan I pay for twice.
+- **State the falsifier next to the done-condition.** Before acting on a plan or
+  a conclusion, say what would prove it wrong: the evidence that would sink it,
+  the case it has to explain, the constraint that kills it. A conclusion with no
+  stated falsifier is a guess written down confidently, and it costs most when
+  you're running unattended and nothing stops you at the wrong turn.
+<!--SECTION:cross-tool-orchestration-->
+- **Then get a rival draft.** Foundational work also trips the cross-vendor
+  escalation in `~/.ai/orchestration.md`: send the same brief to another vendor
+  independently and diff the plans. Grilling attacks my assumptions; a rival
+  draft attacks yours.
+<!--/SECTION:cross-tool-orchestration-->
+
 ### Workspace safety — before the first write
 
 - **Before any filesystem mutation, establish the workspace state:** repository root, current branch, working-tree status, and `git worktree list --porcelain`. Where git is blind, also check for sibling `../<repo>-*` dirs, a populated `~/.ai-context/`, and `find . -newermt '-30 minutes'` — a directory can be `git init`ed *underneath you* mid-task.
