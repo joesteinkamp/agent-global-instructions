@@ -12,6 +12,105 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Give each `test.sh` run its own scratch directory
+  (2026-09-03, Claude Opus 5).** The ask: concurrent runs of the suite produced
+  spurious example-reproducibility failures that vanished on retry and pointed
+  at nothing. What changed: four fixed paths (`/tmp/aigi_test.out`, `.err`,
+  `/tmp/aigi_ex.out`, `/tmp/aigi_pwned`) replaced with a per-run `mktemp -d`
+  directory removed by an `EXIT` trap; the code-injection canary's path is now
+  written with a single-quoted `printf` format so it reaches the fixture
+  unexpanded. Why this approach: the paths were shared state between runs in
+  *different* checkouts, which is the realistic case here — parallel agents each
+  work in their own worktree, and this was hit with another agent running the
+  suite from a sibling worktree during the orchestration work. The canary needed
+  the `printf` because its line sits inside a quoted heredoc: substituting the
+  path any other way fires the `$(touch …)` while writing the fixture instead of
+  while parsing it, silently inverting what the test proves. Verified with two
+  independent checkouts running concurrently, both reporting 168 passed.
+  Considered and rejected: redirecting the `render-commands` and
+  `install-commands` tests away from the repo's real `commands/` port
+  directories, which would also make same-checkout concurrency safe — those
+  tests exist to verify the real render against the real output paths, so the
+  limitation is documented instead and concurrent suites run from separate
+  checkouts.
+- **Unify agent teams and cross-vendor delegates into one orchestration system
+  (2026-09-03, Claude Opus 5).** The ask: Joe asked for a single orchestration
+  and delegation system that intelligently designates in-tool subagents,
+  cross-vendor agents, or both — prompted by confirming that
+  `playbooks/orchestration.md` never defined agent roles during delegation, and
+  extended to cover initial product and project plans. What changed:
+  `playbooks/orchestration.md` becomes the single entry point and gains "One
+  system: choosing the shape" — an in-tool team is the default, escalating to
+  cross-vendor on foundational framing (a first product or project plan),
+  breadth (app-wide or architectural), reversibility, contested explanations, or
+  refutation that has to count, with the compound shape (in-tool team produces,
+  outside vendors attack a `STATE.md` summary, main thread reconciles)
+  documented as the normal answer for the largest work. A second new section,
+  "Roles are the interface", closes the delegation gap; a third pattern, "on a
+  plan, ask for a rival — not a review", covers the planning case.
+  `playbooks/agent-teams.md`'s "Which construct, and when" now defers to that
+  ladder instead of presenting three rival constructs, and `template.md` gains a
+  resident ladder bullet gated behind `INC_ORCHESTRATION`; examples re-rendered.
+  Why this approach: the two constructs were already one idea — more lenses on a
+  problem — split across two playbooks with no router between them, and roles
+  were the natural shared interface. Making them one closed a real defect: the
+  playbook routed purely by vendor strength, so a cross-vendor delegate was a
+  generic agent and the `refuter` role went unused at exactly the point the
+  "never the sole checker of its own work" rule is enforced across vendors.
+  Neither CLI can select a role by name across the boundary (`codex exec` has no
+  agent-selection flag; `claude --agents` defines a spawnable roster, not the
+  role the `-p` turn assumes), so the role definition is passed in via
+  `--append-system-prompt`. Routing on concrete triggers rather than judgment
+  keeps the decision checkable, cost is named explicitly so the ladder does not
+  read as permission to parallelize everything, and gating the resident bullet
+  keeps cross-vendor advice off machines with no second CLI. Considered and
+  rejected: putting the router in `agent-teams.md` — the shape has to be chosen
+  before you know which playbook applies; leaving the two playbooks independent
+  with cross-references, which is the status quo that produced the gap; making
+  cross-vendor the default, which most work does not need and every rung of
+  which multiplies tokens and wall time; and folding initial plans under the
+  reversibility trigger, which would have routed them to refutation — the wrong
+  shape for work that has no conclusion to attack yet, where independent rival
+  drafts diffed against each other are what surface the implicit decisions.
+- **Fix cross-CLI orchestration: the sandbox starved every delegate
+  (2026-09-03, Claude Opus 5).** The ask: on a fully-installed machine, Codex
+  tried to orchestrate Claude and Cursor and the delegates never responded —
+  on macOS and Linux alike — and separately, only Codex ever attempted
+  orchestration at all. What changed: `codex-permissions.snippet.toml` now
+  ships `sandbox_workspace_write = { network_access = true }`;
+  `playbooks/orchestration.md` requires a hardened delegate launch
+  (`timeout … < /dev/null > "$CTX/agents/<name>.log" 2>&1`, then `wait` and
+  check the exit status) and names a starved sandbox as the first thing to
+  check when a wave returns nothing; `template.md`'s agent-teams section now
+  states the team default as an explicit standing request rather than a
+  preference; examples re-rendered. Why this approach: `sandbox_mode =
+  "workspace-write"` — which this installer sets — disables network for every
+  sandboxed command on every platform, and a network-starved agent CLI does
+  not exit non-zero, it retries in place until something kills it (reproduced:
+  `claude -p` returned nothing and ran until a 90s timeout, versus 11s with
+  network). Headless `codex exec` runs at `approval=never`, so the
+  per-command escalation path cannot recover it either. The installer was
+  forbidding the cross-CLI delegation its own orchestration playbook mandates,
+  which is why the failure survived a correct install. The inline-table TOML
+  form is deliberate: a `[sandbox_workspace_write]` section would swallow any
+  bare top-level key following the managed block in a user's config. The
+  template change addresses a separate cause found in the same session —
+  Claude Code carries a server-delivered policy (`tengu_heron_brook`, cached
+  in `~/.claude.json`) not to spawn agents unless the user requested it, which
+  outranks the rendered instructions and is why only Codex, which carries no
+  such policy, ever tried. Considered and rejected: an OS-level fix
+  (`kernel.apparmor_restrict_unprivileged_userns=0`) — this was first
+  misdiagnosed as Ubuntu 24.04 blocking bubblewrap; that defect is real on the
+  Linux box and does break Codex's sandbox there, but it is Linux-only and
+  cannot explain the macOS failure, so it was the wrong root cause and is
+  tracked separately. Also rejected: `--sandbox danger-full-access` for
+  delegates, which bypasses the sandbox rather than fixing it; deleting the
+  cached `tengu_heron_brook` value, which is refetched from the server (the
+  file was rewritten five times in thirty-five minutes); and a
+  `UserPromptSubmit` hook to restate the standing request every turn, which
+  the permission classifier blocked as harness self-modification — Claude
+  Code's supported `--append-system-prompt` flag reaches the same tier without
+  a hook.
 - **Make Codex approval notifications actionable
   (2026-08-25, Codex + Claude Opus 5).** The ask: suppress Warp notifications
   for permission requests that Codex automatically approves, without disabling

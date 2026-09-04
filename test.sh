@@ -14,10 +14,20 @@ export AIGI_NO_USER_ENV=1
 pass=0; fail=0
 ok()   { pass=$((pass+1)); printf '  ok   %s\n' "$1"; }
 bad()  { fail=$((fail+1)); printf '  FAIL %s\n' "$1"; }
+
+# Scratch files live in a per-run directory. They used to be fixed /tmp paths,
+# which two overlapping runs silently share — a parallel agent on the same box,
+# or two CI jobs on one host — and the loser sees another run's render, which
+# surfaces as an unreproducible example-reproducibility failure. mktemp -d is
+# given a template because a bare `mktemp -d` errors on BSD/macOS.
+TMPD="$(mktemp -d "${TMPDIR:-/tmp}/aigi_test.XXXXXX")"
+trap 'rm -rf "$TMPD"' EXIT
+OUT="$TMPD/render.out"; ERR="$TMPD/render.err"
+EXOUT="$TMPD/example.out"; PWNED="$TMPD/pwned"
 # assert_has <desc> <needle> <<< text   |   assert_no <desc> <needle>
-assert_has() { if grep -qF -- "$2" /tmp/aigi_test.out; then ok "$1"; else bad "$1"; fi; }
-assert_no()  { if grep -qF -- "$2" /tmp/aigi_test.out; then bad "$1"; else ok "$1"; fi; }
-render() { "$CUSTOMIZE" --print > /tmp/aigi_test.out 2>/tmp/aigi_test.err; }
+assert_has() { if grep -qF -- "$2" "$OUT"; then ok "$1"; else bad "$1"; fi; }
+assert_no()  { if grep -qF -- "$2" "$OUT"; then bad "$1"; else ok "$1"; fi; }
+render() { "$CUSTOMIZE" --print > "$OUT" 2>"$ERR"; }
 
 echo "== render-engine tests =="
 
@@ -25,7 +35,7 @@ echo "== render-engine tests =="
 render
 assert_no "no {{ placeholders leak in a full render"  '{{'
 assert_no "no SECTION: markers leak in a full render" 'SECTION:'
-[ -s /tmp/aigi_test.err ] && bad "default render is silent (no stderr)" || ok "default render is silent (no stderr)"
+[ -s "$ERR" ] && bad "default render is silent (no stderr)" || ok "default render is silent (no stderr)"
 
 # 2. Section toggle removes the block and leaves no marker behind.
 INC_DOCS=n render
@@ -99,7 +109,7 @@ assert_has "set ENVIRONMENT includes the Environment line" 'a custom box'
 
 # 6. Values with sed-special chars and a newline render literally (no abort).
 CARES=$'speed & scale | <x>\nsecond \\ line' render
-[ -s /tmp/aigi_test.err ] && bad "special-char value renders without error" || ok "special-char value renders without error"
+[ -s "$ERR" ] && bad "special-char value renders without error" || ok "special-char value renders without error"
 assert_has "ampersand/pipe/angle chars render literally" 'speed & scale | <x>'
 assert_has "newline in a value is preserved"             'second \ line'
 
@@ -128,7 +138,7 @@ assert_has "EXTRAS bullets survive verbatim"           '- A machine-specific rul
 render
 leaks=""
 for v in $(grep -oE '\{\{[A-Z_]+\}\}' "$DIR/template.md" | sort -u); do
-  grep -qF -- "$v" /tmp/aigi_test.out && leaks="$leaks $v"
+  grep -qF -- "$v" "$OUT" && leaks="$leaks $v"
 done
 [ -z "$leaks" ] && ok "all template placeholders are handled" \
                 || bad "template placeholders leaked:$leaks"
@@ -167,14 +177,14 @@ fi
 for ex in "$DIR"/examples/*.env; do
   [ -e "$ex" ] || continue
   base="$(basename "$ex" .env)"; md="$DIR/examples/$base.md"
-  ( set -a; . "$ex"; set +a; AIGI_NO_USER_ENV=1 "$CUSTOMIZE" --print ) > /tmp/aigi_ex.out 2>/dev/null
-  if [ -f "$md" ] && diff -q /tmp/aigi_ex.out "$md" >/dev/null; then
+  ( set -a; . "$ex"; set +a; AIGI_NO_USER_ENV=1 "$CUSTOMIZE" --print ) > "$EXOUT" 2>/dev/null
+  if [ -f "$md" ] && diff -q "$EXOUT" "$md" >/dev/null; then
     ok "example $base reproduces from $base.env"
   else
     bad "example $base reproduces from $base.env"
   fi
 done
-rm -f /tmp/aigi_ex.out
+rm -f "$EXOUT"
 
 # ---- load_env (the parser) — runs WITHOUT AIGI_NO_USER_ENV via a temp env ----
 echo ""
@@ -182,13 +192,17 @@ echo "== load_env parser tests =="
 ENVF="$(mktemp "${TMPDIR:-/tmp}/.aigi.XXXXXX")"   # template: bare mktemp errors on BSD/macOS
 cat > "$ENVF" <<'EOF'
 NAME="Quote Tester"
-EVIL="$(touch /tmp/aigi_pwned)"
+EOF
+# Single-quoted format string: the $( ) must reach the file unexpanded, or the
+# canary fires while writing the fixture instead of while parsing it.
+printf 'EVIL="$(touch %s)"\n' "$PWNED" >> "$ENVF"
+cat >> "$ENVF" <<'EOF'
 ROLE='one'\''s job'
 CARES="line one
 line two"
 EOF
 unset AIGI_NO_USER_ENV
-rm -f /tmp/aigi_pwned
+rm -f "$PWNED"
 # Render with a project that loads this env by copying it into place is invasive;
 # instead source the loader in a sub-bash that defines the lists + load_env.
 out="$(
@@ -205,8 +219,8 @@ echo "$out" | grep -qF 'NAME=[Quote Tester]' && ok "quoted scalar parsed" || bad
 echo "$out" | grep -qF "ROLE=[one's job]"     && ok "single-quote idiom un-escaped" || bad "single-quote idiom un-escaped"
 echo "$out" | grep -qF 'line two'             && ok "multi-line quoted value preserved" || bad "multi-line quoted value preserved"
 echo "$out" | grep -qF 'EVIL=[<unset>]'       && ok "non-allowlisted key ignored" || bad "non-allowlisted key ignored"
-[ ! -e /tmp/aigi_pwned ] && ok "value is NOT executed (no code injection)" || bad "value is NOT executed (no code injection)"
-rm -f "$ENVF" /tmp/aigi_pwned
+[ ! -e "$PWNED" ] && ok "value is NOT executed (no code injection)" || bad "value is NOT executed (no code injection)"
+rm -f "$ENVF" "$PWNED"
 
 # Shell env outranks the context files: run a copy of the engine beside a
 # my-context.env, once plain (file wins) and once with an explicit env var.
@@ -1363,5 +1377,5 @@ fi
 
 echo ""
 echo "$pass passed, $fail failed"
-rm -f /tmp/aigi_test.out /tmp/aigi_test.err
+rm -f "$OUT" "$ERR"
 [ "$fail" -eq 0 ]

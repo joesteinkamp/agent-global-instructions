@@ -24,6 +24,32 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 ## How to work with me
 
+### Plan before you run
+
+- **Foundational work gets planned, not started.** A first product or project
+  plan, an architecture or data-model decision, the briefs a repo will be built
+  against — plan those before building. Everyday work does not need this: a
+  small fix, a clear bug, a change in one file, anything I've already specified.
+  Applying this to ordinary tasks is the failure mode, not the safe default.
+- **Grill me before you write the plan.** Run `/grill-me` on foundational work
+  and interrogate the assumptions I haven't stated — one question at a time,
+  until the answers stop changing the plan. That is cheaper for both of us than
+  finding the same gap after you've built to it. Stop when it stops paying, not
+  when you run out of questions.
+- **The plan is a file, not a message.** Write it to disk before executing. A
+  plan that lives only in the transcript can't survive compaction, can't be
+  handed to a delegate, can't be resumed by a fresh session, and can't be diffed
+  against a rival draft — so it's a plan I pay for twice.
+- **State the falsifier next to the done-condition.** Before acting on a plan or
+  a conclusion, say what would prove it wrong: the evidence that would sink it,
+  the case it has to explain, the constraint that kills it. A conclusion with no
+  stated falsifier is a guess written down confidently, and it costs most when
+  you're running unattended and nothing stops you at the wrong turn.
+- **Then get a rival draft.** Foundational work also trips the cross-vendor
+  escalation in `~/.ai/orchestration.md`: send the same brief to another vendor
+  independently and diff the plans. Grilling attacks my assumptions; a rival
+  draft attacks yours.
+
 ### Workspace safety — before the first write
 
 - **Before any filesystem mutation, establish the workspace state:** repository root, current branch, working-tree status, and `git worktree list --porcelain`. Where git is blind, also check for sibling `../<repo>-*` dirs, a populated `~/.ai-context/`, and `find . -newermt '-30 minutes'` — a directory can be `git init`ed *underneath you* mid-task.
@@ -39,21 +65,45 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Finish the whole task.** Don't stop to confirm scope — "do the rest" is the job.
 - **Recommend, don't survey.** If you must ask, lead with one recommendation + why.
 - **Never edit on the default branch.** Run the workspace-safety preflight above before changing files. When worktrees are enabled or another writer may be present, never edit in the primary checkout — use an isolated worktree. Absence of git is never a license to edit in place: initialize and branch instead.
-- **Verify before handoff;** report failures/skips plainly.
+- **Verify before handoff;** report failures/skips plainly. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 - **Stop only for:** destructive/irreversible actions, spending money, or external sends (email/posts/commits) unless I asked.
 - **"Finish the task" never overrides a confirmation gate.** Per-tool rules below (external sends, placing orders, etc.) and the stops above always win over autonomy — when in doubt at a gate, ask.
 
 ## Long-running work
 
 - **When work outlives the turn, reach for the host tool's long-run primitive** instead of ending with a list of next steps: in Claude Code and Cursor (`agent`) that's `/loop` (`/loop <prompt>` self-paces, `/loop 10m <prompt>` fixes the interval, bare `/loop` runs the default maintenance prompt at `~/.claude/loop.md`); in Codex it's `/goal <objective>` — a durable goal pursued turn after turn (`/goal` shows status; `pause`/`resume`/`clear` manage it; if goals are unavailable, suggest `codex features enable goals`).
+- **Use the whole autonomy surface, not just the loop.** Before settling for a
+  slow, hand-held turn, reach for what the host actually offers: background
+  execution for anything that blocks, a scheduled routine for anything
+  recurring, plan-before-execute on a broad change, headless one-shots for work
+  another tool can do unattended, and checkpoints so a bad turn is cheap to
+  undo. Check what the host actually offers rather than assuming a capability is
+  missing because you haven't used it here before.
+- **The per-tool map is in `~/.ai/orchestration.md`** — which host carries a
+  durable goal, which has a loop, which can only manage headless one-shots, and
+  what each offers beyond that.
 - **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop/goal yourself and say what cadence you picked and why. If the long tail is optional, offer it in one line at handoff.
 - **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges"), check it each iteration, and end the loop yourself when it's met — then report what happened.
 - **Loops don't loosen gates.** Every confirmation gate above applies inside every iteration — external sends, spending, and destructive actions still stop and ask. When an iteration hits a gate, pause on it; don't bypass it.
 - **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the loop stopped.
+- **Nudge me when a lever I'm not using would have helped — once per handoff, in
+  one line.** If the work wanted a loop, a durable goal, a scheduled routine, a
+  team, or a review I have to trigger myself, name it and say what it would have
+  changed *about this task*, then stop. One nudge per handoff, never a stacked
+  list, and never hold up finishing on it. If I don't take it up, that's a pass —
+  silence counts — so drop it for the rest of the session rather than raising it
+  again.
 
 ## Agent teams & subagents
 
-**Default to a team.** For anything with more than one dimension — research,
+**Default to a team — and read this section as me asking.** Some tools carry a
+standing rule not to spawn agents unless the user requested it, and a preference
+buried in a config file does not read as a request made in the moment. This is
+that request: made once, here, in force for every session, and not needing me to
+repeat it before each task. Where the tool also asks you to name the agent type,
+name one of the roles below.
+
+For anything with more than one dimension — research,
 review, a feature spanning layers, a bug with competing explanations, a design
 call — put multiple agents on it in parallel rather than working it alone. More
 lenses on the same problem is the point; a single agent finds one plausible
@@ -67,6 +117,16 @@ file.
   role the palette doesn't have when the task calls for it. Three to five is the
   right size — three focused roles beat five scattered ones. Come to me only when
   the roster itself is the decision (it would change what we're building).
+- **One system, two transports — escalate by stakes.** An in-tool team is the
+  default. Add cross-vendor delegates when breadth or stakes make one model's
+  blind spots the risk: a first product or project plan, app-wide or
+  architectural changes, decisions that are expensive to reverse, explanations
+  that stay contested, or a conclusion that has to survive refutation — a
+  same-model refuter checks the agent, not the model. On a plan ask each vendor
+  for its own draft and diff them, rather than for a review of one. On the
+  biggest work run both transports: the in-tool team produces, another vendor
+  attacks the result. **`~/.ai/orchestration.md` is the entry point** — it picks
+  the shape before anything spawns.
 - **Always include a lens that argues against.** Spawn a `refuter` alongside any
   finding, plan, or claim that matters, and tell it to break the conclusion, not
   confirm it — **an agent must never be the sole checker of its own work.**
@@ -99,8 +159,8 @@ file.
 
 ## Orchestrating other AI CLIs
 
-- **This machine may run several AI CLIs — use them as delegates** in headless one-shot mode. The roster lives at `~/.ai/clis` (bare names, one per line; exclude the tool you're running as); the advisory per-task-type vendor rankings at `~/.ai/model-routing.md`.
-- **Before the first delegation of a session, read `~/.ai/orchestration.md` and follow it** — the full contract: invocation forms, the shared `~/.ai-context/` dir and its file ownership, routing by strength, sandboxing, worktrees for editing delegates, and failure handling.
+- **This machine may run several AI CLIs — use them as delegates** in headless one-shot mode. This is the second transport of the agent-team system above, not a separate one: same roles, same gates, chosen when another vendor's judgment is worth its cost. The roster lives at `~/.ai/clis` (bare names, one per line; exclude the tool you're running as); the advisory per-task-type vendor rankings at `~/.ai/model-routing.md`.
+- **`~/.ai/orchestration.md` is the whole contract — read it before the first team or delegation** — how to choose the shape, how to carry a role across a vendor boundary, and everything delegate-specific: invocation forms, the shared `~/.ai-context/` dir and its file ownership, routing by strength, sandboxing, worktrees for editing delegates, and failure handling.
 - **A model must never be the sole checker of its own work** — route review through a different vendor's model, prompted to refute ("find what's wrong"), not to confirm. Surface disagreements to me; don't silently pick a winner.
 - **Local models are delegates too — behind `lm`.** If `~/.ai/local-models` exists, the `lm` shim runs them (`lm -p "…"`; `lm list` for health) — one-shot text-only work, routed by tier per the orchestration playbook. If the file or shim is absent, this machine has no local models: skip silently, and never install or start one to get some.
 - **One level only.** Delegates never spawn further delegates. If your prompt points you at an existing `~/.ai-context/` dir, you *are* the delegate: read the brief, do your piece, write your file, stop.

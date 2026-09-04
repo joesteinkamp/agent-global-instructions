@@ -1,14 +1,115 @@
-# Cross-tool orchestration playbook
+# Orchestration playbook
 
 On-demand contract, installed to `~/.ai/orchestration.md` by `customize.sh
 --global`. The resident instructions (`~/AGENTS.md`) point here so the full
-delegation contract doesn't sit in every session's context. **Read this top to
-bottom before the first delegation of a session, then follow it for every
+contract doesn't sit in every session's context. **Read this top to bottom
+before the first team or delegation of a session, then follow it for every
 wave.** The confirmation gates in the resident instructions apply unchanged.
+
+This is the single entry point for distributing work across agents, whichever
+side of a vendor boundary they sit on. Start with "choosing the shape" below to
+decide *what* to spawn; `~/.ai/agent-teams.md` carries the per-tool mechanics of
+spawning in-tool agents, and the rest of this file carries everything specific to
+delegates in another CLI.
+
+## One system: choosing the shape
+
+Agent teams and cross-vendor delegates are not two systems. They are two
+transports for the same thing — putting more than one lens on a problem — and
+choosing between them is a routing decision made per task, not a standing
+preference. Roles are the interface either way (next section); the transport is
+an implementation detail you pick from the work in front of you.
+
+**Default: an in-tool team.** Spawn same-vendor agents in the current tool for
+almost everything multi-dimensional. They start in milliseconds, inherit the
+project's instruction files, cost the least per lens, and their results land back
+in one thread. Per-tool mechanics live in `~/.ai/agent-teams.md`.
+
+**Escalate to cross-vendor when one model's blind spots are the risk.** Lenses
+from a single vendor correlate — they tend to miss the same things and agree for
+the same reasons, because they share a prior. Reach for another CLI when the work
+trips any of these:
+
+- **Foundational framing.** A first product or project plan — positioning,
+  architecture, the stack, the data model, the information architecture, the
+  briefs a repo will be built against. There is no code to check yet, evidence is
+  thinnest, and every later decision inherits the frame. Lock-in is highest
+  exactly when confidence should be lowest, which makes this the cheapest moment
+  to buy another vendor's judgment and the most expensive one to skip it.
+- **Breadth.** The change is app-wide or cross-cutting: architecture, the data
+  model, an auth or routing layer, a dependency swap — anything touching most of
+  the codebase rather than a corner of it.
+- **Reversibility.** Getting it wrong is expensive to undo — a migration, a
+  public API, a released artifact, a security boundary, or a decision the rest of
+  the work will be built on.
+- **Contested ground.** Competing explanations survive the first pass, or the
+  in-tool team converged suspiciously fast on something nobody stress-tested.
+- **Refutation that has to count.** A same-model refuter is a real check on the
+  *agent* and a weak check on the *model*. When a claim has to survive being
+  wrong, the refuter comes from a different vendor.
+
+**On a plan, ask for a rival — not a review.** Refutation is the right shape for
+a conclusion that already exists; a plan has none to attack yet, and a reviewer
+handed someone else's plan tends to improve it rather than question whether it is
+the right plan. So send the *same brief* to two or three vendors independently,
+before any of them sees the others' work, and diff what comes back. **This is why
+the resident rules put the plan in a file**: the brief you send and the drafts
+you diff have to be artifacts, and three plans living in three transcripts cannot
+be compared at all. Agreement
+across vendors is the strongest signal you can get this early; divergence is
+usually a decision you were making implicitly without noticing. Reconcile in the
+main thread, surface the divergences to the user, and only then let a `refuter`
+attack the plan you picked.
+
+**Do both when the work earns it — the compound shape is the normal answer at the
+top of that list, not an exotic case.** The in-tool team produces; the outside
+vendors attack:
+
+1. Spawn the in-tool team — roles derived from the task, disjoint scopes.
+2. Fold their results into `STATE.md`. That summary is the brief the outside
+   vendors read, so the cross-vendor wave costs one summary rather than a
+   re-explanation of the whole task.
+3. Launch cross-vendor delegates against it in the `refuter` role, prompted to
+   break the conclusion rather than confirm it.
+4. Reconcile in the main thread. Surface disagreements to the user; never
+   silently pick a winner.
+
+**Cost is why this is a ladder and not a default-everything.** Each rung
+multiplies tokens and wall time, and the compound shape adds a context dir, a
+summary, and a reconciliation pass on top. The ladder starts below the team: work
+that is small, sequential, or concentrated in one file takes no agents at all.
+
+## Roles are the interface
+
+The same role palette applies to both transports, so `refuter` means the same
+thing whether it is a subagent in this session or another vendor's CLI. That
+shared meaning is the point of keeping roles in files at all.
+
+- **In-tool:** reference the role by name and the host loads it itself, from
+  `~/.claude/agents/<role>.md` or `~/.codex/agents/<role>.toml`.
+- **Cross-vendor: the host cannot do this for you.** `codex exec` has no
+  agent-selection flag, and `claude --agents` defines the roster a session may
+  spawn — not the role its `-p` turn assumes. **A delegate is a generic agent
+  unless you put the role in the prompt**, so pass the definition in:
+
+      role=$(sed '1{/^---$/,/^---$/d}' ~/.claude/agents/refuter.md)
+      timeout 900 claude -p "…" --append-system-prompt "$role" \
+        < /dev/null > "$CTX/agents/refuter.log" 2>&1 &
+
+  For a CLI with no system-prompt flag, put the same body at the top of the
+  prompt instead. Name the delegate's output file after the role
+  (`agents/refuter.md`) so the context dir records which lens produced which
+  finding.
 
 ## Delegates & the roster
 
-- **Hand subtasks to the other installed AI CLIs in headless one-shot mode** — e.g. `codex exec "…" --json`, `claude -p "…" --output-format json`, `agy -p "…"` (Antigravity, Gemini CLI's successor; text output only), or `agent -p "…"` (Cursor's CLI). The installer records the roster at `~/.ai/clis` (bare names, one per line — including the tool you are running as: exclude yourself when delegating) — read that file instead of re-probing every session (fall back to `command -v codex agy claude agent …` only if it's missing). Run delegates as background shell jobs so they proceed in parallel.
+- **Hand subtasks to the other installed AI CLIs in headless one-shot mode** — e.g. `codex exec "…" --json`, `claude -p "…" --output-format json`, `agy -p "…"` (Antigravity, Gemini CLI's successor; text output only), or `agent -p "…"` (Cursor's CLI). The installer records the roster at `~/.ai/clis` (bare names, one per line — including the tool you are running as: exclude yourself when delegating) — read that file instead of re-probing every session (fall back to `command -v codex agy claude agent …` only if it's missing). Run delegates as background shell jobs so they proceed in parallel — but launch them in the hardened form below, never bare.
+- **Launch every delegate in the hardened form.** A bare `claude -p "…" &` is the single most common way a wave dies silently:
+
+      timeout 900 claude -p "…" < /dev/null > "$CTX/agents/<name>.log" 2>&1 &
+
+  Each part earns its place. `timeout` bounds a delegate that will never return on its own — **a starved agent CLI does not exit non-zero, it retries in place until something kills it**, so with no bound the orchestrator waits forever. `< /dev/null` closes stdin, which these CLIs otherwise read as extra prompt input when they are not on a TTY. Redirecting both streams to a file makes the failure legible: stdout alone is lossy, and a backgrounded job's stderr goes nowhere. **`wait` on each job and check its exit status** — 124 is the timeout, and any non-zero means read the log before you trust the wave. A delegate that produced no `agents/<name>.md` is a failure to investigate, never a delegate that had nothing to say.
+- **A silent wave is a sandbox problem until proven otherwise.** If delegates hang or return nothing, check the host's sandbox network policy before anything else: Codex's `workspace-write` disables network by default, and every delegate is a network client. `codex exec` prints the answer in its own header — `(network access enabled)` is what you want to see. The installer sets `sandbox_workspace_write = { network_access = true }`; a machine that predates that, or a hand-edited config, silently starves every delegate it launches.
 - **React to failing delegates.** If one errors at runtime — quota exhausted, auth expired, binary gone — drop it for the rest of the session, redistribute its work across the remaining vendors, note the failure in `STATE.md`, and tell the user.
 - **Delegate for two reasons.** *Speed:* fan disjoint subtasks out across agents — but prefer the host tool's native subagents for same-vendor fan-out; reach for another CLI when you want a different vendor's judgment or the host has no subagents. *Quality:* **a model must never be the sole checker of its own work** — route review through a different vendor's model, prompted to refute ("find what's wrong"), not to confirm. Surface disagreements to the user; don't silently pick a winner.
 
@@ -16,6 +117,45 @@ wave.** The confirmation gates in the resident instructions apply unchanged.
 
 - **Route by strength — advisory.** When picking which CLI gets a subtask, consult `~/.ai/model-routing.md` — a benchmark-derived, per-task-type ranking of the installed vendors (hard coding, review/refutation, research, planning, UI, cheap fan-out, long-context). It's reference, not law: availability, cost, and your own observed results on this task outrank it, and the user's explicit choice always wins. If the file is absent, choose freely and skip the mention.
 - **Say when it's stale.** The table's `Last updated` header dates it; if that's older than ~2 months, still use it but note the staleness and offer `/update-model-routing` to refresh.
+
+## Running longer than a turn
+
+Orchestration and autonomy are the same problem at two time scales. A wave that
+outlives the turn needs exactly what a long task needs — a durable objective, a
+testable done-condition, and a trail on disk — so reach for the host's own
+primitives instead of hand-holding a long job through repeated prompts.
+
+- **The orchestrator gets a long-run primitive too.** Multi-wave work — spawn,
+  fold into `STATE.md`, spawn again, reconcile — rarely fits in one turn. Put the
+  whole orchestration under the host's loop or goal with the done-condition
+  stated up front, so the waves continue without the user re-prompting between
+  each one.
+- **Bound every delegate; give durable work a goal.** Each launch carries a
+  `timeout` (above). A delegate that is genuinely long-lived does not belong in a
+  longer timeout — it belongs in its own worktree making WIP commits, and a Codex
+  delegate can carry a `/goal` so its objective survives compaction and restarts.
+- **Background anything that blocks.** A wave of delegates, a test suite, a
+  build, a deploy watch: start it in the background and wait on it once rather
+  than polling on a sleep. Poll only external state the host cannot notify you
+  about, and pace the interval to how fast that state actually changes.
+- **A long run survives on files, not the transcript.** `STATE.md` and WIP
+  commits are what let any session — or another vendor — resume the wave. Write
+  them as you go, not at the end.
+- **Nudge the user once when a lever only they can pull would have helped.** Some
+  capabilities are theirs to trigger: a billed deep review, a scheduled routine, a
+  permission that unblocks a tool. Name it at handoff in one line, say what it
+  would have changed about *this* task, and drop it if they pass.
+
+**What each host offers.** Check the tool's own `--help` before depending on a
+row — vendors move fast, and a capability worth having is worth re-checking
+rather than assuming it is absent because you have not used it here.
+
+| Host | Runs past the turn | Parallel lenses | Also worth reaching for |
+|---|---|---|---|
+| Claude Code | `/loop`, self-paced or on a fixed interval; scheduled routines for recurring work | agent teams and subagents, roles from `~/.claude/agents/` | background shell jobs for anything slow · plan-before-execute on a broad change · session checkpoints, so a bad turn is cheap to undo · `--append-system-prompt` and `--agents` when driving it headless |
+| Codex | `/goal <objective>` — durable across turns and restarts; `codex features enable goals` if it is missing | `multi_agent` subagents, roles from `~/.codex/agents/` | `codex exec` for headless one-shots · `unified_exec` for a shell that persists across calls · hooks for guardrails |
+| Cursor (`agent`) | `/loop` | roles inline in the prompt — no reusable agent-definition format | `agent -p` for headless one-shots |
+| Antigravity (`agy`) | check `agy --help`; do not assume one exists | roles inline in the prompt | `agy -p` for headless one-shots, text output only |
 
 ## Local models (behind `lm`)
 

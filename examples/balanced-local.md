@@ -23,6 +23,28 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 ## How to work with me
 
+### Plan before you run
+
+- **Foundational work gets planned, not started.** A first product or project
+  plan, an architecture or data-model decision, the briefs a repo will be built
+  against — plan those before building. Everyday work does not need this: a
+  small fix, a clear bug, a change in one file, anything I've already specified.
+  Applying this to ordinary tasks is the failure mode, not the safe default.
+- **Grill me before you write the plan.** Run `/grill-me` on foundational work
+  and interrogate the assumptions I haven't stated — one question at a time,
+  until the answers stop changing the plan. That is cheaper for both of us than
+  finding the same gap after you've built to it. Stop when it stops paying, not
+  when you run out of questions.
+- **The plan is a file, not a message.** Write it to disk before executing. A
+  plan that lives only in the transcript can't survive compaction, can't be
+  handed to a delegate, can't be resumed by a fresh session, and can't be diffed
+  against a rival draft — so it's a plan I pay for twice.
+- **State the falsifier next to the done-condition.** Before acting on a plan or
+  a conclusion, say what would prove it wrong: the evidence that would sink it,
+  the case it has to explain, the constraint that kills it. A conclusion with no
+  stated falsifier is a guess written down confidently, and it costs most when
+  you're running unattended and nothing stops you at the wrong turn.
+
 ### Workspace safety — before the first write
 
 - **Before any filesystem mutation, establish the workspace state:** repository root, current branch, working-tree status, and `git worktree list --porcelain`. Where git is blind, also check for sibling `../<repo>-*` dirs, a populated `~/.ai-context/`, and `find . -newermt '-30 minutes'` — a directory can be `git init`ed *underneath you* mid-task.
@@ -38,14 +60,21 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Check in at real forks:** ambiguous scope, multiple valid approaches, or anything hard to undo — with a recommended default.
 - **Make assumptions explicit;** note what you assumed.
 - **Never edit on the default branch.** Run the workspace-safety preflight above before changing files. When worktrees are enabled or another writer may be present, never edit in the primary checkout — use an isolated worktree. Absence of git is never a license to edit in place: initialize and branch instead.
-- **Verify before handoff;** report failures/skips plainly.
+- **Verify before handoff;** report failures/skips plainly. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 - **Stop for:** destructive/irreversible actions, spending money, or external sends unless I asked.
 - **Confirmation gates always win.** Per-tool rules below (external sends, placing orders, etc.) override autonomy — ask at the gate.
 
 
 ## Agent teams & subagents
 
-**Default to a team.** For anything with more than one dimension — research,
+**Default to a team — and read this section as me asking.** Some tools carry a
+standing rule not to spawn agents unless the user requested it, and a preference
+buried in a config file does not read as a request made in the moment. This is
+that request: made once, here, in force for every session, and not needing me to
+repeat it before each task. Where the tool also asks you to name the agent type,
+name one of the roles below.
+
+For anything with more than one dimension — research,
 review, a feature spanning layers, a bug with competing explanations, a design
 call — put multiple agents on it in parallel rather than working it alone. More
 lenses on the same problem is the point; a single agent finds one plausible
