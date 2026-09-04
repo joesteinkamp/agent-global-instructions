@@ -76,12 +76,40 @@ Rosters that work:
 | A design or scope call | `product-designer` + `ux-researcher` + `ui-designer`, then `refuter` |
 | Research a library or approach | one agent per source or angle, then one synthesis pass |
 
+## The brief you write first
+
+Sizing and roles are decisions; this is the artifact that records them. Write it
+before the first spawn, in a file the team can read — not only into the spawn
+prompts, which evaporate when the session ends. It is also what a `/loop`, a
+fresh session, or another tool needs to pick the work up mid-flight.
+
+- **Goal** — one sentence, the user-visible outcome.
+- **Roster** — the roles you spawned and the one-line reason each earned a seat,
+  including the refuter and what it is arguing against.
+- **Ownership** — the files or area each agent owns, and who owns the lockfiles,
+  migrations, and generated files. This is the line that prevents lost work.
+- **Acceptance criteria** — testable, no vague language. "Feels faster" is not a
+  criterion; "p95 under 200ms on the seeded dataset" is.
+- **Non-goals** — what is explicitly out of scope, so an agent that finds
+  adjacent work reports it instead of quietly doing it.
+- **Assumptions** — mark the uncertain ones "(confirm?)" rather than burying them
+  in prose.
+- **Verification plan** — the exact commands, and who runs them.
+- **Rollback plan** — how to revert safely, where the change is hard to undo.
+
+Keep it current as the work moves. It is the source of truth for what "done"
+means, and an agent reporting against a stale brief is worse than one reporting
+against no brief at all.
+
 ## The role definitions
 
 Roles are files, not prose, so the same role behaves the same in every tool.
 Shipped by default: `technical-architect`, `backend-engineer`,
 `frontend-engineer`, `product-designer`, `ui-designer`, `ux-researcher`, and
-`refuter` — the file name is the name you spawn by.
+`refuter` — the file name is the name you spawn by. `harness-steward` ships
+alongside them but is not part of that palette: its subject is the tooling
+itself (instruction files, roles, hooks, installers), not the product, so spawn
+it by name when that is the work rather than deriving it from a product task.
 
 - **Claude Code** — `~/.claude/agents/<role>.md`: YAML frontmatter (`name`,
   `description`, `tools`, optionally `model`) with the instructions as the body.
@@ -90,6 +118,13 @@ Shipped by default: `technical-architect`, `backend-engineer`,
   `name`, `description`, and `developer_instructions`, with optional `model`,
   `model_reasoning_effort`, `sandbox_mode`, and `mcp_servers`. Project scope is
   `.codex/agents/`. Anything omitted is inherited from the parent turn.
+- **One convention on top of both** — every canonical `roles/*.md` also carries a
+  `reminder:` key holding the role's hard rules in one line. Neither host has a
+  per-turn reminder field, so it reaches the agent the only way it can: as the
+  line the body opens and closes with, and `render-roles.sh` fails the render if
+  the three copies disagree. Each role also separates **Hard rules** from
+  guidance, ends with a named **Return** contract, and — where it is read-only —
+  states what *not* to report and the floor a finding has to clear.
 - Neither pins a `model`, so a role runs on whatever the session is running.
 - Both are installed by `install-roles.sh` from one canonical source. **If a
   role you need has no definition, write it in both formats** rather than

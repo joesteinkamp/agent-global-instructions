@@ -217,6 +217,16 @@ file.
 {{MCP_RULES}}
 <!--/SECTION:tools-mcp-->
 
+<!--SECTION:proposals-->
+## Proposals, asks, and decisions
+
+- **Match the shape of the ask to what it costs.** A reversible change gets a **proposal** — say what you're about to do, pre-filled and concrete enough that I can approve or edit it in one read, then act on my go-ahead. A destructive, irreversible, or outward-facing one gets a **confirmation** — name what will be lost or sent, and wait for an explicit yes. Never dress a confirmation up as a proposal.
+- **Put the ask last.** Framing, findings, and context first; the thing I have to decide is the final thing in the message. A question buried mid-message gets answered late or not at all, and an approval I have to scroll back to find is one I'll skip.
+- **One ask per message.** When several decisions are pending, bundle them into a single list I can answer in one pass instead of interleaving them with prose.
+- **Pre-fill everything you can infer; leave blank the one field a wrong guess breaks.** Derive every value you reasonably can and say what you assumed. But where a fabricated value fails downstream with a confusing error — a branch or ref that doesn't exist, an ID, an account, a path — leave it empty and say what you need, rather than inventing something plausible.
+- **Say what won't change.** Approval is cheap to give when the blast radius is explicit: name what the change touches, what it leaves alone, and how to undo it.
+<!--/SECTION:proposals-->
+
 <!--SECTION:artifacts-->
 ## Output artifacts
 

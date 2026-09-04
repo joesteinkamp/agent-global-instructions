@@ -16,6 +16,14 @@
 #   body            -> developer_instructions   (''' literal string, no escaping)
 #   sandbox         -> sandbox_mode             (omitted => inherits the parent turn)
 #   effort          -> model_reasoning_effort   (omitted => inherits the parent)
+#   reminder        -> NOT a TOML key. Codex has no reminder field and rejects
+#                      nothing it doesn't document at our peril, so the reminder
+#                      reaches Codex the only way it can have an effect: inside
+#                      developer_instructions, as the line the body opens and
+#                      closes with. This script does not inject it -- it VERIFIES
+#                      the author wrote it, and fails the render if the
+#                      frontmatter and the body have drifted apart. Same string,
+#                      three places, one check.
 #   tools           -> dropped. Codex has no per-agent tool allowlist; its tool
 #                      surface is governed by sandbox_mode and mcp_servers.
 #   model           -> deliberately never set on either side, so a role inherits
@@ -39,7 +47,10 @@ fm_field() {  # $1 = file, $2 = key  -> prints the trimmed value (empty if absen
     NR==1 && $0=="---" { infm=1; next }
     infm && $0=="---"  { exit }
     infm && $0 ~ ("^" key ":") {
-      v=$0; sub("^" key ":[[:space:]]*","",v); gsub(/[[:space:]]+$/,"",v); print v; exit
+      v=$0; sub("^" key ":[[:space:]]*","",v); gsub(/[[:space:]]+$/,"",v)
+      # tolerate a quoted scalar so a value needing quotes still compares equal
+      if (v ~ /^".*"$/ || v ~ /^'"'"'.*'"'"'$/) v = substr(v, 2, length(v) - 2)
+      print v; exit
     }
   ' "$1"
 }
@@ -68,7 +79,20 @@ for f in "$SRC"/*.md; do
   desc="$(fm_field "$f" description)"
   sandbox="$(fm_field "$f" sandbox)"
   effort="$(fm_field "$f" effort)"
+  reminder="$(fm_field "$f" reminder)"
   body="$(fm_body "$f")"
+
+  # The reminder is the role's hard rules in one line. It exists three times on
+  # purpose -- frontmatter, first body line, last body line -- because a role
+  # definition is read once at spawn and never restated, and that is exactly
+  # where a long agent run drifts. Three copies only help while they agree, so
+  # disagreement is a render failure, not a warning.
+  [ -n "$reminder" ] || { echo "render-roles: $base is missing a 'reminder:' frontmatter key" >&2; exit 1; }
+  want="**Reminder:** $reminder"
+  first="$(printf '%s\n' "$body" | grep -m1 -v '^[[:space:]]*$' || true)"
+  last="$(printf '%s\n' "$body" | grep -v '^[[:space:]]*$' | tail -n1 || true)"
+  [ "$first" = "$want" ] || { echo "render-roles: $base body must OPEN with the reminder line:" >&2; echo "  want: $want" >&2; echo "  got:  $first" >&2; exit 1; }
+  [ "$last" = "$want" ]  || { echo "render-roles: $base body must CLOSE with the reminder line:" >&2; echo "  want: $want" >&2; echo "  got:  $last" >&2; exit 1; }
 
   # A ''' inside the body would close the literal string early. No role uses one;
   # fail loudly rather than emit a broken TOML file if that ever changes.

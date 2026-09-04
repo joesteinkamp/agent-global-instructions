@@ -41,7 +41,7 @@ TEMPLATE="$DIR/template.md"
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST)  # {{VAR}} <-> $VAR
 CTRL_VARS=(PREVIEW AUTONOMY PERSONA MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL LOCAL_MODELS)                     # control render, not substituted
-INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_ORCHESTRATION INC_LOCAL_MODELS INC_IMPROVE INC_TOOLS INC_ARTIFACTS INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
+INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_ORCHESTRATION INC_LOCAL_MODELS INC_IMPROVE INC_TOOLS INC_PROPOSALS INC_ARTIFACTS INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
 TMPFILES=()
@@ -85,7 +85,7 @@ done
                                # boxes over Tailscale, an MLX Mac). Merged ahead of autodetection.
 : "${EXTRAS:=}"                # personal sections spliced in verbatim; filled from extras.local.md
 : "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_ORCHESTRATION:=y}"; : "${INC_LOCAL_MODELS:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
-: "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
+: "${INC_PROPOSALS:=y}"; : "${INC_ARTIFACTS:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
 # INC_DESIGN starts UNSET (empty) on purpose: normalize_inputs() seeds it to "y"
 # (design is on for everyone), while an explicit y/n from the environment or
 # my-context.env always wins.
@@ -368,6 +368,7 @@ render() {
   [ "$INC_LOCAL_MODELS" = "y" ]  && keep="${keep}local-models:"
   [ "$INC_IMPROVE" = "y" ]       && keep="${keep}improve:"
   [ "$INC_TOOLS" = "y" ]         && keep="${keep}tools-mcp:"
+  [ "$INC_PROPOSALS" = "y" ]     && keep="${keep}proposals:"
   [ "$INC_ARTIFACTS" = "y" ]     && keep="${keep}artifacts:"
   case "$PREVIEW" in
     tailscale) keep="${keep}preview-tailscale:";;
@@ -753,6 +754,7 @@ if [ "$INC_MEMORY" = "y" ]; then
     *) MEM_KIND=generic;;
   esac
 fi
+INC_PROPOSALS="$(ask_one 'Include "proposals, asks, and decisions" section (proposal vs confirmation, put the ask last, pre-fill what you can infer)?' "y/n" "$INC_PROPOSALS")"; INC_PROPOSALS="${INC_PROPOSALS:0:1}"
 INC_ARTIFACTS="$(ask_one 'Include "output artifacts" (HTML default) section?' "y/n" "$INC_ARTIFACTS")"; INC_ARTIFACTS="${INC_ARTIFACTS:0:1}"
 # Design is on by default for everyone (everyone should design better); the
 # typed answer wins over the default shown.
