@@ -77,6 +77,34 @@ done
 : "${TS_HOST:=your-host.ts.net}"
 : "${AUTONOMY:=aggressive}"    # aggressive | balanced
 : "${PERSONA:=generic}"        # accepted for back-compat; no longer changes any default
+# The team-role palette is DERIVED from roles/*.md rather than restated here.
+# Those files are what install-roles.sh puts in ~/.claude/agents and
+# ~/.codex/agents, so they are what an agent can actually spawn by name — and a
+# second, hand-kept list drifts the moment a role is added. It already did:
+# harness-steward shipped and the palette still named six roles, in prose form
+# ("front-end engineer") that never matched the file names agents must reference
+# ("frontend-engineer"). An explicit TEAM_ROLES from the environment or
+# my-context.env still wins; the literal below is the fallback for a checkout
+# with no roles/ dir, so the template stays usable on its own.
+if [ -z "${TEAM_ROLES:-}" ] && [ -d "$DIR/roles" ]; then
+  _tr=""
+  for _f in "$DIR"/roles/*.md; do
+    [ -e "$_f" ] || continue
+    [ "$(basename "$_f")" = "README.md" ] && continue
+    # Same frontmatter reader as render-roles.sh, CR-stripped so CRLF files parse.
+    _n="$(awk '
+      { sub(/\r$/,"") }
+      NR==1 && $0!="---" { exit }
+      NR==1 { infm=1; next }
+      infm && $0=="---" { exit }
+      infm && /^name:/ { v=$0; sub(/^name:[[:space:]]*/,"",v); gsub(/[[:space:]]+$/,"",v); print v; exit }
+    ' "$_f")"
+    [ -n "$_n" ] || _n="$(basename "$_f" .md)"
+    _tr="${_tr:+$_tr, }$_n"
+  done
+  [ -n "$_tr" ] && TEAM_ROLES="$_tr"
+  unset _f _n _tr
+fi
 : "${TEAM_ROLES:=front-end engineer, back-end engineer, technical architect, product designer, UI designer, UX researcher}"
 : "${MCP_RULES:=}"             # per-server "when to use" bullets; usually filled by --scan-mcp
 : "${LOCAL_MODELS:=}"          # hand-registered local-model endpoints, verbatim registry lines

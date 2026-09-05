@@ -77,6 +77,20 @@ assert_has "default render defaults to a team" 'Default to a team'
 assert_has "default render derives roles instead of asking" "Derive the roles from the task"
 assert_has "default render names the role-definition files" '~/.codex/agents/<role>.toml'
 assert_has "default render requires an adversarial lens" 'refuter'
+# The palette must name every installed role, in the form agents reference them.
+# It is derived from roles/*.md for exactly this reason — a hand-kept list drifts
+# the moment a role is added, and did.
+palette="$(grep -m1 'drawn from:' "$OUT" || true)"
+for _r in "$DIR"/roles/*.md; do
+  [ -e "$_r" ] || continue
+  _rn="$(basename "$_r" .md)"
+  [ "$_rn" = "README" ] && continue
+  case "$palette" in
+    *"$_rn"*) ok   "role palette includes $_rn";;
+    *)        bad  "role palette includes $_rn";;
+  esac
+done
+unset _r _rn palette
 assert_no  "default render no longer tells the agent to ask for roles" 'Never assume roles'
 INC_TEAMS=n render
 assert_no "INC_TEAMS=n removes the agent-teams heading" 'Agent teams & subagents'
