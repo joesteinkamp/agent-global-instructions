@@ -1,8 +1,12 @@
 # Roadmap — the three-layer plan
 
-Seventeen phases across three repositories, aimed at one problem: **a rule
-written in prose and a rule enforced by code drift apart, because nothing binds
-them.**
+Sixteen phases across three repositories, aimed at one problem: **a rule written
+in prose and a rule enforced by code drift apart, because nothing binds them.**
+
+> **Status, 2026-09-05.** Rows 1, 2 and 6 of the sequence shipped in
+> `project-starter-pack` #18 — the guardrail registry, its fixtures, and the
+> token contrast validator. Row 3, the prose section, is next. `design-craft`
+> exists and is fully planned; it is blocked on five decisions, not on work.
 
 Every phase below is an application of a pattern this repo already contains —
 the one in [`.agents/skills/ux-audit/`](../.agents/skills/ux-audit/). Nothing
@@ -11,6 +15,16 @@ third-party skill.
 
 This doc lives here because the harness is the top layer, but the plan spans
 three repos. Phases are labelled with the repo that owns them.
+
+**Who owns what.** Each repo's own plan is authoritative for its phases, their
+numbering, and their status — that is where the work happens and where a
+contributor looks first. This document owns the cross-repo view only: the
+thesis, the layer diagram, the gates between repos, and Plan 1, whose phases
+belong to this repo. Where a repo has its own plan, the section below is a
+pointer and a status line, never a restatement. That is this roadmap's own
+"route, don't restate" rule (Plan 1 phase 3) applied to itself — the four
+planning documents had already drifted into contradicting each other on build
+order, on what exists, and on what was done.
 
 ## Why this exists
 
@@ -56,16 +70,18 @@ project-starter-pack         the project layer
   the briefs + the anti-pattern registry
       │  gates Plan 3 (shared registry) and Plan 1 (routing target)
       ▼
-design-craft                 the task layer        (new)
+design-craft                 the task layer        (planned, no skills yet)
   invoked when the task is THIS KIND of design work
   detect · draw · extract · critique
   ux-audit is already the first citizen
 ```
 
-**The keystone is Plan 2 phase 1** — applying the registry pattern to
-`guardrails/`. It turns prose into a machine registry that the edit hook, the
-`validate` skill, and the whole third layer all consume. Build it first;
-everything else gets easier or becomes possible.
+**Plan 2 phase 1 — the registry — shipped on 2026-09-05.** Prose is now a machine
+registry that the edit hooks and the `validate` skill consume, so adding a ban
+arms its detector in the same edit. It was called the keystone here on the
+grounds that everything else depended on it; that was overstated, and the
+correction is recorded under Sequence. Its value was local, immediate, and
+sufficient on its own.
 
 ---
 
@@ -105,8 +121,10 @@ nor `roles/ux-researcher.md`. So the starter pack writes a design anti-pattern
 registry into a project and this repo's own design reviewers never open it.
 
 Copy `/verify`'s brief-discovery line into `/improve`; give the design-side roles
-an instruction to read the project's guardrails before reviewing. After Plan 2
-phase 1 lands, upgrade to citing ban IDs.
+an instruction to read the project's guardrails before reviewing. **Plan 2 phase
+1 has landed**, so the upgrade to citing stable ban IDs (`DES-04`, `WRT-11`) is
+available immediately rather than deferred — `guardrails/registry.json` ships
+the IDs, severities and `detect:` fields to cite.
 
 *Touches:* `commands/improve.md`, `roles/{ui-designer,product-designer,ux-researcher}.md`,
 then `./render-roles.sh`.
@@ -203,260 +221,121 @@ the last one back.
 
 ---
 
-## Plan 2 — project-starter-pack
+## Plan 2 — project-starter-pack · **phases 1–3 shipped**
 
-Right architecture, wrong enforcement. The briefs are well-designed, the router
-principle is sound, and the anti-pattern registries are good writing. But the
-hooks hardcode a subset of that prose, and the `validate` skill asks a language
-model to compute contrast ratios.
+**Owned by [`project-starter-pack/ROADMAP.md`](https://github.com/joesteinkamp/project-starter-pack/blob/main/ROADMAP.md).** That
+document is the authority on this layer's phases, their numbering, and their
+status; it also records what actually happened, where the build diverged from
+the plan, and two bugs only behavioural testing caught. This section is a
+pointer and a status line, nothing more — restating its detail here is how the
+two would drift, which is the failure this whole roadmap exists to end.
 
-### 1. Make `guardrails/` a real registry — **keystone**
-
-Today: five markdown files, 253 lines, prose only. Separately,
-`hooks/check-anti-patterns.sh` hardcodes three CSS greps,
-`hooks/check-writing-slop.sh` hardcodes three prose greps and an em-dash density
-count, `hooks/guard-design.sh` hardcodes one hex check. Add a ban to the prose
-and nothing detects it. Change a ban and the grep keeps enforcing the old one.
-
-Apply the registry pattern:
-
-- Give each ban a stable ID — `DES-04`, `WRT-11`, `UX-07`, `CODE-03`, `PRD-02`.
-- Add structured fields alongside the prose that already exists: severity, a
-  `detect:` expression or `manual`, the rationale, the fix.
-- Write `guardrails/_format.md` stating the contract.
-- Write `build-guardrails.sh` emitting `guardrails/registry.json`, failing
-  loudly on a duplicate ID exactly as `build_registry.py` does.
-- Hooks read the registry instead of hardcoding.
-
-Adding a ban to the prose then **arms the detector in the same edit**. This beats
-importing a foreign rule set: the rules stay ours, they live where a human reads
-them, the count grows as we learn rather than arriving as a wall, and the doc
-can't drift from the enforcement.
-
-*Touches:* `guardrails/*.md` (+ `_format.md`), new `build-guardrails.sh`, all
-three `hooks/*.sh`, `test.sh`, `skills/validate/SKILL.md`.
-*Done when:* a new ban with a `detect:` field is enforced by the hook with no
-other edit, and `test.sh` fails on a duplicate ID.
-
-### 2. Fixtures — catch false positives, not just misses
-
-A grep-based linter dies of false positives, not of missing rules. The hook
-comments already show this is understood: *"'robust' and 'leverage' are excluded
-because tech docs use them honestly."* That judgement lives in a comment and is
-enforced by nothing.
-
-`check_fixtures.py`'s `must_find` / `must_not_find` shape is the instrument. For
-each ban with a `detect:` expression, ship a minimal file that must trip it and a
-clean counterpart that must not.
-
-*Touches:* new `fixtures/guardrails/<ban-id>/{trips,clean}`, new
-`check-guardrail-fixtures.sh`, `test.sh`, CI.
-*Done when:* every `detect:` ban has both fixtures, and tightening a regex that
-breaks a clean fixture fails CI.
-
-### 3. Compute the contrast instead of asking for it
-
-`skills/validate/SKILL.md` Mode A already names the exact work: check
-`foreground/background`, `muted/background`, `accent/background`,
-`accentForeground/accent` at 4.5:1, and `borderStrong/background` at 3:1 per WCAG
-1.4.11 — *"in every theme block the file ships. Compute the contrast, don't
-eyeball it."*
-
-That spec is complete and correct, and it's handed to a language model as
-arithmetic on OKLCH values. Make it a script: `validate-tokens.sh` resolves the
-references, walks every theme block in `DESIGN.json`, computes the five pairs,
-exits 1 with the failing pair and its ratio. The skill then *runs* it. Same rule
-as `ux-audit`: no numeric claim without measured evidence.
-
-*Touches:* new `scripts/validate-tokens.sh`, `skills/validate/SKILL.md` Mode A,
-`commands/validate.md`, `test.sh`.
-*Done when:* `examples/saga-reader/DESIGN.json` passes, and a deliberately
-failing pair exits 1 naming the pair and the ratio.
-
-### 4. Write down the `WRITING.md` boundary
-
-Once Plan 1 phase 1 lands there are prose rules in two repos and the boundary is
-implicit. State it in both directions:
-
-- **`WRITING.md` governs words the product ships** — UI labels, errors, empty
-  states, docs, marketing, release notes.
-- **The harness governs words the agent says** — replies, PR bodies, commits,
-  changelog entries, report artifacts.
-
-Then delete the overlap.
-
-*Touches:* `guardrails/writing-anti-patterns.md` preamble,
-`templates/WRITING.template.md`, `README.md`.
-*Done when:* each prose rule lives in exactly one repo and both files name the
-boundary.
-
-### 5. Later — grow our own reference corpus
-
-One worked example ships, `examples/saga-reader/`, and it does real work —
-`test.sh` checks it's a complete, placeholder-free render matching the templates.
-That makes it a regression fixture, but one example isn't a corpus, and a corpus
-is what stops the model reaching for an average.
-
-Extend `extract` so it can write a reference `DESIGN.md` + `DESIGN.json` pair
-from a project already shipped, and accumulate those in `examples/`. Three or
-four real identities of our own beat any borrowed collection — they're the ones
-we can defend in a review and the ones `validate` was tuned against.
-
-*Touches:* `skills/extract/SKILL.md`, `examples/`, `test.sh`.
-
----
-
-## Plan 3 — design-craft, the task layer
-
-The third layer already has one inhabitant. `ux-audit` is not a harness feature
-and not a project brief — it's invoked when the task is *audit this screen*, it
-carries its own corpus, scripts, and tests, and it degrades gracefully when the
-project has no briefs. That is what a layer-3 skill is.
-
-The layer doesn't need inventing. It needs **naming, specifying, and
-populating** — and the specification is a description of what's already built.
-
-### 1. Write the shape spec
-
-Before any second skill, extract the shape from `ux-audit` into a
-`SKILL-SHAPE.md` every skill in the layer is built against. This is what makes it
-a layer rather than a folder of unrelated skills.
-
-- **SKILL.md** — trigger-rich description, explicit progressive-disclosure tiers
-  naming which files load when, and a stated "never load" set.
-- **references/** — prose corpus, `_format.md` contract, generated
-  `registry.json`, stable immutable IDs.
-- **scripts/** — deterministic measurement wherever measurement is possible; a
-  validator for the skill's own output; stdlib-only and offline; frozen CLI
-  contracts in `scripts/README.md`.
-- **fixtures/** — inputs plus `expected.json` with must-find, must-not-find, and
-  tolerances; a checker that exits 1.
-- **assets/** — output template, self-contained, zero network requests.
-- **A rubric** — named axes, a threshold, a defined action at the threshold.
-- **The evidence rule** — no numeric claim without measured evidence; unmeasured
-  suspicion capped in severity and phrased as suspicion.
-
-*Creates:* new repo `design-craft` with `SKILL-SHAPE.md` and a `_template/` skeleton.
-*Done when:* the spec describes `ux-audit` accurately without needing to change
-it. If it doesn't, the spec is wrong, not the skill.
-
-### 2. First new skill — `slop-detect`
-
-Build first: it proves the cross-repo seam and closes the gap. It consumes the
-guardrail registry from Plan 2 phase 1, so no rules are authored twice.
-
-The split with the starter-pack hook matters:
-
-| | Starter-pack hook | `slop-detect` skill |
+| Phase here | There | Status |
 |---|---|---|
-| Trigger | Passive, on edit | Active, on request |
-| Scope | One file | Whole tree, or a rendered route |
-| Rules | The `detect:` regex subset | Full set, including render-dependent |
-| Output | Warn-only stderr | Report with severity, ban-ID citations, score |
+| 1. `guardrails/` → a real registry (**keystone**) | its Phase 2 | **Shipped** (#18, 2026-09-05) |
+| 2. Fixtures — catch false positives, not only misses | its Phase 3 | **Shipped** (#18) |
+| 3. Compute the contrast instead of asking for it | its Phase 1 | **Shipped** (#18) |
+| 4. Write down the `WRITING.md` boundary | not yet planned there | Open — depends on Plan 1 phase 1 |
+| 5. Later — grow our own reference corpus | its "Later" | Open |
 
-Same registry, two consumers, different depth — the way `ux-audit` relates to
-axe-core rather than replacing it. The skill can check bans a regex never could,
-because it can render the page and read computed styles.
+Note the numbering does **not** line up: this roadmap ordered the phases by
+dependency, the starter-pack ordered them by build sequence, and its Phase 0
+("fix the drift that already exists") has no counterpart here at all. Cite the
+starter-pack's numbers when working in that repo.
 
-Degrade gracefully: with no `guardrails/registry.json` in the project, fall back
-to a bundled default set **and say so in the report**.
+**What shipped:** the five prose files stay where a human authors a ban;
+`build-guardrails.sh` generates `guardrails/registry.json` and fails loudly on a
+duplicate or malformed ID; `guardrails/_format.md` states the contract; the
+hooks read the registry instead of hardcoding a grep subset; every `detect:` ban
+ships a `trips` fixture it must fire on and a `clean` one it must stay quiet on.
+Verified at merge: `./test.sh` 294 → **336 passed, 0 failed** with no check
+deleted or relaxed, ten live detectors proven in both directions, and
+`registry.json` rebuilding byte-identically from the prose — the property the
+pattern rests on. CI was deliberately not built; see that repo's Phase 4.
 
-*Creates:* `design-craft/skills/slop-detect/`. *Depends on:* Plan 2 phase 1.
-*Done when:* it runs against a starter-pack project, cites ban IDs, and its
-fixtures pass — including the clean ones.
 
-### 3. Second skill — `design-diagram`
+## Plan 3 — design-craft, the task layer · **planned, not started**
 
-`/verify` and `/improve` both emit findings that want diagrams, the Output
-artifacts rule covers HTML and Markdown and stops, and the model's default
-therefore wins. Own the medium.
+**The repo exists** — [`design-craft`](https://github.com/joesteinkamp/design-craft),
+created 2026-08-27 — and holds two planning documents and no skills yet, which
+its README says is deliberate. Milestone M0 has not started.
 
-The shape maps cleanly: `references/` holds one file per diagram type with a
-stable ID and the rules for when it's the right type; the registry is generated;
-`scripts/` validates emitted SVG structure and label geometry rather than
-trusting it; `fixtures/` pair a spec with its expected structural output. Read
-tokens from `DESIGN.json` when the project has one — the same seam `slop-detect`
-uses, so build it once and share it.
+**Owned by that repo's own plans:** `docs/DESIGN-PLAN.md` (the shape spec's
+contents, the routing discipline, cross-repo dependencies, six open questions
+answered, five decisions reserved for you) and `docs/EXECUTION-PLAN.md`
+(milestones M0–M6, each with the files it creates by path, a checkable gate, and
+its cross-repo dependency). Those supersede the sketch that used to sit here:
+they were written after executing `ux-audit`'s own scripts, and its README says
+outright that three findings from doing so *"shape the plan more than the roadmap
+does."*
 
-*Creates:* `design-craft/skills/design-diagram/`, plus a shared `lib/` for token
-resolution.
-*Done when:* a diagram generated in a starter-pack project uses that project's
-tokens and passes structural validation.
+**Two places this roadmap was overruled, deliberately:**
 
-### 4. Then — `design-critique` and `design-extract`
+- **Build order.** This document said `slop-detect` second, to prove the
+  cross-repo seam. The execution plan makes it **M5, conditional and not yet
+  approved**, and builds `design-diagram` second instead — because that one
+  depends on nothing unbuilt, ships as `runtime: stdlib`, and stresses the spec
+  harder by being the first skill with a registry of *types* rather than
+  principles.
+- **Scope.** `slop-detect` is narrowed to reading a source tree, never a
+  rendered page; the render-dependent bans are reported as `unmeasurable` with
+  `ux-audit` named as the instrument for them.
 
-**`design-critique`** is the pre-emit scoring pass, and the natural partner to
-Plan 1 phase 4: the harness's `refuter` gets a rubric for *claims*, this gets one
-for *artifacts*. Same instrument, different target. Its fixtures are artifacts
-already judged, so scores can be checked against a real opinion.
+**One premise of that ordering has since expired.** Its case rested partly on
+`slop-detect` depending on *"a registry that is unbuilt, whose construction is
+gated on an owner approval in another repo."* That registry shipped in
+`project-starter-pack` #18 on 2026-09-05, so the dependency is now built and the
+approval given. Decision D3 is worth re-deciding on the arguments that survive —
+`design-diagram` still needs no `.venv` and still stresses the spec harder,
+which may well be enough on its own.
 
-**`design-extract`** is the deep counterpart to the starter pack's repo-scoped
-`extract`: given a URL or screenshot, produce a `DESIGN.md` + `DESIGN.json` pair
-that passes Plan 2 phase 3's token validator. That closes the loop — the layer
-that consumes design systems can also produce them, and what it produces is
-checkable by the layer below.
+**Blocked on you, not on work:** decisions D1–D5 in the design plan (monorepo vs
+repo-per-skill, routing architecture, which skill is second, whether `ux-audit`
+migrates at all, the repo name — settled de facto), plus `slop-detect`'s own
+approval. No amount of building unblocks those.
 
-### 5. Last — migrate `ux-audit` in
-
-Deliberately last. `ux-audit` is the reference implementation and it currently
-works; moving it early risks the one proven thing in the layer to serve tidiness.
-Move it once the spec has survived contact with two skills built *to* it rather
-than derived *from* it — that's when the spec is real.
-
-The migration is also the acceptance test for Plan 1 phase 6: if directory lock
-mode can pin `ux-audit`'s full tree and `audit.sh` detects a single-byte change
-inside it, the lock format is correct.
-
-*Done when:* the pack installs as one locked directory and every skill's
-fixtures pass in one CI run.
-
-### Two decisions to make deliberately
-
-- **Monorepo or repo-per-skill.** Today it's repo-per-skill — `ux-audit` lives in
-  its own repo, pinned by hash. That works at one skill and gets tedious at five,
-  especially since they'll share token-resolution code and a fixture runner. The
-  monorepo is the right call, and it's why Plan 1 phase 6 is a hard gate rather
-  than a nicety.
-- **Where the registry lives.** `slop-detect` reads the guardrail registry *from
-  the project*. That's correct — bans are project policy, not task craft. Resist
-  bundling a canonical rule set into the skill; that recreates the same drift
-  Plan 2 phase 1 exists to eliminate, just relocated. The bundled fallback is for
-  projects with no starter pack, and the report should say when it was used.
-
----
 
 ## Sequence
 
-The order that never leaves you blocked:
+The order that never leaves you blocked. **Rows 1, 2 and 6 shipped in
+`project-starter-pack` #18 on 2026-09-05.** Within a repo, that repo's own plan
+is the authority on ordering; this table is the cross-repo view.
 
-| # | Phase | Repo | Unblocks |
-|---|---|---|---|
-| 1 | Guardrails → registry | starter-pack | Everything. The keystone. |
-| 2 | Guardrail fixtures | starter-pack | Safe rule growth |
-| 3 | Prose section | harness | Every session, every tool |
-| 4 | Guardrails past `/verify` | harness | `/improve`, design roles |
-| 5 | Route, don't restate | harness | Stops design drift |
-| 6 | Token validator | starter-pack | `design-extract`'s target |
-| 7 | Lock directory mode | harness | Plan 3 entirely |
-| 8 | Shape spec + repo | design-craft | Every layer-3 skill |
-| 9 | `slop-detect` | design-craft | Proves the seam |
-| 10 | `refuter` rubric | harness | `design-critique` |
-| 11 | `evals/` | harness | Safe instruction edits |
-| 12 | `design-diagram` | design-craft | Artifact policy |
-| 13 | `WRITING.md` boundary | starter-pack | Prevents overlap |
-| 14 | Artifact + fact policy | harness | — |
-| 15 | `design-critique` / `design-extract` | design-craft | — |
-| 16 | Own reference corpus | starter-pack | — |
-| 17 | Migrate `ux-audit` in | design-craft | Validates phase 7 |
+| # | Phase | Repo | Status | Unblocks |
+|---|---|---|---|---|
+| 1 | Guardrails → registry | starter-pack | **Shipped** | The keystone — see the note below |
+| 2 | Guardrail fixtures | starter-pack | **Shipped** | Safe rule growth |
+| 3 | Prose section | harness | Next | Every session, every tool |
+| 4 | Guardrails past `/verify` | harness | Open | `/improve`, design roles |
+| 5 | Route, don't restate | harness | Open | Stops design drift |
+| 6 | Token validator | starter-pack | **Shipped** | `design-extract`'s target |
+| 7 | Lock directory mode | harness | Open | Plan 3 entirely |
+| 8 | Shape spec + repo | design-craft | Planned (M0–M1) | Every layer-3 skill |
+| 9 | Second skill | design-craft | Planned (M3); which one is decision D3 | Proves the spec |
+| 10 | `refuter` rubric | harness | Open | `design-critique` |
+| 11 | `evals/` | harness | Open | Safe instruction edits |
+| 12 | Remaining layer-3 skills | design-craft | Planned (M4–M6) | Artifact policy |
+| 13 | `WRITING.md` boundary | starter-pack | Open | Prevents overlap |
+| 14 | Artifact + fact policy | harness | Open | — |
+| 15 | Own reference corpus | starter-pack | Open | — |
+| 16 | Migrate `ux-audit` in | design-craft | Decision D4 — may not happen | Validates row 7 |
+
+**On "the keystone".** Row 1 was described here as unblocking *everything*. That
+was overstated: design-craft's plan says the pack does *"nothing that depends on
+it"* while waiting, and routed around it rather than blocking. Its real value is
+local and was always sufficient on its own — adding a ban to the prose now arms
+its detector in the same edit, where before it armed nothing.
+
 
 ### If only the first three
 
-Phases 1–3 are a coherent milestone, not just a beginning. After them:
-anti-pattern rules can no longer drift from their enforcement, adding a rule is
-one edit instead of two, false positives are caught by tests instead of by
-noticing, and every reply in every tool has a governed shape.
+Rows 1–3 are a coherent milestone, not just a beginning, and **two of the three
+are done.** Anti-pattern rules can no longer drift from their enforcement, and
+adding a rule is one edit instead of two with false positives caught by fixtures
+rather than by noticing. What remains of the milestone is row 3, the prose
+section, after which every reply in every tool has a governed shape too.
 
-Nothing after phase 3 is wasted if you stop there — it's all additive to a
+Nothing after row 3 is wasted if you stop there — it is all additive to a
 foundation that already holds.
 
 ## Provenance
