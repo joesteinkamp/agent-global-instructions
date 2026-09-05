@@ -55,9 +55,9 @@ the right plan. So send the *same brief* to two or three vendors independently,
 before any of them sees the others' work, and diff what comes back. **This is why
 the resident rules put the plan in a file**: the brief you send and the drafts
 you diff have to be artifacts, and three plans living in three transcripts cannot
-be compared at all. Agreement
-across vendors is the strongest signal you can get this early; divergence is
-usually a decision you were making implicitly without noticing. Reconcile in the
+be compared at all. Agreement across vendors is the strongest signal you can get
+this early; divergence is usually a decision you were making implicitly without
+noticing. Reconcile in the
 main thread, surface the divergences to the user, and only then let a `refuter`
 attack the plan you picked.
 
