@@ -12,6 +12,45 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Teach agents the host's full autonomy surface, and plan before running
+  (2026-09-04, Claude Opus 5).** The ask: Joe asked that agents use the most
+  useful tools each vendor offers so they run more autonomously, and nudge him
+  toward capabilities he isn't using; then that they do more initial planning,
+  with the `grill-me` command as the way in. What changed: `template.md` gains
+  an autonomy-surface bullet, a gated pointer to the per-tool map, a nudge rule
+  bounded to one per handoff, a definition of *handoff* at first use in both
+  autonomy variants, and a new "Plan before you run" block placed outside both
+  autonomy sections so it applies under either posture;
+  `playbooks/orchestration.md` gains "Running longer than a turn" with a
+  per-host capability table, and states why the rival-draft pattern depends on
+  the plan being a file. Why this approach: naming only `/loop` and `/goal` left
+  the rest of each vendor's unattended-execution surface unused, and an agent
+  assumes absent what it has not used before. Autonomy does not end when an
+  agent runs out of capability — it ends when it hits a question nobody
+  answered, so front-loading questions is what buys unattended runtime, and that
+  is what ties planning to autonomy rather than trading against it. The planning
+  trigger reuses the existing foundational-framing condition instead of
+  inventing new vocabulary, and the block states outright that applying it to
+  ordinary tasks is the failure mode, because a planning gate that fires on
+  small fixes gets switched off within a week. The plan-is-a-file rule is
+  load-bearing for the rival-draft pattern committed earlier: three plans living
+  in three transcripts cannot be diffed. *handoff* was defined because seven
+  rules depended on it — including the hard gate "don't call work done, hand it
+  off, or ship while a verify is pending" — and reading it as "every turn"
+  rather than "the end of a task" would have made the nudge rule fire
+  constantly and the verify gate block mid-task work. The falsifier rule was
+  earned in the same session: a cross-CLI delegation failure was misdiagnosed as
+  an Ubuntu bubblewrap problem, and stating the constraint "any root cause must
+  also explain macOS" up front would have killed that hypothesis immediately
+  rather than after a system-level recommendation. Considered and rejected:
+  naming Codex `browser_use` and `computer_use`, which are task tools and would
+  contradict the existing `playwright-cli` rule; naming `/code-review ultra`, a
+  billed, Claude-specific command that does not belong in a portable template;
+  asserting an Antigravity long-run primitive that could not be verified, so
+  that row of the table says to check `agy --help` instead; a general "restate
+  the task before acting" rule, as ceremony on top of existing
+  assumption-reporting; and making plan-mode a hard gate on broad changes, too
+  blunt next to a trigger-based rule.
 - **Give each `test.sh` run its own scratch directory
   (2026-09-03, Claude Opus 5).** The ask: concurrent runs of the suite produced
   spurious example-reproducibility failures that vanished on retry and pointed
