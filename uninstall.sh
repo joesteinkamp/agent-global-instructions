@@ -29,6 +29,9 @@ for f in "$DIR"/hooks/*.sh; do HOOK_NAMES+=("$(basename "$f" .sh)"); done
 # Also remove entries from the pre-quality-nudge installer if uninstall runs on
 # a machine that has not yet performed the upgrade install.
 HOOK_NAMES+=(improve-nudge verify-nudge changelog-nudge)
+# The session rating survey was removed on 2026-09-06; its scripts no longer
+# exist in hooks/, so name them here or an uninstall leaves them installed.
+HOOK_NAMES+=(scorecard scorecard-enqueue scorecard-survey)
 HOOK_RE="/($(IFS='|'; echo "${HOOK_NAMES[*]}"))\\.sh"
 
 TMPFILES=()

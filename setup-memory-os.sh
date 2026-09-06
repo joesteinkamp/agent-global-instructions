@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Write the memoryOS registry — ~/.ai/memory-os — naming where session-survey
-# lessons land on THIS machine. The scorecard survey (hooks/scorecard-*.sh +
-# hooks/scorecard.sh) appends lessons there and load-memory.sh reads them back
-# at SessionStart. Lessons always go to a LESSONS.md this project owns; a
+# Write the memoryOS registry — ~/.ai/memory-os — naming where session lessons
+# land on THIS machine. Lessons are captured from corrections the user makes
+# in-session; load-memory.sh reads them back at SessionStart. (A rating survey
+# used to write them and was removed on 2026-09-06 — see hooks/README.md.) Lessons always go to a LESSONS.md this project owns; a
 # store's own curated files (e.g. Hermes memories/MEMORY.md) are never touched.
 #
 #   ./setup-memory-os.sh            # detect, confirm interactively

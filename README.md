@@ -53,10 +53,9 @@ left in place).
   Cursor, `/goal` in Codex) behind an explicit done-condition; the install
   seeds `~/.claude/loop.md` (bare `/loop`'s default maintenance prompt) and a
   session-start reminder hook. Confirmation gates apply unchanged inside loops.
-- **Session scorecard** — after a real session ends, the next session opens with
-  a 30-second survey (rate it 1–5, why, what to do differently); lessons land in
-  your memoryOS (Hermes, Obsidian, or plain markdown — `setup-memory-os.sh`)
-  and are read back at every session start.
+- **Session lessons** — corrections you make in-session are written to your
+  memoryOS (Hermes, Obsidian, or plain markdown — `setup-memory-os.sh`) and read
+  back at every session start, so a correction lands once and holds.
 - **Permissions and actionable notifications** — each tool's native enforcement
   backs the hooks with rules the model can't bypass. On Codex, native TUI alerts
   cover real approval prompts when an enabled Warp integration is detected;
