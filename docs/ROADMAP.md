@@ -87,7 +87,7 @@ sufficient on its own.
 
 ## Plan 1 — agent-global-instructions
 
-### 1. Add a prose section to `template.md`
+### 1. Add a prose section to `template.md` — **shipped 2026-09-06**
 
 Fifteen sections, none governing how the agent writes. Everything produced
 *outside* a project — chat replies, PR bodies, commit messages, Change Log
@@ -122,6 +122,19 @@ Two rules must survive the edit, because they protect existing behaviour:
 *Touches:* `template.md` (new `<!--SECTION:prose-->` after Output artifacts),
 `my-context.env.example`, `customize.sh`, `examples/*` re-render.
 *Done when:* the section renders into all four dialects, `./test.sh` passes.
+
+**Shipped. Provenance, as this phase requires:** the section was written from the
+corrections its owner made during the 2026-09-05/06 session, not from the rating
+survey — four corrections, every one of the same class. A root cause asserted
+that could not explain all the evidence; a term used in a rule that was defined
+nowhere; a repository reported as non-existent on a document's word; a phase
+reported as unstarted after checking a working tree but not the open PRs. None
+concerned length, tone, or structure. So the section governs the **truthfulness
+of claims**, not style: claims name how they were established, the system is
+checked rather than a description of it, and no specific is invented to fill a
+slot. The two protected rules survive verbatim and are asserted by name in
+`test.sh`. `/verify`'s and `/improve`'s report artifacts are named as governed
+surfaces, and a project's `WRITING.md` is explicitly not overridden.
 
 ### 2. Make `guardrails/` visible past `/verify`
 

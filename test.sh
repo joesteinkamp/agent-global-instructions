@@ -72,6 +72,20 @@ assert_no "INC_PROPOSALS=n removes the ask-last rule" 'Put the ask last'
 assert_no "INC_PROPOSALS=n leaves no marker leak" 'SECTION:'
 
 render
+assert_has "default render includes the prose section" 'How you write'
+assert_has "default render makes claims name their evidence" 'says how you know it'
+assert_has "default render sends you to the system, not a description" 'Check the system, not a description of it'
+assert_has "default render bans inventing a specific" 'Never invent a specific to fill a slot you created'
+# The two rules the roadmap requires survive this section, because each protects
+# behaviour a naive concision rule would silently regress.
+assert_has "default render exempts findings from brevity" 'Findings are never trimmed for brevity'
+assert_has "default render keeps hedges that carry real uncertainty" 'Keep the hedges that carry real uncertainty'
+INC_PROSE=n render
+assert_no "INC_PROSE=n removes the prose heading" 'How you write'
+assert_no "INC_PROSE=n removes the findings-brevity rule" 'Findings are never trimmed for brevity'
+assert_no "INC_PROSE=n leaves no marker leak" 'SECTION:'
+
+render
 assert_has "default render points at the agent-teams playbook" '~/.ai/agent-teams.md'
 assert_has "default render defaults to a team" 'Default to a team'
 assert_has "default render derives roles instead of asking" "Derive the roles from the task"
