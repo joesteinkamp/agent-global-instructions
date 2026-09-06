@@ -95,9 +95,20 @@ entries, and the HTML artifacts `/verify` and `/improve` emit as their primary
 deliverable — is ungoverned. The starter pack's `WRITING.md` deliberately
 doesn't cover it; that governs words the *product* ships.
 
-The raw material is already here: `hooks/scorecard-survey.sh` has been
-collecting "rate it 1–5, why, what to do differently" into memoryOS since it was
-built. Mine the recurring complaints and write the section from those.
+**The raw material this phase assumed does not exist.** It named the session
+rating survey as the source — mine the recurring complaints and write the
+section from those. In six weeks that survey produced 23 records, 22 dismissed
+and one completed lesson, and that lesson has already been spent (it became the
+"scale verification to the artifact" rule). The survey was removed on
+2026-09-06; see `hooks/README.md`.
+
+So this phase needs an evidence base before it needs an author. Two exist:
+**corrections the user makes in-session**, which now feed the memoryOS lesson
+store and are more specific than any rating, and **the prose this repo has
+already shipped** — its own PR bodies, commit messages and Change Log entries
+are a corpus of exactly the writing the section would govern. Whichever is used,
+state it in the section's provenance line: a rule attributed to evidence that
+was never consulted is the fabrication failure phase 7 exists to ban.
 
 Two rules must survive the edit, because they protect existing behaviour:
 
@@ -183,7 +194,12 @@ catch it.
 
 *Touches:* new `evals/`, `.github/workflows/ci.yml`, `README.md`.
 *Done when:* a deliberately bad edit to `template.md` makes `evals/run.sh` fail.
-Seed the first cases from scorecard history.
+
+*Seeding.* This phase said to seed the first cases from the rating survey's
+history. That history is 23 records, 22 of them dismissals, and the survey is
+gone. Seed instead from the corrections in the memoryOS lesson store and from
+behaviours this repo already asserts in prose — the autonomy dimension this
+phase calls for is testable directly, with no historical data at all.
 
 ### 6. Teach `skills-lock.json` about directories — **gates Plan 3**
 

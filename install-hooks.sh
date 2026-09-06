@@ -24,12 +24,15 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 # idempotency filter, so they can't drift. HOOK_RE matches /<our-script>.sh
 # (anchored on the dir slash so it won't match an unrelated user hook that just
 # mentions the bare name; not end-anchored since wired commands end in .sh").
-# memory-os and scorecard are not event hooks: memory-os.sh is a sourced lib and
-# scorecard.sh the survey recorder CLI — both installed beside the hooks that use them.
-HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge load-memory precompact-archive log-session-end memory-os scorecard scorecard-enqueue scorecard-survey autonomy-reminder)
-# Keep retired names in the matcher so an update removes the three aggressive
-# legacy Stop entries instead of leaving them active beside quality-nudge.
-RETIRED_HOOK_SCRIPTS=(improve-nudge verify-nudge changelog-nudge)
+# memory-os is not an event hook: memory-os.sh is a sourced lib, installed beside
+# the hooks that use it.
+HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge load-memory precompact-archive log-session-end memory-os autonomy-reminder)
+# Keep retired names in the matcher so an update removes what a previous install
+# left behind: the three aggressive legacy Stop entries, and the session rating
+# survey (removed 2026-09-06 — 22 of its 23 records were dismissals). Listing
+# them here is what prunes both the wiring and the stale script from a machine
+# that already has them.
+RETIRED_HOOK_SCRIPTS=(improve-nudge verify-nudge changelog-nudge scorecard scorecard-enqueue scorecard-survey)
 ALL_HOOK_SCRIPTS=("${HOOK_SCRIPTS[@]}" "${RETIRED_HOOK_SCRIPTS[@]}")
 HOOK_RE="/($(IFS='|'; echo "${ALL_HOOK_SCRIPTS[*]}"))\\.sh"
 
@@ -114,10 +117,9 @@ WIRE_AR=false; [ "$AUTONOMY_MODE" = "aggressive" ] && WIRE_AR=true
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg sq "$(cmd claude "$hd" scorecard-enqueue)" --arg ss "$(cmd claude "$hd" scorecard-survey)" --arg ar "$(cmd claude "$hd" autonomy-reminder)" --argjson arw "$WIRE_AR" '{
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg ar "$(cmd claude "$hd" autonomy-reminder)" --argjson arw "$WIRE_AR" '{
     SessionStart: ([
-      {matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$lm}]},
-      {matcher:"startup|resume|clear", hooks:[{type:"command",command:$ss}]}
+      {matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$lm}]}
     ] + (if $arw then [{matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$ar}]}] else [] end)),
     PreToolUse: [
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
@@ -131,11 +133,10 @@ install_claude() {
     PreCompact: [ {matcher:"manual|auto", hooks:[{type:"command",command:$pc}]} ],
     Stop: [ {hooks:[{type:"command",command:$qn}]} ],
     SessionEnd: [
-      {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se,timeout:10}]},
-      {matcher:"clear|logout|prompt_input_exit|other", hooks:[{type:"command",command:$sq,timeout:10}]}
+      {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se,timeout:10}]}
     ]
   }')"
-  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, precompact-archive, session-end, scorecard survey$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
+  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, precompact-archive, session-end$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
 }
 
 install_codex() {
@@ -189,11 +190,10 @@ install_cursor() {
     --arg fm "$(cmd cursor "$hd" format-edited)" \
     --arg lg "$(cmd cursor "$hd" log-tool)" \
     --arg lm "$(cmd cursor "$hd" load-memory)" \
-    --arg ss "$(cmd cursor "$hd" scorecard-survey)" \
     --arg qn "$(cmd cursor "$hd" quality-nudge)" \
     --arg ar "$(cmd cursor "$hd" autonomy-reminder)" \
     --argjson arw "$WIRE_AR" '{
-    sessionStart: ([ {command:$lm}, {command:$ss} ] + (if $arw then [{command:$ar}] else [] end)),
+    sessionStart: ([ {command:$lm} ] + (if $arw then [{command:$ar}] else [] end)),
     beforeShellExecution: [ {command:$lg}, {command:$gb} ],
     beforeReadFile: [ {command:$gpr} ],
     afterFileEdit: [ {command:$lg}, {command:$gp}, {command:$fm} ],

@@ -46,7 +46,7 @@ memoryos_append_lesson() {
   memoryos_load
   mkdir -p "$(dirname "$MEMORYOS_LESSONS")" 2>/dev/null || return 0
   if [ ! -f "$MEMORYOS_LESSONS" ]; then
-    printf '# Session lessons\n\nAppended by the session scorecard survey (agent-global-instructions).\nOne line per lesson; newest last. Safe to curate by hand — the survey only appends.\n\n' \
+    printf '# Session lessons\n\nWritten by agent-global-instructions when the user corrects the agent.\nOne line per lesson; newest last. Safe to curate by hand — only ever appended.\n\n' \
       > "$MEMORYOS_LESSONS" 2>/dev/null || return 0
   fi
   if command -v flock >/dev/null 2>&1; then

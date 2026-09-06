@@ -42,9 +42,9 @@ if [ -d "$cwd/memory" ]; then
   add "- **Project memory dir** at \`$cwd/memory/\` — read \`MEMORY.md\` there as the index."
 fi
 
-# Session-survey lessons from the configured memoryOS (see hooks/memory-os.sh).
-# Injecting the most recent lines here is what closes the scorecard feedback
-# loop: what the user asked for after past sessions reaches the next one.
+# Session lessons from the configured memoryOS (see hooks/memory-os.sh).
+# Injecting the most recent lines here is what closes the feedback loop: what
+# the user asked for after past sessions reaches the next one.
 lib="$(cd "$(dirname "$0")" && pwd)/memory-os.sh"
 if [ -f "$lib" ]; then
   # shellcheck source=hooks/memory-os.sh
