@@ -12,6 +12,33 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Remove the session rating survey; keep the lesson store it fed
+  (2026-09-06, Claude Opus 5).** The ask: Joe said the session rating survey was
+  useless. What changed: `hooks/scorecard.sh`, `hooks/scorecard-enqueue.sh` and
+  `hooks/scorecard-survey.sh` deleted, along with their Claude and Cursor wiring
+  in `install-hooks.sh`, six assertions in `test.sh`, and their descriptions in
+  `hooks/README.md`, `docs/GUIDE.md` and `README.md`; the memoryOS lesson store
+  kept, now written from corrections the user makes in-session rather than by a
+  survey; `docs/ROADMAP.md` Plan 1 phases 1 and 5 corrected, both having named
+  the survey's history as their evidence base. Why this approach: six weeks
+  produced 23 records, 22 of them `dismissed:true` and one completed — a 4%
+  response rate is an instrument that asks rather than one that collects, and
+  the single lesson it did yield was already spent, having become the "scale
+  verification to the artifact" rule. Corrections are more specific than a
+  rating, cost the user nothing extra, and were already happening. The removal
+  also surfaced a hidden problem: two roadmap phases named that history as their
+  raw material, so both were quietly blocked on a well with one drop in it, and
+  nobody would have found out until sitting down to write the prose section.
+  Migration is handled rather than left to rot — the three names go into
+  `RETIRED_HOOK_SCRIPTS` so an update prunes the wiring and the stale scripts
+  from a machine that already installed them, and into `uninstall.sh`'s
+  `HOOK_NAMES`, which derives from `hooks/*.sh` and would otherwise no longer
+  know they exist. Considered and rejected: improving the survey's timing or
+  brevity, which assumes the format was salvageable when the owner's verdict was
+  that it is not; removing the lesson store along with it, when the store is the
+  half that works and is read at every session start; and deleting every match
+  for "scorecard", which would have mangled `commands/verify.md` — its
+  "scorecard" is `/verify`'s own grade report, an unrelated sense of the word.
 - **Teach agents the host's full autonomy surface, and plan before running
   (2026-09-04, Claude Opus 5).** The ask: Joe asked that agents use the most
   useful tools each vendor offers so they run more autonomously, and nudge him
