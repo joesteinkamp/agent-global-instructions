@@ -18,7 +18,12 @@ jobs:
 
       - name: ShellCheck
         # All scripts target bash 3.2+; lint them as bash.
-        run: shellcheck --shell=bash ./*.sh hooks/*.sh
+        run: shellcheck --shell=bash ./*.sh hooks/*.sh evals/*.sh
 
       - name: Smoke tests
         run: ./test.sh
+
+      # Instruction regressions: every behaviour in evals/behaviours.md still
+      # names text that survives in the render. No model, no network, no spend.
+      - name: Behaviour anchors
+        run: ./evals/run.sh

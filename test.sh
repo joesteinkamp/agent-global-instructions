@@ -224,6 +224,46 @@ for ex in "$DIR"/examples/*.env; do
 done
 rm -f "$EXOUT"
 
+# ---- evals: the behaviour anchors ------------------------------------------
+echo ""
+echo "== evals (instruction regressions) =="
+
+"$DIR/evals/run.sh" >/dev/null 2>&1 \
+  && ok "evals/run.sh passes against the default render" \
+  || bad "evals/run.sh passes against the default render"
+
+# Every entry must carry an anchor and an origin, or the run reports a behaviour
+# it cannot actually check and a half-written entry passes as coverage.
+ev_bad=0
+ev_ids="$(grep -c '^## BEH-' "$DIR/evals/behaviours.md")"
+ev_anchors="$(grep -c '^anchor: ' "$DIR/evals/behaviours.md")"
+ev_origins="$(grep -c '^origin: ' "$DIR/evals/behaviours.md")"
+[ "$ev_ids" = "$ev_anchors" ] && [ "$ev_ids" = "$ev_origins" ] || ev_bad=1
+[ "$ev_bad" = 0 ] \
+  && ok "every behaviour declares an anchor and an origin ($ev_ids)" \
+  || bad "every behaviour declares an anchor and an origin (ids=$ev_ids anchors=$ev_anchors origins=$ev_origins)"
+
+# Stable IDs are the contract: a duplicate makes a failure message ambiguous.
+[ "$(grep -o '^## BEH-[0-9]*' "$DIR/evals/behaviours.md" | sort | uniq -d | wc -l)" -eq 0 ] \
+  && ok "behaviour IDs are unique" \
+  || bad "behaviour IDs are unique"
+
+# The instrument has to be able to fail, or it is decoration. Break one anchor in
+# a throwaway copy of the tree and require a named, non-zero failure.
+EVD="$(mktemp -d)"
+cp -R "$DIR/customize.sh" "$DIR/template.md" "$DIR/extras.local.md" "$EVD/" 2>/dev/null
+mkdir -p "$EVD/evals"; cp "$DIR/evals/run.sh" "$DIR/evals/behaviours.md" "$EVD/evals/"
+# Reword the protected findings rule the way a plausible concision edit would.
+sed 's/\*\*Findings are never trimmed for brevity\.\*\*/**Keep findings brief.**/' \
+  "$DIR/template.md" > "$EVD/template.md"
+ev_out="$(cd "$EVD" && AIGI_NO_USER_ENV=1 ./evals/run.sh 2>&1)"; ev_rc=$?
+if [ "$ev_rc" -ne 0 ] && printf '%s' "$ev_out" | grep -q 'BEH-04'; then
+  ok "a plausible concision edit fails the eval, naming the behaviour"
+else
+  bad "a plausible concision edit fails the eval, naming the behaviour"
+fi
+rm -rf "$EVD"
+
 # ---- load_env (the parser) — runs WITHOUT AIGI_NO_USER_ENV via a temp env ----
 echo ""
 echo "== load_env parser tests =="

@@ -188,7 +188,7 @@ triggers an action, the way `references/scoring.md` does for `ux-audit`. Run it
 *Touches:* `roles/refuter.md`, `./render-roles.sh`, `playbooks/quality-workflows.md`.
 *Done when:* two refuter runs on the same claim produce comparable scores.
 
-### 5. Build `evals/` — behavioural regression tests
+### 5. Build `evals/` — behavioural regression tests — **partly shipped 2026-09-06**
 
 `test.sh` is 82 KB and thorough, and it tests the **installer**: that files
 render, hooks wire up, permissions merge, examples match templates. Nothing
@@ -207,6 +207,26 @@ catch it.
 
 *Touches:* new `evals/`, `.github/workflows/ci.yml`, `README.md`.
 *Done when:* a deliberately bad edit to `template.md` makes `evals/run.sh` fail.
+
+**Shipped: the anchor half.** `evals/behaviours.md` names each behaviour the
+instructions exist to produce, the exact text it depends on, and where it came
+from; `evals/run.sh` fails by behaviour — quoting why it exists — when that text
+is deleted or reworded, and runs in CI with no model, no network and no spend.
+Verified against the phase's own done-condition: replacing "Findings are never
+trimmed for brevity" with a plausible "Keep findings brief" fails `BEH-04` and
+exits 1. `test.sh` asserts that failure, so the instrument cannot rot into
+decoration.
+
+**Deferred: the live half, and the fork it turns on.** An anchor proves a
+behaviour is *instructed*, not that it *happens*. Grading that needs a model, and
+this repo's CI has no secrets, no network and no model access — so the question
+is who pays and when, not how to grade. `evals/PLAN.md` states the three options
+and recommends the cheapest: keep growing `behaviours.md` from real corrections,
+and build the live runner once the set is worth paying to run. Each entry already
+carries its `case:`, so nothing is lost by waiting. The rubric this phase asks
+for is deferred with it — including its own warning that **autonomy must be
+weighted as its own dimension**, for which `BEH-07` is the anchor that fails
+first.
 
 *Seeding.* This phase said to seed the first cases from the rating survey's
 history. That history is 23 records, 22 of them dismissals, and the survey is
