@@ -147,8 +147,10 @@ every option:
   land in `~/.ai/model-routing.local.md` via `/update-model-routing`; set
   `INC_LOCAL_MODELS=n` to opt out of the bullets and the layer),
   improve-after-larger-changes, tools & MCP servers, output artifacts,
-  **design system & UI** (build to the tokens, stay on the scales, WCAG AA,
-  honor reduced-motion — **on by default for everyone**; set `INC_DESIGN=n` to
+  **design system & UI** (the project's system wins; where it ships
+  `guardrails/`, that registry is the design policy and findings cite ban IDs —
+  the section holds no copy of the bans, only the a11y floor that survives a
+  project shipping none — **on by default for everyone**; set `INC_DESIGN=n` to
   opt out), project-specific instructions, docs-first, correction capture,
   change log.
 

@@ -22,6 +22,10 @@ what is known from what is assumed.
 - Never invent a user, a statistic, a persona, or a study result. A fabricated
   data point is a failed run, however well it fits.
 - For each load-bearing assumption, name the cheapest thing that would test it.
+- Read the project's `guardrails/` where it exists. The `UX-*` bans are patterns
+  this project has already judged harmful; cite the ID when the work reintroduces
+  one. Treat a ban as settled evidence, and if you think one is wrong, say so as
+  a finding against the ban rather than quietly ignoring it.
 
 ## Guidance
 

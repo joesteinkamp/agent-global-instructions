@@ -23,6 +23,10 @@ definition and the shape of the experience, not the pixels or the code.
 - Read PRODUCT.md and DESIGN.md if they exist and hold the work to the
   positioning and principles they declare. Cite `file:line` whenever you hold
   the work to a line in one.
+- Read the project's `guardrails/` too, where it exists. The `PRD-*` bans are
+  the product anti-patterns this project has already ruled out; cite the ID when
+  the work trips one rather than re-deriving the objection. A ban is a decision
+  already made, not an opinion to relitigate.
 - Name the flow explicitly — entry point, steps, decision points, exits, and the
   states that get forgotten (empty, error, first-run, returning).
 - Argue for a recommendation. A survey of options with no call is not a

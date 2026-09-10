@@ -7,6 +7,8 @@ allowed-tools: Bash(git:*), Bash(command:*), Bash(codex:*), Bash(agy:*), Bash(cl
 Changed files: !`git --no-pager diff --stat HEAD 2>/dev/null`
 Untracked: !`git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
 Recent commits: !`git --no-pager log --oneline -5 2>/dev/null`
+Project briefs: !`ls PRODUCT.md DESIGN.md DESIGN.json CODE.md WRITING.md guardrails 2>/dev/null || true`
+Guardrail registry: !`test -f guardrails/registry.json && echo "guardrails/registry.json — cite bans by ID" || echo "none — use the panel's own rubric"`
 Other AI CLIs installed: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
 Local models registered: !`cat "$HOME/.ai/local-models" 2>/dev/null || true`
 
@@ -45,12 +47,17 @@ the panel runs. Invocation still requires my explicit ask (backgrounding changes
    - **Technical architect** — structure, coupling, boundaries, risk, missing abstractions.
    - **Back-end engineer** — correctness, data handling, error paths, performance.
    - **Front-end engineer** — component design, state, accessibility, UX edge cases.
+   - **The project's own bans come first.** Where the discovery above found `guardrails/`, every lens
+     reads it before applying any rubric below, and **flags findings by ban ID** (`DES-03`, `WRT-11`,
+     `UX-07`) rather than restating the rule in its own words. The project's registry is the policy;
+     the rubrics here are the floor for a project that ships none. Where a ban and a rubric line
+     cover the same ground, cite the ban — it is the one with a detector attached.
    - **UI/UX** — *only if UI changed* — judge visual & interaction quality against a concrete rubric, not vibes:
      - **Nielsen's 10 heuristics** — status visibility, match to the real world, user control/undo, consistency & standards, error prevention, recognition over recall, flexibility, minimalist design, error recovery, help.
      - **Accessibility (WCAG 2.2 AA)** — contrast, visible focus, labels/roles, and adequate target size.
      - **Visual hierarchy & copy** — Gestalt grouping, alignment, scannability, and clear copy/microcopy; is the primary action obvious?
      - **Fitts's / Hick's law** — target size & distance for key actions; choice load kept low.
-     - **Design-system consistency** — stays on the type/spacing/color scales and existing tokens/components; no one-off values.
+     - **Design-system consistency** — stays on the type/spacing/color scales and existing tokens/components; no one-off values. Where the project ships `guardrails/`, this is `DES-03`/`DES-10` and their siblings — cite those IDs instead.
      - **Responsive & motion** — holds up at mobile/tablet/desktop; animation honors `prefers-reduced-motion`.
    Give each only the diff + the relevant files. Ask each for concrete, prioritized **improvement opportunities** (not praise), each with `file:line` and a suggested change.
 3. **Cross-vendor check — a model must not be the sole checker of its own work.** The changes under review were likely authored by the model running this command. The probe above lists every installed AI CLI; excluding the one you are running as, **spread the review lenses across all of the others — more independent vendors is better**, with at least one lens cross-vendor. Run each headless, with writes scoped to a context dir it reports into (the repo stays read-only to it): `mkdir -p ~/.ai-context/<repo>-improve/agents`, then e.g. `codex exec "…" --sandbox workspace-write --cd ~/.ai-context/<repo>-improve` or `agy -p "…" --mode accept-edits --add-dir ~/.ai-context/<repo>-improve`. Give it the same diff + files, ask it to **refute** the work (not confirm it), and have it write full findings to `agents/<vendor>.md` — read that file, not just stdout, which can truncate. Attribute its findings in the summary; if no other vendor is installed, say so.

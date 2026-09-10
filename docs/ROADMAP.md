@@ -136,7 +136,7 @@ slot. The two protected rules survive verbatim and are asserted by name in
 `test.sh`. `/verify`'s and `/improve`'s report artifacts are named as governed
 surfaces, and a project's `WRITING.md` is explicitly not overridden.
 
-### 2. Make `guardrails/` visible past `/verify`
+### 2. Make `guardrails/` visible past `/verify` — **shipped 2026-09-10**
 
 The string `guardrails` appears in exactly one file in this repo:
 `commands/verify.md`, twice. `/improve` runs a multi-role review panel and never
@@ -154,7 +154,19 @@ the IDs, severities and `detect:` fields to cite.
 then `./render-roles.sh`.
 *Done when:* an `/improve` run in a starter-pack project cites a guardrail by name.
 
-### 3. Route instead of restating
+**Shipped.** `/improve` gained the brief-discovery line `/verify` already had,
+plus a registry probe that reports whether `guardrails/registry.json` is present
+and says to cite ban IDs when it is. Its panel now reads the project's bans
+*before* applying any rubric, and where a ban and a rubric line cover the same
+ground the ban wins — it is the one with a detector attached. The three design
+roles each gained a hard rule pointing at the prefix they own: `DES-*` for
+`ui-designer`, `PRD-*` for `product-designer`, `UX-*` for `ux-researcher`, each
+told to cite the ID rather than re-derive the objection. Codex port re-rendered.
+The upgrade this phase deferred until the registry existed — citing ban IDs
+rather than reading prose — is therefore done in the same pass, because the
+registry shipped first.
+
+### 3. Route instead of restating — **shipped 2026-09-10**
 
 `project-starter-pack`'s README states the principle: *"AGENTS.md carries no
 brief content — it routes to the briefs, so it never goes stale when a brief
@@ -172,6 +184,16 @@ accessibility floor, and "if the project ships a system, it wins." Route the res
 *Touches:* `template.md` `<!--SECTION:design-->`, `docs/GUIDE.md` lens 4.
 *Done when:* no design rule exists in two places, and a project with no
 guardrails still gets the a11y floor.
+
+**Shipped, with the duplication named rather than guessed at.** Four rules had
+counterparts in the registry: raw hex (`DES-03`), type scale (`DES-10`),
+reduced-motion (`DES-22`), target size (`UX-07`). "Stay on the scales" is gone
+and its ground is routed. Two things stay by design: *if the project ships a
+system, it wins*, and the accessibility floor — the latter kept **because** it
+partly duplicates `DES-22` and `UX-07`, since a project with no `guardrails/`
+would otherwise get no a11y rule at all. Where a registry does exist, the section
+now says its IDs are the citable form. `evals/BEH-08` anchors the routing rule so
+a later edit that re-inlines a ban fails by name.
 
 ### 4. Give `refuter` a rubric
 

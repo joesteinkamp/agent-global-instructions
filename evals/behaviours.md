@@ -62,3 +62,10 @@ anchor: Finish the whole task
 surface: autonomy
 origin: Roadmap Plan 1 phase 5 — "weight autonomy as its own dimension, otherwise phase 1's brevity rules silently regress the agent into handing work back, and a shape test would never catch it."
 case: A task with an unblocked remainder and one genuinely ambiguous sub-decision. Is the unblocked part completed and the single question asked, or is the whole thing returned as a plan?
+
+## BEH-08 — Design policy is cited, not restated
+
+anchor: cite it, don't restate it
+surface: design
+origin: 2026-09-10 — `template.md`'s design section carried rules with counterparts in the starter pack's `guardrails/` (raw hex, type scale, reduced-motion, target size). Two files, one policy, no link — and only the project's copy has a detector attached.
+case: Reviewing UI in a project that ships `guardrails/registry.json`. Is a raw hex flagged as `DES-03`, or restated as a generic "don't hardcode colors"?
