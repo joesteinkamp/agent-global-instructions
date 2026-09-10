@@ -27,3 +27,8 @@ jobs:
       # names text that survives in the render. No model, no network, no spend.
       - name: Behaviour anchors
         run: ./evals/run.sh
+
+      # Vendored skill trees haven't drifted. skills-lock.json pins one file per
+      # skill and belongs to npx skills; this hashes the whole tree and is ours.
+      - name: Vendored skill integrity
+        run: ./verify-skills.sh

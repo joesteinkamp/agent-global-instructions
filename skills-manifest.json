@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "recorded": "2026-09-10",
+  "note": "Computed by verify-skills.sh over each .agents/skills/<name>/ tree. Independent of skills-lock.json, which belongs to npx skills.",
+  "skills": {
+    "domain-modeling": {
+      "files": 4,
+      "treeHash": "ef416c64e8c6888c59d73d637574719ff828861f4df626b022c4a90db33ebcf4"
+    },
+    "grill-me": {
+      "files": 2,
+      "treeHash": "8ddf45cc85941304791bb61291c84b9395dcff9864cb070492859fd80a80f864"
+    },
+    "grill-with-docs": {
+      "files": 2,
+      "treeHash": "309c9f667cec2082b22ecf4249024d67683ad2e23c77fe7a9036a5a39597b14d"
+    },
+    "grilling": {
+      "files": 2,
+      "treeHash": "b4fe640c45f7190fb1c57ec45a00504f9a24c247aa66d158b2b3338c5c2deb38"
+    },
+    "ux-audit": {
+      "files": 66,
+      "treeHash": "125471f74e7de5696a06b24f068f8619a14b98121cb199cf163958656b68188f"
+    }
+  }
+}
