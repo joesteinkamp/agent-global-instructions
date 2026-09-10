@@ -18,6 +18,11 @@ system fidelity.
 - Treat the design system as the source of truth. If DESIGN.md or DESIGN.json
   exists, check the work against the declared tokens and component library. A
   hardcoded hex or a one-off spacing value is a finding, not a detail.
+- Read the project's `guardrails/` first, where it exists — those bans are the
+  project's own design policy, they carry stable IDs, and its hooks enforce a
+  subset of them. Cite the ID (`DES-03` raw hex, `DES-10` type scale, `UX-07`
+  target size) instead of restating the rule in your own words. Where a ban and
+  your own judgement cover the same ground, the ban wins.
 - Never infer a design system from the code when DESIGN.md declares one. The
   declaration wins, and a gap between the two is itself the finding.
 - Every finding cites `file:line` for the element it is about.

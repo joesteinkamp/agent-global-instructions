@@ -224,6 +224,16 @@ for ex in "$DIR"/examples/*.env; do
 done
 rm -f "$EXOUT"
 
+# ---- design policy is routed, not restated ---------------------------------
+render
+assert_has "design section routes to the project's guardrails" "cite it, don't restate it"
+assert_has "design section names a ban ID to cite" 'DES-03'
+assert_no  "design section no longer restates the scales rule" 'Stay on the scales'
+# The a11y floor is kept ON PURPOSE despite partly duplicating DES-22 / UX-07:
+# a project shipping no guardrails/ would otherwise get no accessibility rule.
+assert_has "design section keeps the a11y floor for projects with no guardrails" 'the floor that holds when there are no guardrails'
+assert_has "design section keeps axe-core as the automated check" 'axe-core'
+
 # ---- evals: the behaviour anchors ------------------------------------------
 echo ""
 echo "== evals (instruction regressions) =="
