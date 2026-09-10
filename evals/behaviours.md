@@ -4,11 +4,14 @@ The source file. One entry per behaviour the rendered instructions exist to
 cause. Humans edit this; `run.sh` reads it directly, so there is no second list
 to keep in step.
 
-Each entry needs four fields. `anchor` is the exact text that must survive in
+Most entries need four fields. `anchor` is the exact text that must survive in
 the render — delete or reword the rule and the behaviour fails by name, not as a
 missing string. `origin` is where the behaviour came from, so a later reader can
 judge whether it still earns its place. `case` is the prompt that would test it
-against a live model, which `run.sh` does not yet do (see `PLAN.md`).
+against a live model, which `run.sh` does not yet do (see `PLAN.md`). A fifth,
+`file:`, points at a role definition or playbook when the rule lives there rather
+than in the rendered instructions — those are separate surfaces the render never
+contains.
 
 Stable IDs. Never renumber: a failure message cites one, and so will a case file.
 
@@ -69,3 +72,18 @@ anchor: cite it, don't restate it
 surface: design
 origin: 2026-09-10 — `template.md`'s design section carried rules with counterparts in the starter pack's `guardrails/` (raw hex, type scale, reduced-motion, target size). Two files, one policy, no link — and only the project's copy has a detector attached.
 case: Reviewing UI in a project that ships `guardrails/registry.json`. Is a raw hex flagged as `DES-03`, or restated as a generic "don't hardcode colors"?
+
+## BEH-09 — Refutation is scored, not just asserted
+
+anchor: score the claim, not your effort
+surface: refuter
+file: roles/refuter.md
+origin: Roadmap Plan 1 phase 4 — the refuter is the best idea in the harness and had no scoring instrument, so its output varied run to run and could not be compared across sessions.
+case: The same claim refuted twice in different sessions. Do the two runs produce comparable axis scores, or two differently-worded opinions?
+
+## BEH-10 — A diagram is markup that earns its place
+
+anchor: A diagram has to earn its place
+surface: artifacts
+origin: Roadmap Plan 1 phase 7 — the Output artifacts rule covered HTML and Markdown and stopped, so diagrams fell through to whatever the model reached for, including raster images whose labels cannot be read or selected.
+case: A finding whose mechanism wants a picture. Is it inline SVG or mermaid with selectable labels and both themes working, or a generated image?

@@ -195,7 +195,7 @@ would otherwise get no a11y rule at all. Where a registry does exist, the sectio
 now says its IDs are the citable form. `evals/BEH-08` anchors the routing rule so
 a later edit that re-inlines a ban fails by name.
 
-### 4. Give `refuter` a rubric
+### 4. Give `refuter` a rubric — **shipped 2026-09-10**
 
 `roles/refuter.md` is the best idea in the harness — an adversarial lens on every
 conclusion, sandboxed read-only, defaulting to refuted when it can't verify. It
@@ -209,6 +209,23 @@ triggers an action, the way `references/scoring.md` does for `ux-audit`. Run it
 
 *Touches:* `roles/refuter.md`, `./render-roles.sh`, `playbooks/quality-workflows.md`.
 *Done when:* two refuter runs on the same claim produce comparable scores.
+
+**Shipped.** Five weighted axes — grounding, scope match, failure case,
+assumption load, reproducibility — scored 0/1/2 with written anchors per level,
+because coarse levels reproduce across runs where a 0–100 judgement does not.
+Four verdict bands, and the threshold is an action rather than a note: below
+`holds`, a claim does not enter a handoff as settled. `Scope match` at 2 is
+required for `holds`, which encodes this session's own most expensive error —
+a cause verified on Linux and asserted for macOS. The band wins over the math, so
+an unverifiable load-bearing claim reads `unverified` whatever the weights say,
+and score compression is named as a calibration failure.
+
+The rubric is inline in the role rather than a referenced file, because the Codex
+dialect is a single TOML string with no way to reference one; `test.sh` asserts
+both dialects carry it. `playbooks/quality-workflows.md` places the refuter
+**pre-emit** — it runs while the work is still the agent's to change, and spawning
+one is explicitly *not* starting a quality workflow, so it never needs the user's
+ask and cannot be reported as a `/verify` result. `evals/BEH-09` anchors it.
 
 ### 5. Build `evals/` — behavioural regression tests — **partly shipped 2026-09-06**
 
@@ -300,14 +317,27 @@ change anywhere in the tree is detected. It no longer gates Plan 3 in the sense
 this phase meant — Plan 3's own D1 decision made tree integrity a *general*
 import requirement rather than a precondition for one layer.
 
-### 7. Later — artifact policy and fingerprint memory
+### 7. Later — artifact policy and fingerprint memory — **artifact policy shipped 2026-09-10**
 
-**Artifact policy.** The Output artifacts section covers self-contained HTML and
-Markdown and stops, so diagrams fall through to whatever the model reaches for.
-State the policy there. Add a fabricated-fact rule next to the Change Log
-honesty rules — inventing a metric to fill a slot you created is a truthfulness
-failure, not a design one, and it applies equally to a report, a PR body, and a
-slide.
+**Artifact policy — shipped.** The Output artifacts section now states when a
+diagram earns its place (a mechanism, relationship or flow that prose makes the
+reader hold in their head) and what it must be: inline SVG or mermaid inside the
+artifact, never a raster or generated picture, labels as selectable text, legible
+in both themes. It also extends the no-invented-specifics rule to shapes — a box
+or arrow added to balance a composition is a false claim that happens to be
+drawn. `evals/BEH-10` anchors it.
+
+**The fabricated-fact half was already done.** It shipped in the prose section
+(phase 1) as *"never invent a specific to fill a slot you created"*, which covers
+the metric-in-a-slot case and names its surfaces — replies, PR bodies, commit
+messages, changelog entries, and the reports `/verify` and `/improve` emit. This
+phase asked for it "next to the Change Log honesty rules"; it landed in a section
+that governs all of those at once, which is the better home. Nothing further is
+owed here.
+
+**Fingerprint memory** remains open — nothing records the *shape* of what was
+produced, so nothing stops session twelve's artifact from having session three's
+structure.
 
 **Fingerprint memory.** This project is built "bit by bit across sessions" —
 `commands/verify.md` says so — and nothing records the *shape* of what was
@@ -396,28 +426,34 @@ approval. No amount of building unblocks those.
 
 ## Sequence
 
-The order that never leaves you blocked. **Rows 1, 2 and 6 shipped in
-`project-starter-pack` #18 on 2026-09-05.** Within a repo, that repo's own plan
-is the authority on ordering; this table is the cross-repo view.
+The order that never leaves you blocked. Within a repo, that repo's own plan is
+the authority on ordering; this table is the cross-repo view.
+
+**Status, 2026-09-10.** Every harness row is shipped except `evals/`'s live half
+(deferred on a spend decision, see `evals/PLAN.md`) and fingerprint memory inside
+row 14. Rows 1, 2 and 6 shipped in `project-starter-pack` #18. All five of
+`design-craft`'s reserved decisions are settled, so rows 8, 9 and 12 are unblocked
+and row 16 is closed by D4. What remains open is entirely in `project-starter-pack`
+(rows 13, 15) and `design-craft` (M0 onward).
 
 | # | Phase | Repo | Status | Unblocks |
 |---|---|---|---|---|
 | 1 | Guardrails → registry | starter-pack | **Shipped** | The keystone — see the note below |
 | 2 | Guardrail fixtures | starter-pack | **Shipped** | Safe rule growth |
-| 3 | Prose section | harness | Next | Every session, every tool |
-| 4 | Guardrails past `/verify` | harness | Open | `/improve`, design roles |
-| 5 | Route, don't restate | harness | Open | Stops design drift |
+| 3 | Prose section | harness | **Shipped** | Every session, every tool |
+| 4 | Guardrails past `/verify` | harness | **Shipped** | `/improve`, design roles |
+| 5 | Route, don't restate | harness | **Shipped** | Stops design drift |
 | 6 | Token validator | starter-pack | **Shipped** | `design-extract`'s target |
 | 7 | Vendored-tree integrity | harness | **Shipped** (superseded the lock-schema plan) | Safe imports, everywhere |
 | 8 | Shape spec + repo | design-craft | Planned (M0–M1) | Every layer-3 skill |
-| 9 | Second skill | design-craft | Planned (M3); which one is decision D3 | Proves the spec |
-| 10 | `refuter` rubric | harness | Open | `design-critique` |
-| 11 | `evals/` | harness | Open | Safe instruction edits |
+| 9 | Second skill | design-craft | Planned (M3); D3 closed as moot — skills arrive when ready | Proves the spec |
+| 10 | `refuter` rubric | harness | **Shipped** | `design-critique` |
+| 11 | `evals/` | harness | **Anchors shipped**; live half deferred on a spend decision | Safe instruction edits |
 | 12 | Remaining layer-3 skills | design-craft | Planned (M4–M6) | Artifact policy |
 | 13 | `WRITING.md` boundary | starter-pack | Open | Prevents overlap |
-| 14 | Artifact + fact policy | harness | Open | — |
+| 14 | Artifact + fact policy | harness | **Shipped** (fact half landed in row 3) | — |
 | 15 | Own reference corpus | starter-pack | Open | — |
-| 16 | Migrate `ux-audit` in | design-craft | Decision D4 — may not happen | Validates row 7 |
+| 16 | Migrate `ux-audit` in | design-craft | **Closed** — D4 decided: imported, never migrated | — |
 
 **On "the keystone".** Row 1 was described here as unblocking *everything*. That
 was overstated: design-craft's plan says the pack does *"nothing that depends on

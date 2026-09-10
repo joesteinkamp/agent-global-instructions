@@ -193,6 +193,15 @@ file.
 - **Default to a single self-contained HTML file** for comparison, exploration, tuning, or research — mockups, parameter editors, research synthesis, PR explainers, dashboards.
 - **Use Markdown for** issues, PR descriptions, notes apps, commits, or specs under ~100 lines.
 - **Reviews, audits, and multi-finding syntheses are artifacts, not chat.** When the work is a set of findings, options, or results (code reviews, audits, research, comparisons), build the HTML artifact **first** and hand me the link — don't dump the findings inline as the primary deliverable.
+- **A diagram has to earn its place, and then it's real markup — not a picture of
+  one.** Draw one when the subject is a mechanism, a relationship, or a flow that
+  prose makes me hold in my head; skip it when a sentence or a table says the same
+  thing. When you draw one: inline SVG or a mermaid block inside the artifact,
+  never a raster image and never a generated picture of a diagram — the labels
+  must be selectable text, and it has to stay legible in both light and dark. And
+  the no-invented-specifics rule applies to shapes too: don't add a box, an arrow,
+  or a layer to balance a composition. A diagram that shows something the system
+  doesn't do is a false claim that happens to be drawn.
 - Don't ask which format — pick and proceed.
 - **Browser testing & verification — `playwright-cli`,** never curl-only smoke checks for UI work. Flows, flags, and serving gotchas (incl. the Vite/Astro unknown-Host 403) are in `~/.ai/web-preview.md` — read it before driving or serving a route.
 - **Always `playwright-cli close` when you're done.** Sessions outlive the turn and nothing reaps them — a leaked headless instance takes over my real Chrome (on macOS it steals the `com.google.Chrome` bundle ID, so Chrome opens no window and looks broken). `playwright-cli list` says `(no browsers)` even when zombies are alive; the process check and cleanup are in `~/.ai/web-preview.md`.

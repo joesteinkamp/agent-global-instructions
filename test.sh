@@ -224,6 +224,43 @@ for ex in "$DIR"/examples/*.env; do
 done
 rm -f "$EXOUT"
 
+# ---- refuter rubric + artifact policy --------------------------------------
+render
+assert_has "artifacts section states a diagram policy" 'A diagram has to earn its place'
+assert_has "diagram policy requires selectable labels, not a picture" 'never a raster image'
+assert_has "diagram policy forbids inventing shapes" "don't add a box, an arrow"
+
+# The rubric lives inline in the role because the Codex dialect is one TOML
+# string with no way to reference another file — so assert both dialects carry it.
+grep -qF 'score the claim, not your effort' "$DIR/roles/refuter.md" \
+  && ok "refuter role carries the rubric" \
+  || bad "refuter role carries the rubric"
+grep -qF 'Scope match' "$DIR/roles/codex/refuter.toml" \
+  && ok "refuter rubric renders into the Codex dialect" \
+  || bad "refuter rubric renders into the Codex dialect"
+# The threshold has to be an action, not a note.
+grep -qF 'Scope match is 2' "$DIR/roles/refuter.md" \
+  && ok "refuter rubric gates 'holds' on scope match" \
+  || bad "refuter rubric gates 'holds' on scope match"
+grep -qF 'pre-emit' "$DIR/playbooks/quality-workflows.md" \
+  && ok "quality-workflows places the refuter pre-emit" \
+  || bad "quality-workflows places the refuter pre-emit"
+
+# evals: an entry may point at a role or playbook surface, and a bad path must
+# fail loudly rather than silently checking the render instead.
+EVF="$(mktemp -d)"; mkdir -p "$EVF/evals"
+cp "$DIR/evals/run.sh" "$EVF/evals/"; cp -R "$DIR/customize.sh" "$DIR/template.md" "$DIR/extras.local.md" "$EVF/" 2>/dev/null
+printf '## BEH-99 — bad path\nanchor: anything\norigin: test\nfile: roles/does-not-exist.md\n' > "$EVF/evals/behaviours.md"
+# Capture, then match. Piping run.sh into grep would report the PIPELINE status
+# under `set -o pipefail`, which is run.sh's deliberate exit 1 — so a passing
+# assertion would read as a failure for a reason that has nothing to do with it.
+ev_bad_out="$( cd "$EVF" && ./evals/run.sh 2>&1 )" || true
+case "$ev_bad_out" in
+  *"BAD FILE"*) ok  "evals fails loudly on a file: path that does not exist";;
+  *)            bad "evals fails loudly on a file: path that does not exist";;
+esac
+rm -rf "$EVF"
+
 # ---- vendored skill integrity ----------------------------------------------
 echo ""
 echo "== vendored skills (import integrity) =="

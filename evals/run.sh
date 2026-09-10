@@ -12,6 +12,12 @@
 # behaviour, with the reason the behaviour exists, rather than as a bare missing
 # string somewhere in a 200-assertion suite.
 #
+# Where an anchor is looked for. By default, in the rendered instructions — that
+# is where most rules live. An entry may add `file: <path>` to point at a role
+# definition or a playbook instead, because those are separate surfaces that the
+# render never contains. The path is relative to the repo root and must exist, so
+# a typo fails loudly rather than silently checking the wrong thing.
+#
 # What this is NOT. It does not run a model. A behaviour whose anchor renders is
 # instructed, not demonstrated — the far half of the gap needs a live model, and
 # the fork that decides how is written up in PLAN.md. Do not read a pass here as
@@ -31,19 +37,29 @@ RENDER="$(AIGI_NO_USER_ENV=1 "$DIR/customize.sh" --print 2>/dev/null)"
 [ -n "$RENDER" ] || { echo "render produced nothing" >&2; exit 2; }
 
 pass=0; fail=0
-id=""; anchor=""; origin=""
+id=""; anchor=""; origin=""; where=""
 
-check() {   # $1=id $2=anchor $3=origin
+check() {   # $1=id $2=anchor $3=origin $4=file (empty = the render)
   [ -n "$1" ] || return 0
   if [ -z "$2" ]; then
     printf '  MISSING ANCHOR  %s — entry declares no anchor: to check\n' "$1"; fail=$((fail+1)); return 0
   fi
-  if printf '%s' "$RENDER" | grep -qF -- "$2"; then
+  local hay
+  if [ -n "$4" ]; then
+    if [ ! -f "$DIR/$4" ]; then
+      printf '  BAD FILE  %s — declares file: %s, which does not exist\n' "$1" "$4"; fail=$((fail+1)); return 0
+    fi
+    hay="$(cat "$DIR/$4")"
+  else
+    hay="$RENDER"
+  fi
+  if printf '%s' "$hay" | grep -qF -- "$2"; then
     pass=$((pass+1)); [ "$VERBOSE" = 1 ] && printf '  ok   %s\n' "$1"
   else
     fail=$((fail+1))
     printf '  FAIL %s — no longer instructed\n' "$1"
     printf '       anchor: %s\n' "$2"
+    printf '       looked in: %s\n' "${4:-the rendered instructions}"
     printf '       why it exists: %s\n' "$origin"
   fi
   return 0
@@ -53,13 +69,14 @@ while IFS= read -r line || [ -n "$line" ]; do
   line="${line%$'\r'}"
   case "$line" in
     '## BEH-'*)
-      check "$id" "$anchor" "$origin"
-      id="${line##\#\# }"; anchor=""; origin="" ;;
+      check "$id" "$anchor" "$origin" "$where"
+      id="${line##\#\# }"; anchor=""; origin=""; where="" ;;
     'anchor: '*) anchor="${line#anchor: }" ;;
     'origin: '*) origin="${line#origin: }" ;;
+    'file: '*)   where="${line#file: }" ;;
   esac
 done < "$SRC"
-check "$id" "$anchor" "$origin"
+check "$id" "$anchor" "$origin" "$where"
 
 echo ""
 echo "$pass behaviour(s) still instructed, $fail broken"
