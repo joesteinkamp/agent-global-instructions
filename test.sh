@@ -224,6 +224,38 @@ for ex in "$DIR"/examples/*.env; do
 done
 rm -f "$EXOUT"
 
+# ---- vendored skill integrity ----------------------------------------------
+echo ""
+echo "== vendored skills (import integrity) =="
+
+"$DIR/verify-skills.sh" >/dev/null 2>&1 \
+  && ok "verify-skills passes against the recorded manifest" \
+  || bad "verify-skills passes against the recorded manifest"
+
+# Every vendored tree must be recorded, or an import lands unpinned and silent.
+vs_disk="$(find "$DIR/.agents/skills" -maxdepth 1 -mindepth 1 -type d | wc -l | tr -d ' ')"
+vs_rec="$(jq -r '.skills | keys | length' "$DIR/skills-manifest.json" 2>/dev/null)"
+[ "$vs_disk" = "$vs_rec" ] \
+  && ok "every vendored skill is in the manifest ($vs_disk)" \
+  || bad "every vendored skill is in the manifest (disk=$vs_disk recorded=$vs_rec)"
+
+# The instrument has to be able to fail. A single byte, deep in the largest tree,
+# must be caught — that is the case skills-lock.json misses entirely.
+VSD="$(mktemp -d)"
+cp -R "$DIR/.agents" "$DIR/verify-skills.sh" "$DIR/skills-manifest.json" "$VSD/" 2>/dev/null
+vs_target="$(find "$VSD/.agents/skills/ux-audit" -type f -name '*.json' | head -1)"
+if [ -n "$vs_target" ]; then
+  printf ' ' >> "$vs_target"
+  if ( cd "$VSD" && ./verify-skills.sh >/dev/null 2>&1 ); then
+    bad "a one-byte change inside a vendored tree fails verification"
+  else
+    ok "a one-byte change inside a vendored tree fails verification"
+  fi
+else
+  bad "a one-byte change inside a vendored tree fails verification (no target file found)"
+fi
+rm -rf "$VSD"
+
 # ---- design policy is routed, not restated ---------------------------------
 render
 assert_has "design section routes to the project's guardrails" "cite it, don't restate it"

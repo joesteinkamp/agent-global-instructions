@@ -256,7 +256,7 @@ gone. Seed instead from the corrections in the memoryOS lesson store and from
 behaviours this repo already asserts in prose — the autonomy dimension this
 phase calls for is testable directly, with no historical data at all.
 
-### 6. Teach `skills-lock.json` about directories — **gates Plan 3**
+### 6. Vendored-tree integrity — **superseded 2026-09-10; the premise was wrong**
 
 The lock pins one `skillPath` to one file with one SHA-256. That suits the five
 skills vendored today. A layer-3 skill built to the `ux-audit` shape is a tree —
@@ -271,6 +271,34 @@ now rather than discovering it when the first pack skill fails to install.
 *Touches:* `skills-lock.json` schema, `install.sh`, `converge.sh`, `audit.sh`, `test.sh`.
 *Done when:* `ux-audit` re-locks as a directory and `./audit.sh` detects a
 single-byte change anywhere in its tree.
+
+**This phase was wrong about ownership, and is superseded.** Checked 2026-09-10:
+`skills-lock.json` is [`npx skills`](https://skills.sh)' lockfile, not a format
+this repo owns, and **no script here reads it** — `install-commands.sh` names it
+in a comment only. `install.sh`, `converge.sh` and `audit.sh` contain no
+reference to `skillPath` or `computedHash`, so three of the four scripts this
+phase lists as touched have nothing to do with the lock. Whether the upstream
+tool supports a directory mode is undocumented on skills.sh and was not
+determined; either way it is that tool's decision, not ours.
+
+The *problem* was real and worse than stated. The lock pins one `skillPath` per
+skill; for `ux-audit` that is `SKILL.md` while the vendored tree is **66 files**,
+so 65 were pinned by nothing. It also became load-bearing rather than
+theoretical once `design-craft` D1 was decided as **import-when-ready**, which
+makes an import the moment integrity matters.
+
+**Replaced by `verify-skills.sh` + `skills-manifest.json`**, which the harness
+owns outright: a manifest hash per vendored tree over every file's path and
+content, `--update` to re-record after a deliberate import, and `--list` to show
+what is vendored. It does not touch `skills-lock.json` — that stays the upstream
+tool's business. Wired into `test.sh` and CI, and the suite performs a one-byte
+edit deep inside `ux-audit`'s tree in a throwaway copy and requires a non-zero
+exit, so the instrument cannot rot into decoration.
+
+The phase's original done-condition is met by a different route: a single-byte
+change anywhere in the tree is detected. It no longer gates Plan 3 in the sense
+this phase meant — Plan 3's own D1 decision made tree integrity a *general*
+import requirement rather than a precondition for one layer.
 
 ### 7. Later — artifact policy and fingerprint memory
 
@@ -380,7 +408,7 @@ is the authority on ordering; this table is the cross-repo view.
 | 4 | Guardrails past `/verify` | harness | Open | `/improve`, design roles |
 | 5 | Route, don't restate | harness | Open | Stops design drift |
 | 6 | Token validator | starter-pack | **Shipped** | `design-extract`'s target |
-| 7 | Lock directory mode | harness | Open | Plan 3 entirely |
+| 7 | Vendored-tree integrity | harness | **Shipped** (superseded the lock-schema plan) | Safe imports, everywhere |
 | 8 | Shape spec + repo | design-craft | Planned (M0–M1) | Every layer-3 skill |
 | 9 | Second skill | design-craft | Planned (M3); which one is decision D3 | Proves the spec |
 | 10 | `refuter` rubric | harness | Open | `design-critique` |
