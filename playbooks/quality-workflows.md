@@ -21,3 +21,28 @@ Default panel — technical architect, back-end engineer, front-end engineer, pl
 - **When an advisory appears:** mention only the relevant option in the handoff. Don't run it, block completion, or make the user dismiss it. A quiet hook is not something to second-guess.
 - **Applying changes the user already approved** — the fixes/improvements from a prior verify or improve pass ("yes, do those"): just make them and confirm. **Don't re-run** verify/improve on the result — that review already happened, and re-running loops. Suppress the one advisory turn with the marker below.
 - **Skip marker:** `d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"; mkdir -p "$d"; touch "$d/.nudge-skip-quality.$k"`
+
+## The refuter runs pre-emit, and it scores
+
+`/verify` and `/improve` are explicit-only: they run when the user asks, never on
+the agent's initiative. The `refuter` role is **not** one of them and must not
+become one — it runs **pre-emit**, before a claim reaches a handoff, as part of
+producing the work rather than as a review of it. Spawning a refuter is not
+starting a quality workflow, and it never needs the user's ask.
+
+What that means in practice:
+
+- **Any claim that matters gets refuted before it is stated, not after.** A
+  finding, a root cause, a plan, a "this is fixed" — the refutation happens while
+  the work is still yours to change.
+- **It returns a verdict and a score** on the five axes in `roles/refuter.md`
+  (grounding, scope match, failure case, assumption load, reproducibility). The
+  score exists so two runs on the same claim are comparable; a verdict alone
+  drifts between sessions.
+- **The threshold is an action, not a note.** Below `holds`, the claim does not go
+  into a handoff as settled — it goes with its gaps named, or it doesn't go. `Scope
+  match` at 2 is required for `holds` on purpose: the most common way a wrong claim
+  survives is being true of the case that was checked and asserted of one that
+  wasn't.
+- **A refuter finding is not a `/verify` result.** Don't report it as one, and
+  don't let a clean refutation stand in for a verify the user asked for.

@@ -12,6 +12,122 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **State an artifact policy for diagrams (2026-09-10, Claude Opus 5).** Roadmap
+  Plan 1 phase 7. The ask: the Output artifacts section covered self-contained
+  HTML and Markdown and stopped, so diagrams fell through to whatever the model
+  reached for. What changed: a bullet saying when a diagram earns its place — a
+  mechanism, relationship or flow that prose makes the reader hold in their head —
+  and what it must be: inline SVG or mermaid inside the artifact, never a raster or
+  generated picture, labels as selectable text, legible in both themes; plus an
+  extension of the no-invented-specifics rule to shapes. `evals/BEH-10` anchors
+  it. Why this approach: a diagram is a claim about how something works, so the
+  same truthfulness rules apply — a box added to balance a composition is a false
+  claim that happens to be drawn, which is why the rule sits with the specifics
+  rule rather than with formatting. Considered and rejected: naming particular
+  diagram libraries, which dates fast and this repo cannot verify; and the
+  phase's own suggestion to put the fabricated-fact rule beside the Change Log
+  honesty rules — it had already shipped in the prose section, which governs
+  replies, PR bodies, commits, changelog entries and report artifacts at once, a
+  better home than one section's neighbourhood.
+
+- **Give the `refuter` a scoring rubric, placed pre-emit (2026-09-10, Claude Opus
+  5).** Roadmap Plan 1 phase 4. The ask: the refuter is the role the "never the
+  sole checker of its own work" rule leans on, and it had no scoring instrument,
+  so its output varied run to run and two runs on the same claim could not be
+  compared. What changed: five weighted axes — grounding, scope match, failure
+  case, assumption load, reproducibility — scored 0/1/2 with written anchors per
+  level; four verdict bands; and a threshold that is an action rather than a note,
+  since below `holds` a claim does not enter a handoff as settled.
+  `playbooks/quality-workflows.md` places the refuter **pre-emit**, and states
+  that spawning one is not starting a quality workflow, so it never needs the
+  user's ask and cannot be reported as a `/verify` result. `evals/BEH-09` anchors
+  it. Why this approach: coarse 0/1/2 levels with anchors reproduce across runs
+  where a 0–100 judgement does not, and score compression is named as a
+  calibration failure rather than tolerated. `Scope match` at 2 is required for
+  `holds` because that encodes this session's most expensive error — a cause
+  verified on Linux and asserted for macOS. The band wins over the math, so an
+  unverifiable load-bearing claim reads `unverified` however the weights fall.
+  The rubric is inline in the role rather than a referenced file because the Codex
+  dialect is a single TOML string with no way to reference one; `test.sh` asserts
+  both dialects carry it. Considered and rejected: a 0–100 score, which invites
+  the compression the rubric now forbids; and running the refuter inside
+  `/verify` or `/improve`, which would have made an adversarial check depend on
+  the user asking for a review.
+
+- **Verify vendored skill trees; supersede the lock-schema plan (2026-09-10,
+  Claude Opus 5).** The ask: `design-craft`'s D1 was decided as
+  import-when-ready, which makes an import the moment integrity matters, and
+  nothing checked it. What changed: `verify-skills.sh` plus `skills-manifest.json`
+  record and check a manifest hash per vendored tree over every file's path and
+  content, with `--update` to re-record after a deliberate import and `--list` to
+  show what is vendored; wired into CI and `test.sh`. Why this approach: checked
+  rather than assumed, `skills-lock.json` turned out to be `npx skills`' lockfile
+  rather than a format this repo owns, no script here reads it, and it pins one
+  `skillPath` per skill — for `ux-audit` that is `SKILL.md` while the tree is 66
+  files, so 65 were pinned by nothing. Mode bits are excluded from the hash
+  because git records only the executable bit and umask varies, sorting is
+  `LC_ALL=C` so a tree hashes identically on any machine, and a missing
+  `sha256sum` is a loud exit rather than a silent skip. Considered and rejected:
+  roadmap Plan 1 phase 6 as written — teaching the upstream lockfile about
+  directories, which is a third party's schema and whose three listed scripts do
+  not read the lock at all; and editing that lockfile ourselves, which would
+  fight the tool that owns it instead of sitting beside it.
+
+- **Route design policy to the project's guardrails, and have the reviewers read
+  them (2026-09-10, Claude Opus 5).** Roadmap Plan 1 phases 2 and 3, shipped
+  together as two halves of one problem. The ask: the starter pack writes a design
+  anti-pattern registry into a project, this repo's own design reviewers never
+  opened it, and `template.md` kept its own copy of several of the same rules.
+  What changed: the duplication was identified against the registry rather than
+  guessed — raw hex (`DES-03`), type scale (`DES-10`), reduced-motion (`DES-22`),
+  target size (`UX-07`) — and "stay on the scales" was removed and its ground
+  routed; `/improve` gained the brief-discovery line `/verify` already had plus a
+  registry probe, and its panel now reads the project's bans before any rubric;
+  the three design roles each name the prefix they own, phrased per role.
+  `evals/BEH-08` anchors the routing rule. Why this approach: the project's copy
+  is the one with a detector attached, so it is the copy that should be cited. The
+  accessibility floor was deliberately kept **because** it partly duplicates
+  `DES-22` and `UX-07` — a project shipping no `guardrails/` would otherwise get
+  no accessibility rule at all. Considered and rejected: deduplicating
+  mechanically, which would have deleted that floor and made every project without
+  a starter pack worse.
+
+- **Add `evals/`: behaviour anchors, and the fork the live half turns on
+  (2026-09-06, Claude Opus 5).** Roadmap Plan 1 phase 5. The ask: `test.sh` tests
+  the installer and nothing tested whether the instructions in `template.md` still
+  cause anything, while those instructions were edited six times in one session.
+  What changed: `evals/behaviours.md` names each behaviour the instructions exist
+  to produce, the text it depends on and where the behaviour came from;
+  `evals/run.sh` fails by behaviour, quoting why it exists, and runs in CI with no
+  model, no network and no spend. An entry may point at a role or playbook with
+  `file:` when the rule lives outside the render. Why this approach: five of the
+  first seven behaviours came from corrections made in session, which is the loop
+  the removed rating survey never closed — a correction becomes a rule, and the
+  rule gets an anchor that fails when someone edits it away. Prose is the source
+  and `run.sh` parses it directly, because at this size a generated registry would
+  be ceremony; `PLAN.md` records when to switch. Considered and rejected: building
+  the live model-graded half now — this repo's CI has no secrets or network, so
+  the real question is who pays and when, and a grader written before the cases are
+  real would fit the grader rather than the behaviour.
+
+- **Add the prose section: claims name their evidence (2026-09-06, Claude Opus
+  5).** Roadmap Plan 1 phase 1. The ask: fifteen sections governed what the agent
+  does and none governed the words it produces — replies, PR bodies, commit
+  messages, Change Log entries, and the reports `/verify` and `/improve` emit.
+  What changed: a new `<!--SECTION:prose-->` gated behind `INC_PROSE`, covering
+  claims that name how they were established, checking the system rather than a
+  description of it, never inventing a specific to fill a slot, findings never
+  trimmed for brevity, hedges that carry real uncertainty surviving, and
+  corrections made in place without ceremony. Why this approach: the phase
+  originally said to mine the session rating survey, which had 22 dismissals out
+  of 23 records, so the evidence base used instead was the four corrections the
+  owner made during the session — and every one was the same class of error, a
+  claim stated with more confidence than its evidence supported. None concerned
+  length, tone or structure, so the section governs truthfulness rather than
+  style. The two rules the roadmap requires be protected survive verbatim and
+  `test.sh` asserts each by name. Considered and rejected: writing a style section,
+  which the evidence did not support; and restating the proposals section, which
+  governs a message's shape where this governs its words.
 - **Remove the session rating survey; keep the lesson store it fed
   (2026-09-06, Claude Opus 5).** The ask: Joe said the session rating survey was
   useless. What changed: `hooks/scorecard.sh`, `hooks/scorecard-enqueue.sh` and
