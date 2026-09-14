@@ -12,6 +12,30 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Close out the roadmap: `design-craft` stops at M2 (2026-09-14, Claude Opus
+  5).** The ask: Joe said he did not want `design-diagram` — *"I don't need that
+  skill. I don't get it."* — and asked to wrap the remaining work up. What
+  changed: `docs/ROADMAP.md`'s Plan 3 section records what shipped (M0's gate and
+  frozen contracts, M1's shape spec, template, trigger ledger and `check_shape.py`,
+  M2's `lib/fixtures.py`) and why it stopped; sequence rows 9 and 12 are marked
+  **stopped** rather than left looking pending, row 8 **shipped**, and the status
+  paragraph is rewritten as a close-out. The corresponding record was written into
+  `design-craft` itself, so the plan and the repo agree. Why this approach: a
+  stopped phase left looking pending is how a later session picks up work nobody
+  wants, which is the same drift this roadmap exists to fight, one level up. The
+  reason is kept rather than just the status, because it generalises: the gap
+  `design-diagram` existed to fill — a diagram falling through to whatever the
+  model reached for — was substantially closed by **a rule instead of a skill**,
+  Plan 1 phase 7's artifact policy. A rule costs nothing to maintain; a skill costs
+  a corpus, a validator, fixtures and a gate, and that trade is now written down to
+  be checked before any future phase proposes a skill. The owner's call also
+  matched the design plan's own §7, which had concluded from the evidence that the
+  layer warranted *a spec and two skills, not five*; the honest read is now a spec
+  and one skill, `ux-audit`, which already existed. Considered and rejected:
+  deleting the M3–M6 plans, which would have destroyed the record of a decision
+  and left no starting point if a second skill is ever wanted; and leaving the rows
+  open on the theory that someone might still build them, which is how a backlog
+  becomes a lie.
 - **State an artifact policy for diagrams (2026-09-10, Claude Opus 5).** Roadmap
   Plan 1 phase 7. The ask: the Output artifacts section covered self-contained
   HTML and Markdown and stopped, so diagrams fell through to whatever the model

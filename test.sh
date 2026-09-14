@@ -235,7 +235,12 @@ assert_has "diagram policy forbids inventing shapes" "don't add a box, an arrow"
 grep -qF 'score the claim, not your effort' "$DIR/roles/refuter.md" \
   && ok "refuter role carries the rubric" \
   || bad "refuter role carries the rubric"
-grep -qF 'Scope match' "$DIR/roles/codex/refuter.toml" \
+# roles/codex/ is GENERATED and gitignored, so it does not exist in a fresh
+# checkout — which is exactly what CI has. Render before asserting rather than
+# depending on another test having run first: a test whose result depends on
+# suite order passes locally and fails in CI, which is how this one hid.
+"$DIR/render-roles.sh" >/dev/null 2>&1
+grep -qF 'Scope match' "$DIR/roles/codex/refuter.toml" 2>/dev/null \
   && ok "refuter rubric renders into the Codex dialect" \
   || bad "refuter rubric renders into the Codex dialect"
 # The threshold has to be an action, not a note.
