@@ -383,11 +383,30 @@ deleted or relaxed, ten live detectors proven in both directions, and
 pattern rests on. CI was deliberately not built; see that repo's Phase 4.
 
 
-## Plan 3 — design-craft, the task layer · **planned, not started**
+## Plan 3 — design-craft, the task layer · **M0–M2 shipped; stopped there**
 
-**The repo exists** — [`design-craft`](https://github.com/joesteinkamp/design-craft),
-created 2026-08-27 — and holds two planning documents and no skills yet, which
-its README says is deliberate. Milestone M0 has not started.
+**Shipped, then deliberately stopped.** [`design-craft`](https://github.com/joesteinkamp/design-craft)
+carries M0 (a gate proven able to fail, frozen dual-homed contracts, CI), M1 (the
+shape spec, the `_template/` skeleton, the trigger ledger, and `check_shape.py`
+which exits 0 against an unmodified `ux-audit`), and M2 (`lib/fixtures.py`, proven
+byte-identical to the implementation it was extracted from).
+
+**M3 onward is not proceeding** (2026-09-14, owner). `design-diagram` was to be the
+layer's second skill; the owner does not want it. M4, M5 and M6 stop with it —
+export has nothing to export, `slop-detect` was already conditional and never
+approved, and the disposition review reviews a populated layer.
+
+Two things had already narrowed the case, and are worth keeping because they
+generalise. The design plan's §7 concluded the evidence supported *a spec and two
+skills, not a layer of five*. And the gap `design-diagram` existed to fill — a
+diagram falling through to whatever the model reached for — was substantially
+closed by **a rule instead of a skill**: Plan 1 phase 7's artifact policy. A rule
+costs nothing to maintain; a skill costs a corpus, a validator, fixtures and a
+gate. That trade is worth checking before any future phase proposes a skill.
+
+What was built stands without a second inhabitant: a working description of the
+layer-3 pattern, with a command that proves the description is accurate against a
+real skill.
 
 **Owned by that repo's own plans:** `docs/DESIGN-PLAN.md` (the shape spec's
 contents, the routing discipline, cross-repo dependencies, six open questions
@@ -429,12 +448,18 @@ approval. No amount of building unblocks those.
 The order that never leaves you blocked. Within a repo, that repo's own plan is
 the authority on ordering; this table is the cross-repo view.
 
-**Status, 2026-09-10.** Every harness row is shipped except `evals/`'s live half
-(deferred on a spend decision, see `evals/PLAN.md`) and fingerprint memory inside
-row 14. Rows 1, 2 and 6 shipped in `project-starter-pack` #18. All five of
-`design-craft`'s reserved decisions are settled, so rows 8, 9 and 12 are unblocked
-and row 16 is closed by D4. What remains open is entirely in `project-starter-pack`
-(rows 13, 15) and `design-craft` (M0 onward).
+**Status, 2026-09-14 — the plan is closed out.** Every harness row is shipped
+except `evals/`'s live half (deferred on a spend decision, see `evals/PLAN.md`) and
+fingerprint memory inside row 14. `project-starter-pack` is complete except row 15,
+a feature rather than a cleanup. `design-craft` shipped M0–M2 and stopped there by
+decision: rows 9 and 12 are not proceeding, and row 16 was already closed by D4.
+
+The three-layer thesis held. What it produced, measured against its own premise —
+*a rule written in prose and a rule enforced by code drift apart, because nothing
+binds them* — is that every layer now has something that binds them: the guardrail
+registry arms a detector in the same edit as a ban, `evals/` fails by behaviour
+when a rule is edited away, `verify-skills.sh` catches a byte inside a vendored
+tree, and `check_shape.py` proves a spec describes a real skill.
 
 | # | Phase | Repo | Status | Unblocks |
 |---|---|---|---|---|
@@ -445,11 +470,11 @@ and row 16 is closed by D4. What remains open is entirely in `project-starter-pa
 | 5 | Route, don't restate | harness | **Shipped** | Stops design drift |
 | 6 | Token validator | starter-pack | **Shipped** | `design-extract`'s target |
 | 7 | Vendored-tree integrity | harness | **Shipped** (superseded the lock-schema plan) | Safe imports, everywhere |
-| 8 | Shape spec + repo | design-craft | Planned (M0–M1) | Every layer-3 skill |
-| 9 | Second skill | design-craft | Planned (M3); D3 closed as moot — skills arrive when ready | Proves the spec |
+| 8 | Shape spec + repo | design-craft | **Shipped** (M0–M2) | Every layer-3 skill |
+| 9 | Second skill | design-craft | **Stopped** — owner does not want `design-diagram` | — |
 | 10 | `refuter` rubric | harness | **Shipped** | `design-critique` |
 | 11 | `evals/` | harness | **Anchors shipped**; live half deferred on a spend decision | Safe instruction edits |
-| 12 | Remaining layer-3 skills | design-craft | Planned (M4–M6) | Artifact policy |
+| 12 | Remaining layer-3 skills | design-craft | **Stopped** with row 9 | — |
 | 13 | `WRITING.md` boundary | starter-pack | Open | Prevents overlap |
 | 14 | Artifact + fact policy | harness | **Shipped** (fact half landed in row 3) | — |
 | 15 | Own reference corpus | starter-pack | Open | — |
