@@ -7,16 +7,18 @@
 #
 # Only stores that actually exist are mentioned. If none are found, it stays
 # silent. Never blocks (always exits 0). Wired for the tools whose SessionStart
-# can inject context: Claude (hookSpecificOutput.additionalContext) and Cursor
-# (additional_context). Other tools have no equivalent — no-op there.
+# can inject context: Claude and Codex (hookSpecificOutput.additionalContext —
+# the same wire shape, so they share a branch) and Cursor (additional_context).
+# Antigravity has no equivalent — no-op there.
 set -u
 
 PLATFORM="${HOOK_PLATFORM:-claude}"
 input="$(cat)"
 command -v jq >/dev/null 2>&1 || exit 0
 
-# Only Claude + Cursor support SessionStart context injection today.
-case "$PLATFORM" in claude|cursor) ;; *) exit 0;; esac
+# Claude, Codex and Cursor support SessionStart context injection; Codex uses
+# Claude's shape. Antigravity has no SessionStart event.
+case "$PLATFORM" in claude|codex|cursor) ;; *) exit 0;; esac
 
 cwd="$(printf '%s' "$input" | jq -r '.cwd // .workspace_roots[0]? // empty' 2>/dev/null)"; [ -z "$cwd" ] && cwd="$PWD"
 

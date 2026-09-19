@@ -144,8 +144,10 @@ install_codex() {
   copy_scripts "$hd"
   # Codex's hooks.json uses the same PascalCase event keys and the same
   # {hookSpecificOutput:{hookEventName,additionalContext}} stdout contract as
-  # Claude Code, SessionStart included — so the autonomy reminder wires here too.
-  # It matters most in Codex: /goal is stable and enabled by default there.
+  # Claude Code, SessionStart included — so both SessionStart hooks wire here
+  # too: the memory loader, and (under the aggressive posture) the autonomy
+  # reminder, which matters most in Codex since /goal is stable and on by
+  # default there.
   # Codex now surfaces file edits to hooks via the apply_patch tool (matched as
   # apply_patch, with Write/Edit aliases), so path-guard + auto-format wire up
   # alongside the shell guard and logging. guard-paths/format-edited extract the
@@ -156,9 +158,12 @@ install_codex() {
     --arg fm "$(cmd codex "$hd" format-edited)" \
     --arg lg "$(cmd codex "$hd" log-tool)" \
     --arg qn "$(cmd codex "$hd" quality-nudge)" \
+    --arg lm "$(cmd codex "$hd" load-memory)" \
     --arg ar "$(cmd codex "$hd" autonomy-reminder)" \
     --argjson arw "$WIRE_AR" '{
-    SessionStart: (if $arw then [{matcher:"startup|resume", hooks:[{type:"command",command:$ar}]}] else [] end),
+    SessionStart: ([
+      {matcher:"startup|resume", hooks:[{type:"command",command:$lm}]}
+    ] + (if $arw then [{matcher:"startup|resume", hooks:[{type:"command",command:$ar}]}] else [] end)),
     PreToolUse: [
       {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
       {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$gp,timeout:30}]},
@@ -170,7 +175,7 @@ install_codex() {
     ],
     Stop: [ {hooks:[{type:"command",command:$qn,timeout:30}]} ]
   }')"
-  echo "  codex   -> $sf (log, guard paths, guard bash, auto-format, advisory quality-nudge$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
+  echo "  codex   -> $sf (memory-load, log, guard paths, guard bash, auto-format, advisory quality-nudge$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
 }
 
 install_cursor() {

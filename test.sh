@@ -701,6 +701,14 @@ PYEOF
   lm_empty="$(printf '{"cwd":"%s","source":"startup"}' "$EMPTYPROJ" | HOME="$EMPTYPROJ" HOOK_PLATFORM=claude bash "$DIR/hooks/load-memory.sh" 2>/dev/null)"
   [ -z "$lm_empty" ] && ok "load-memory stays silent when no store exists" \
                      || bad "load-memory stays silent when no store exists"
+
+  # Codex takes Claude's SessionStart wire shape; antigravity has no such event.
+  lm_cx="$(printf '{"cwd":"%s","source":"startup"}' "$MEMPROJ" | HOOK_PLATFORM=codex bash "$DIR/hooks/load-memory.sh" 2>/dev/null)"
+  lm_ag="$(printf '{"cwd":"%s","source":"startup"}' "$MEMPROJ" | HOOK_PLATFORM=antigravity bash "$DIR/hooks/load-memory.sh" 2>/dev/null)"
+  { printf '%s' "$lm_cx" | jq -e '.hookSpecificOutput.hookEventName == "SessionStart" and (.hookSpecificOutput.additionalContext | length > 0)' >/dev/null 2>&1 \
+      && [ -z "$lm_ag" ]; } \
+    && ok "load-memory emits codex SessionStart context, silent for antigravity" \
+    || bad "load-memory emits codex SessionStart context, silent for antigravity"
   rm -rf "$MEMPROJ" "$EMPTYPROJ"
 
   # install-hooks wired the PreCompact + SessionEnd lifecycle hooks (Claude).
