@@ -65,3 +65,22 @@ what actions do; critical info missing at the ask.
 50: trust-signal gap at payment/data asks, or 1 minor dark pattern. 20: multiple dark
 patterns (pre-checked costs, fake urgency, hidden fees) — this is a floor: any 2+ DARK
 findings cap the category at 35.
+
+## Score evidence & path to excellent (original to this skill — not Qualia verbatim)
+Every score must be traceable; validate_findings.py enforces all of this.
+- `score_evidence` per category: **band** (the range stated in the procedure above),
+  **drivers** (finding IDs that pulled the score down), **passes** (positive evidence —
+  clean_checks or observations), **limitations** (what a screenshot couldn't verify).
+  Score <90 ⇒ ≥1 driver or limitation. Score ≥90 ⇒ ≥1 pass (excellence needs evidence).
+- **overall = weighted average ±1.** When the band contradicts the math, revisit
+  sub-scores until both agree (rule above) — never hand-adjust overall alone.
+- **Band↔severity consistency** (direct consequences of the band definitions):
+  overall ≤49 requires ≥1 critical finding · any critical finding caps overall at 65 ·
+  90+ requires zero critical/high · 2+ DARK findings cap trust_persuasion at 35.
+- `path_to_excellent`: project the post-fix **range** assuming every observed finding is
+  fixed, with assumptions listed. Cap the projection at 89 while the verification
+  backlog is non-empty — a static audit can never certify 90+. This answers "does
+  fixing all N findings earn 100?" explicitly: no; the remainder lives in the backlog.
+- Fidelity calibration: when `data_fidelity` ≠ real, content/trust judgments about the
+  data itself are excluded — record what was excluded in `meta.calibration_exclusions`
+  so a low findings count reads as calibration, not blindness.

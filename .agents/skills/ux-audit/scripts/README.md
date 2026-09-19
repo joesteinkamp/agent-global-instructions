@@ -1,7 +1,21 @@
 # Script CLI contracts (frozen — see execution-plan.html Appendix A)
 
 All scripts: Python stdlib + Pillow only, offline, run via `.venv/bin/python`.
+`setup.sh` is the one exception — it *creates* that venv, so it runs on system `python3`.
+
+> **Note on the frozen-contract rule.** These contracts are declared frozen and
+> dual-homed with `execution-plan.html` Appendix A, but that file is not present in
+> this repository, so the second home could not be updated in the same commit as
+> this one. Reconciling it needs whoever holds it.
 Coordinates are always `[ymin, xmin, ymax, xmax]` on a 0–1000 normalized scale.
+
+## setup.sh — one-time bootstrap
+```
+setup.sh                                             # creates .venv, installs Pillow
+```
+Idempotent: skips the venv if it already exists and the import check passes. Run on
+system `python3`, not `.venv/bin/python` — it is what produces the latter. Everything
+after it runs offline.
 
 ## measure.py — deterministic visual measurements
 ```

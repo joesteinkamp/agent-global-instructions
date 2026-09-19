@@ -12,6 +12,40 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Refresh the five vendored skill trees from upstream (2026-09-19, Claude Opus
+  5).** The ask: Joe asked whether this machine had the latest instruction set
+  installed. Everything rendered from `main` was current byte-for-byte, but the
+  vendored `ux-audit` tree was behind its own source repo
+  (`joesteinkamp/ux-audit-skill`, merged PR #3), and the four `mattpocock/skills`
+  trees had moved too. What changed: `npx skills update` refreshed all five trees
+  — `ux-audit` gains a `scripts/setup.sh` venv bootstrap so a fresh clone can run
+  its own scripts, a `data_fidelity` axis split out from `stage`, a
+  `meta.candidate_stats` funnel count, `score_evidence` traceability, and a
+  `path_to_excellent` verification backlog with a post-fix projection capped at
+  89 while the backlog is non-empty; `grilling` switches from one-question-at-a-
+  time to frontier **rounds**; `grill-me` and `grill-with-docs` now name the
+  Skill tool instead of a slash command; `domain-modeling` rewrites its
+  description and drops em-dashes. `skills-lock.json` (the upstream tool's) and
+  `skills-manifest.json` (this repo's whole-tree hashes, re-recorded with
+  `./verify-skills.sh --update`) both move. Why this approach: the skills are
+  developed in their own repositories and imported here, so `npx skills update`
+  plus a manifest re-record is the supported path, and the vendored copy is never
+  hand-edited — an edit here would be silently overwritten by the next update and
+  would strand the fix out of the source repo where every other consumer reads
+  it. `./render-commands.sh` regenerated the Codex and Cursor ports and produced
+  no diff, confirming the ports are thin enough that a skill bump does not
+  ripple. Considered and rejected: pinning `ux-audit` and taking only the
+  `mattpocock` trees, which would have left the one skill Joe actively develops
+  as the stalest thing in the repo; and installing the refreshed tree directly
+  from the working branch, which was tried and reverted — `install-commands.sh`
+  symlinks skills into whichever checkout it runs from, so installing from a
+  throwaway worktree pointed `~/.claude`, `~/.codex` and `~/.cursor` at a
+  directory that was about to be deleted. The skill only becomes durably
+  installed once this lands on `main` and the installer is re-run from the
+  primary checkout. Flagged, not resolved: upstream `grilling` now asks a whole
+  round of questions at once, which contradicts the "one question at a time"
+  instruction in the rendered `template.md` — the conflict is real and is Joe's
+  call, not a reason to fork the vendored copy.
 - **Close out the roadmap: `design-craft` stops at M2 (2026-09-14, Claude Opus
   5).** The ask: Joe said he did not want `design-diagram` — *"I don't need that
   skill. I don't get it."* — and asked to wrap the remaining work up. What

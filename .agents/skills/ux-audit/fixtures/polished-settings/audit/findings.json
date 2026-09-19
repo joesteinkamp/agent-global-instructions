@@ -1,15 +1,42 @@
 {
   "meta": {
-    "audit_id": "polished-settings-2026-06-11", "date": "2026-06-11", "mode": "single",
-    "screens": ["screen-0.png"], "goal": "Update profile name and email",
-    "persona": "returning user", "platform": "desktop", "stage": "hifi",
-    "frameworks_applied": ["nielsen", "norman", "gestalt", "wcag", "cognitive-laws",
-      "gerhardt-powals", "content-design", "cialdini", "recurring-failures"],
-    "tiers_run": [1], "issue_overflow": 0, "model": "claude-fable-5"
+    "audit_id": "polished-settings-2026-06-11",
+    "date": "2026-06-11",
+    "mode": "single",
+    "screens": [
+      "screen-0.png"
+    ],
+    "goal": "Update profile name and email",
+    "persona": "returning user",
+    "platform": "desktop",
+    "stage": "hifi",
+    "frameworks_applied": [
+      "nielsen",
+      "norman",
+      "gestalt",
+      "wcag",
+      "cognitive-laws",
+      "gerhardt-powals",
+      "content-design",
+      "cialdini",
+      "recurring-failures"
+    ],
+    "tiers_run": [
+      1
+    ],
+    "issue_overflow": 0,
+    "model": "claude-fable-5",
+    "data_fidelity": "representative",
+    "candidate_stats": null
   },
   "scores": {
-    "overall": 89, "usability": 90, "cognitive_load": 92, "visual_layout": 90,
-    "accessibility": 88, "content": 88, "trust_persuasion": 85
+    "overall": 89,
+    "usability": 90,
+    "cognitive_load": 92,
+    "visual_layout": 90,
+    "accessibility": 88,
+    "content": 88,
+    "trust_persuasion": 85
   },
   "score_rationales": {
     "usability": "Band 90+: one clearly primary action, conventional layout, visible active nav state, nothing destructive unguarded.",
@@ -19,14 +46,113 @@
     "content": "88: every visible string passes; a single screen can't confirm voice consistency across the rest of the product, which is what 90+ asserts.",
     "trust_persuasion": "85: zero dark patterns; this screen simply has no high-stakes ask, so there is little for the category to positively demonstrate."
   },
+  "score_evidence": {
+    "usability": {
+      "band": "90+",
+      "drivers": [],
+      "passes": [
+        "Band 90+: one clearly primary action, conventional layout, visible active nav state, nothing destructive unguarded."
+      ],
+      "limitations": []
+    },
+    "cognitive_load": {
+      "band": "90+",
+      "drivers": [],
+      "passes": [
+        "Band 90+: two fields, one decision, no mental work the UI could do."
+      ],
+      "limitations": []
+    },
+    "visual_layout": {
+      "band": "90+",
+      "drivers": [],
+      "passes": [
+        "Band 90+: grouping matches semantics; single hierarchy passes the squint test."
+      ],
+      "limitations": []
+    },
+    "accessibility": {
+      "band": "80-89",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "88, not higher, only because a static image can't verify focus indicators or keyboard order — everything measurable passed (CTA 6.7:1, helper text 5.31:1, all inputs labeled)."
+      ]
+    },
+    "content": {
+      "band": "80-89",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "88: every visible string passes; a single screen can't confirm voice consistency across the rest of the product, which is what 90+ asserts."
+      ]
+    },
+    "trust_persuasion": {
+      "band": "80-89",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "85: zero dark patterns; this screen simply has no high-stakes ask, so there is little for the category to positively demonstrate."
+      ]
+    }
+  },
   "one_big_thing": "Nothing to fix: this screen passes every static check that was run. The scores below 90+ reflect what a single static screenshot cannot prove (save feedback, focus states, cross-screen consistency), not hidden problems.",
+  "path_to_excellent": {
+    "post_fix_projection": {
+      "range": [
+        89,
+        89
+      ],
+      "assumptions": [
+        "no observed findings to fix — projection equals the current score"
+      ]
+    },
+    "verification_backlog": [
+      "keyboard access & focus order",
+      "ARIA / semantic markup",
+      "loading, empty, and error states",
+      "real interaction timing",
+      "persistence and undo of settings changes"
+    ]
+  },
   "findings": [],
   "hypotheses": [],
   "measurements": {
-    "screens": [{"file": "screen-0.png", "width": 1440, "height": 900, "regions": [
-      {"box_2d": [466, 222, 520, 333], "kind": "text", "fg": "#ffffff", "bg": "#1d4ed8", "contrast": 6.7, "height_px": 49},
-      {"box_2d": [395, 220, 418, 390], "kind": "text", "fg": "#636c79", "bg": "#ffffff", "contrast": 5.31, "height_px": 14}
-    ]}]
+    "screens": [
+      {
+        "file": "screen-0.png",
+        "width": 1440,
+        "height": 900,
+        "regions": [
+          {
+            "box_2d": [
+              466,
+              222,
+              520,
+              333
+            ],
+            "kind": "text",
+            "fg": "#ffffff",
+            "bg": "#1d4ed8",
+            "contrast": 6.7,
+            "height_px": 49
+          },
+          {
+            "box_2d": [
+              395,
+              220,
+              418,
+              390
+            ],
+            "kind": "text",
+            "fg": "#636c79",
+            "bg": "#ffffff",
+            "contrast": 5.31,
+            "height_px": 14
+          }
+        ]
+      }
+    ]
   },
   "clean_checks": [
     "WCAG-3.3.2 — both inputs have persistent visible labels above the field",
