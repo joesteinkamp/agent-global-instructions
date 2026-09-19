@@ -127,17 +127,20 @@ primitives instead of hand-holding a long job through repeated prompts.
 
 - **The orchestrator gets a long-run primitive too.** Multi-wave work — spawn,
   fold into `STATE.md`, spawn again, reconcile — rarely fits in one turn. Put the
-  whole orchestration under the host's goal with the done-condition stated up
-  front, so the waves continue without the user re-prompting between each one. A
-  goal is the better fit than a loop here: waves finish when the work is done,
-  not on a clock, and a goal defers its evaluation while background delegates are
-  still running instead of firing mid-wave.
+  whole orchestration under a goal with the done-condition stated up front, so
+  the waves continue without the user re-prompting between each one. A goal fits
+  better than a loop here: waves finish when the work is done, not on a clock,
+  and in Claude Code a goal defers its evaluation while background delegates are
+  still running instead of firing mid-wave. `/goal` is a user command in every
+  tool that has one, so hand the user the line with the condition already
+  written rather than reporting that you cannot start it.
 - **Bound every delegate; give durable work a goal.** Each launch carries a
   `timeout` (above). A delegate that is genuinely long-lived does not belong in a
   longer timeout — it belongs in its own worktree making WIP commits, carrying a
-  `/goal` so its objective survives compaction and restarts (Claude Code, Codex,
-  and Cursor builds that have it; a headless `claude -p "/goal <condition>"`
-  runs the whole loop in one invocation).
+  goal so its objective survives compaction and restarts. A Claude Code delegate
+  takes one inline: `claude -p "/goal <condition>"` runs the whole loop in a
+  single invocation. For other vendors, check whether their headless mode accepts
+  a goal before depending on it.
 - **Background anything that blocks.** A wave of delegates, a test suite, a
   build, a deploy watch: start it in the background and wait on it once rather
   than polling on a sleep. Poll only external state the host cannot notify you
