@@ -1017,30 +1017,36 @@ PYEOF
     && ok "customize --autonomy resolves the posture (default aggressive, env wins)" \
     || bad "customize --autonomy (got default=$au_def balanced=$au_bal)"
 
-  # autonomy-reminder wires on aggressive installs only (claude + cursor), and a
-  # posture flipped to balanced prunes an already-wired reminder on re-install.
+  # autonomy-reminder wires on aggressive installs only (claude + codex +
+  # cursor — every tool with SessionStart context injection), and a posture
+  # flipped to balanced prunes an already-wired reminder on re-install.
   AR="$(mktemp -d)"
-  HOME="$AR" AUTONOMY=aggressive bash "$DIR/install-hooks.sh" claude cursor >/dev/null 2>&1
+  HOME="$AR" AUTONOMY=aggressive bash "$DIR/install-hooks.sh" claude codex cursor >/dev/null 2>&1
   ar_cl="$(jq -r '[.hooks.SessionStart[].hooks[].command] | any(test("autonomy-reminder"))' "$AR/.claude/settings.json" 2>/dev/null)"
+  ar_cx="$(jq -r '[.hooks.SessionStart[].hooks[].command] | any(test("autonomy-reminder"))' "$AR/.codex/hooks.json" 2>/dev/null)"
   ar_cu="$(jq -r '[.hooks.sessionStart[].command] | any(test("autonomy-reminder"))' "$AR/.cursor/hooks.json" 2>/dev/null)"
-  HOME="$AR" AUTONOMY=balanced bash "$DIR/install-hooks.sh" claude cursor >/dev/null 2>&1
+  HOME="$AR" AUTONOMY=balanced bash "$DIR/install-hooks.sh" claude codex cursor >/dev/null 2>&1
   ar_cl2="$(jq -r '[.hooks.SessionStart[].hooks[].command] | any(test("autonomy-reminder"))' "$AR/.claude/settings.json" 2>/dev/null)"
+  ar_cx2="$(jq -r '[.hooks.SessionStart[]?.hooks[]?.command] | any(test("autonomy-reminder"))' "$AR/.codex/hooks.json" 2>/dev/null)"
   ar_cu2="$(jq -r '[.hooks.sessionStart[]?.command] | any(test("autonomy-reminder"))' "$AR/.cursor/hooks.json" 2>/dev/null)"
-  { [ "$ar_cl" = true ] && [ "$ar_cu" = true ] && [ "$ar_cl2" = false ] && [ "$ar_cu2" = false ]; } \
-    && ok "autonomy-reminder wires on aggressive, prunes on balanced (claude+cursor)" \
-    || bad "autonomy-reminder wiring (agg cl=$ar_cl cu=$ar_cu / bal cl=$ar_cl2 cu=$ar_cu2)"
+  { [ "$ar_cl" = true ] && [ "$ar_cx" = true ] && [ "$ar_cu" = true ] \
+      && [ "$ar_cl2" = false ] && [ "$ar_cx2" = false ] && [ "$ar_cu2" = false ]; } \
+    && ok "autonomy-reminder wires on aggressive, prunes on balanced (claude+codex+cursor)" \
+    || bad "autonomy-reminder wiring (agg cl=$ar_cl cx=$ar_cx cu=$ar_cu / bal cl=$ar_cl2 cx=$ar_cx2 cu=$ar_cu2)"
   rm -rf "$AR"
 
   # The hook emits the right SessionStart shape per platform, silent elsewhere.
   arh_c="$(printf '{"source":"startup"}' | HOOK_PLATFORM=claude bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
   arh_u="$(printf '{}' | HOOK_PLATFORM=cursor bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
   arh_x="$(printf '{}' | HOOK_PLATFORM=codex bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
+  arh_g="$(printf '{}' | HOOK_PLATFORM=antigravity bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
   if printf '%s' "$arh_c" | jq -e '.hookSpecificOutput.additionalContext | test("/loop") and test("/goal") and test("done-condition")' >/dev/null 2>&1 \
+     && printf '%s' "$arh_x" | jq -e '.hookSpecificOutput.hookEventName == "SessionStart" and (.hookSpecificOutput.additionalContext | test("/goal"))' >/dev/null 2>&1 \
      && printf '%s' "$arh_u" | jq -e '.additional_context | test("/loop") and test("/goal")' >/dev/null 2>&1 \
-     && [ -z "$arh_x" ]; then
-    ok "autonomy-reminder emits per-platform context and stays silent for codex"
+     && [ -z "$arh_g" ]; then
+    ok "autonomy-reminder emits per-platform context and stays silent for antigravity"
   else
-    bad "autonomy-reminder emits per-platform context and stays silent for codex"
+    bad "autonomy-reminder emits per-platform context and stays silent for antigravity"
   fi
 
   # Explicit flags gate the design pack and prune it when turned off. The design
