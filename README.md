@@ -50,8 +50,8 @@ left in place).
   catastrophic shell, auto-format edits, and log every tool call.
 - **Long autonomy** (aggressive posture) — the instructions teach every tool to
   keep long work alive with the right primitive for its stopping rule: `/goal
-  <condition>` when the work has a verifiable end state (Claude Code, Codex,
-  and Cursor builds that have it), `/loop` when it is only a recurring check
+  <condition>` when the work has a verifiable end state (Claude Code and Codex;
+  Cursor is still rolling it out), `/loop` when it is only a recurring check
   (Claude Code, Cursor) — both behind an explicit done-condition. The install
   seeds `~/.claude/loop.md` (bare `/loop`'s default maintenance prompt) and a
   session-start reminder hook. Confirmation gates apply unchanged inside every
