@@ -80,6 +80,8 @@ assert_has "default render bans inventing a specific" 'Never invent a specific t
 # behaviour a naive concision rule would silently regress.
 assert_has "default render exempts findings from brevity" 'Findings are never trimmed for brevity'
 assert_has "default render keeps hedges that carry real uncertainty" 'Keep the hedges that carry real uncertainty'
+assert_has "default render carries the three-lens plan question" 'Ask the three-lens question of every plan'
+assert_has "three-lens question treats AX as a defect axis, not a courtesy" 'AX is not a courtesy here'
 INC_PROSE=n render
 assert_no "INC_PROSE=n removes the prose heading" 'How you write'
 assert_no "INC_PROSE=n removes the findings-brevity rule" 'Findings are never trimmed for brevity'

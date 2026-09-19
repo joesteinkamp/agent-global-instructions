@@ -87,3 +87,10 @@ anchor: A diagram has to earn its place
 surface: artifacts
 origin: Roadmap Plan 1 phase 7 — the Output artifacts rule covered HTML and Markdown and stopped, so diagrams fell through to whatever the model reached for, including raster images whose labels cannot be read or selected.
 case: A finding whose mechanism wants a picture. Is it inline SVG or mermaid with selectable labels and both themes working, or a generated image?
+
+## BEH-11 — A plan is reviewed across UX, DX and AX
+
+anchor: Ask the three-lens question of every plan
+surface: prose
+origin: 2026-09-19, the owner's own practice — "Across user experience (UX), developer experience (DX), and agent experience (AX), what would improve our plan?" A plan written from one seat optimises that seat and taxes the other two, and in this toolchain the agent's seat is the one most often skipped despite agents being the primary consumer.
+case: A plan that is pleasant for its author and expensive for whoever implements it. Are all three lenses answered, or is the trade made silently?
