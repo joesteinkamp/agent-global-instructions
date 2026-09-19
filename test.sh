@@ -122,7 +122,10 @@ assert_no "INC_ORCHESTRATION=n drops the nested local-models block too" 'Local m
 # 2b. Autonomy posture gates the long-running-work (loops/goals) section.
 render
 assert_has "default (aggressive) render includes Long-running work" '## Long-running work'
-assert_has "aggressive render names the per-tool loop primitives"   '/goal <objective>'
+assert_has "aggressive render names the goal primitive"             '/goal <condition>'
+assert_has "aggressive render names the loop primitive"             '/loop [interval] <prompt>'
+assert_has "aggressive render draws the goal-vs-loop line"          'stopping rule'
+assert_has "aggressive render keeps gates inside goal turns"        'every goal turn'
 AUTONOMY=balanced render
 assert_no "AUTONOMY=balanced omits the Long-running work section" 'Long-running work'
 assert_no "AUTONOMY=balanced leaves no marker leak" 'SECTION:'
@@ -1032,8 +1035,8 @@ PYEOF
   arh_c="$(printf '{"source":"startup"}' | HOOK_PLATFORM=claude bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
   arh_u="$(printf '{}' | HOOK_PLATFORM=cursor bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
   arh_x="$(printf '{}' | HOOK_PLATFORM=codex bash "$DIR/hooks/autonomy-reminder.sh" 2>/dev/null)"
-  if printf '%s' "$arh_c" | jq -e '.hookSpecificOutput.additionalContext | test("/loop") and test("done-condition")' >/dev/null 2>&1 \
-     && printf '%s' "$arh_u" | jq -e '.additional_context | test("/loop")' >/dev/null 2>&1 \
+  if printf '%s' "$arh_c" | jq -e '.hookSpecificOutput.additionalContext | test("/loop") and test("/goal") and test("done-condition")' >/dev/null 2>&1 \
+     && printf '%s' "$arh_u" | jq -e '.additional_context | test("/loop") and test("/goal")' >/dev/null 2>&1 \
      && [ -z "$arh_x" ]; then
     ok "autonomy-reminder emits per-platform context and stays silent for codex"
   else

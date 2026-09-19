@@ -653,8 +653,9 @@ write_global() {
   done
   # Seed the default /loop maintenance prompt for Claude Code — bare `/loop`
   # runs it instead of the tool's built-in one. Seed-only: never overwrite,
-  # the installed copy is the user's to tune. (Codex/Cursor need no file:
-  # /goal takes its objective inline, and Cursor's /loop reads a prompt.)
+  # the installed copy is the user's to tune. (Codex/Cursor need no file: a
+  # /goal takes its condition inline in every tool that has one, and Cursor's
+  # /loop reads its prompt from the command line.)
   if [ -f "$DIR/loop.md" ] && [ ! -f "$HOME/.claude/loop.md" ]; then
     cp "$DIR/loop.md" "$HOME/.claude/loop.md" && echo "  seeded ~/.claude/loop.md (default /loop prompt)"
   fi

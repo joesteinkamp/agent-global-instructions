@@ -79,7 +79,31 @@ The profile above is the minimum. At session start, **scan for a memory store an
 
 ## Long-running work
 
-- **When work outlives the turn, reach for the host tool's long-run primitive** instead of ending with a list of next steps: in Claude Code and Cursor (`agent`) that's `/loop` (`/loop <prompt>` self-paces, `/loop 10m <prompt>` fixes the interval, bare `/loop` runs the default maintenance prompt at `~/.claude/loop.md`); in Codex it's `/goal <objective>` — a durable goal pursued turn after turn (`/goal` shows status; `pause`/`resume`/`clear` manage it; if goals are unavailable, suggest `codex features enable goals`).
+- **When work outlives the turn, reach for the host tool's long-run primitive**
+  instead of ending with a list of next steps. There are two, and the choice
+  between them is the *stopping rule*, not how long the work runs:
+  - **A terminal end state → `/goal <condition>`.** The session keeps taking
+    turns until the condition is judged met — no interval, no cadence to guess.
+    Claude Code, Codex and Cursor each carry one. `/goal` alone shows status and
+    `/goal clear` ends it early; it is restored when I resume the session, and it
+    works headless (`claude -p "/goal …"`). If it is missing: Codex needs
+    `codex features enable goals`; in Cursor it is still rolling out, so fall
+    back to `/loop` rather than insisting.
+  - **A recurring check → `/loop [interval] <prompt>`** (Claude Code, Cursor).
+    Re-runs on a cadence; omit the interval to self-pace, and bare `/loop` runs
+    the default maintenance prompt at `~/.claude/loop.md`. The tell is the word
+    *every* — every 5 minutes, every time CI finishes. That is a loop, never a
+    goal.
+  - **Prefer the goal when the work has a verifiable end state.** A loop asks
+    "has it been N minutes?"; a goal asks "is it done yet?" and a separate
+    evaluator answers, so it stops itself instead of running until I notice.
+    Reach for the loop when there is nothing to finish — only something to watch.
+- **Write the goal condition so the transcript can prove it.** The evaluator
+  reads the conversation; it runs no commands and opens no files of its own. So
+  `npm test exits 0 and git status is clean` works and "the code is good" burns
+  turns forever. Name the check, the measurable end state, and anything that must
+  not change on the way there — and add `or stop after N turns` when the work
+  could run away.
 - **Use the whole autonomy surface, not just the loop.** Before settling for a
   slow, hand-held turn, reach for what the host actually offers: background
   execution for anything that blocks, a scheduled routine for anything
@@ -92,7 +116,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
   what each offers beyond that.
 - **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop/goal yourself and say what cadence you picked and why. If the long tail is optional, offer it in one line at handoff.
 - **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges"), check it each iteration, and end the loop yourself when it's met — then report what happened.
-- **Loops don't loosen gates.** Every confirmation gate above applies inside every iteration — external sends, spending, and destructive actions still stop and ask. When an iteration hits a gate, pause on it; don't bypass it.
+- **Loops and goals don't loosen gates.** Every confirmation gate above applies inside every iteration and every goal turn — external sends, spending, and destructive actions still stop and ask. A goal does not change the permission mode, and "the goal isn't met yet" is never a reason to push past a gate: pause on it and surface it.
 - **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the loop stopped.
 - **Nudge me when a lever I'm not using would have helped — once per handoff, in
   one line.** If the work wanted a loop, a durable goal, a scheduled routine, a
