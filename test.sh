@@ -82,6 +82,11 @@ assert_has "default render exempts findings from brevity" 'Findings are never tr
 assert_has "default render keeps hedges that carry real uncertainty" 'Keep the hedges that carry real uncertainty'
 assert_has "default render carries the three-lens plan question" 'Ask the three-lens question of every plan'
 assert_has "three-lens question treats AX as a defect axis, not a courtesy" 'AX is not a courtesy here'
+# The vendored `grilling` skill asks in frontier rounds; the render must not tell
+# the agent the opposite. Both halves are asserted: the rule itself, and the
+# absence of the superseded one-at-a-time wording anywhere in the plan section.
+assert_has "default render asks questions in rounds" 'Ask in rounds, never one question at a time'
+assert_no "default render drops the superseded one-at-a-time rule" "stated — one question at a time"
 INC_PROSE=n render
 assert_no "INC_PROSE=n removes the prose heading" 'How you write'
 assert_no "INC_PROSE=n removes the findings-brevity rule" 'Findings are never trimmed for brevity'

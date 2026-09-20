@@ -4,3 +4,4 @@ __pycache__/
 tmp/
 audits/
 .DS_Store
+.claude/

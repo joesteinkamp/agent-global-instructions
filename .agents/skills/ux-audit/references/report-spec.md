@@ -10,13 +10,28 @@ links here and never restates it.
     "audit_id": "checkout-2026-06-12", "date": "2026-06-12", "mode": "single|flow",
     "screens": ["screen-0.png"], "goal": "...", "persona": "...",
     "platform": "mobile|desktop|responsive", "stage": "live|hifi|wireframe",
+    "data_fidelity": "real|representative|placeholder|unknown",
+    "calibration_exclusions": ["company names and metric values"],
     "frameworks_applied": ["nielsen", "..."], "tiers_run": [1, 2],
-    "issue_overflow": 0, "model": "claude-fable-5"
+    "issue_overflow": 0, "model": "claude-fable-5",
+    "candidate_stats": { "generated": 16, "gate_dropped": 5, "merged_away": 4,
+                         "capped": 0, "reported": 7 }
   },
   "scores": { "overall": 64, "usability": 58, "cognitive_load": 70, "visual_layout": 72,
               "accessibility": 55, "content": 68, "trust_persuasion": 75 },
   "score_rationales": { "usability": "one sentence naming the band and why", "...": "..." },
+  "score_evidence": {
+    "usability": { "band": "50-65", "drivers": ["F-01", "F-03"],
+                   "passes": ["no dead ends across the flow"],
+                   "limitations": ["error recovery not observable statically"] },
+    "...": "one entry per category — see scoring.md 'Score evidence' rules"
+  },
   "one_big_thing": "single falsifiable root-cause diagnosis",
+  "path_to_excellent": {
+    "post_fix_projection": { "range": [78, 86],
+                             "assumptions": ["all observed findings resolved"] },
+    "verification_backlog": ["keyboard & focus order", "loading/empty/error states"]
+  },
   "findings": [ /* type:"observed" only — Finding objects below */ ],
   "hypotheses": [ /* reserved — Tier 3 is informational-only and never evaluated; stays empty */ ],
   "flow": { "transitions": [{"from": 0, "to": 1, "verdict": "ok|issue", "note": "..."}],
@@ -26,7 +41,10 @@ links here and never restates it.
   "delta": { "fixed": ["F-03"], "regressed": [], "new": ["F-11"], "unchanged": ["F-01"] }
 }
 ```
-`flow` only in flow mode · `delta` only in re-audit mode · `measurements` may be `{}`.
+`flow` only in flow mode · `delta` only in re-audit mode · `measurements` may be `{}` ·
+`calibration_exclusions` optional (record it whenever data_fidelity ≠ real) ·
+`candidate_stats` may be `null` only in pre-v2 audits where the funnel wasn't recorded;
+`capped` must equal `issue_overflow` and `reported` must equal the findings count.
 
 ## Finding object
 ```json
@@ -73,12 +91,24 @@ NO restating the principle in why_it_matters. NO coordinates in user-facing text
    principles (FOGG-*) never appear in `findings`.
 7. ≤5 findings per category; overflow count recorded in meta.issue_overflow.
 8. importance = severityWeight × reachBand (recompute, don't trust).
+9. Score traceability: overall = weighted average of sub-scores (±1); every
+   score_evidence band matches its number; every driver ID exists in findings[];
+   score <90 ⇒ ≥1 driver or limitation; score ≥90 ⇒ ≥1 pass.
+10. Band↔severity consistency (from the scoring.md bands): overall ≤49 ⇒ ≥1 critical
+    finding; any critical ⇒ overall ≤65; overall ≥90 ⇒ zero critical/high;
+    ≥2 findings citing DARK-* ⇒ trust_persuasion ≤35.
+11. path_to_excellent: backlog non-empty (static audits always have one); projection
+    range within 0–100, low ≥ overall, high ≤89 while the backlog is non-empty.
+12. meta: data_fidelity is a valid enum; candidate_stats arithmetic holds
+    (generated = gate_dropped + merged_away + capped + reported).
 
 ## summary.md template (≤60 lines, for Linear/GitHub)
 ```markdown
 # UX audit — <title> — <date>
 **Overall: <n>/100** (<band>) · mode: <single|flow> · <k> findings, <h> hypotheses
 **One big thing:** <obt>
+**If all findings are fixed:** projected <lo>–<hi> — not 100; <b> items remain
+unverifiable from screenshots (see verification backlog in the report).
 | Category | Score | Top issue |
 |---|---|---|
 (6 rows)

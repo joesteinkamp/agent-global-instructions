@@ -163,23 +163,44 @@ function render(){
     <div class="scalenote">80–89 is a strong, ship-ready result. 90+ is exceptional and rare —
       100 is not the target. Below 50, the primary task itself is at risk.</div></div>
     <div class="bars">` +
-    CATS.map(c=>`<div class="bar" title="${esc(rat[c]||"")}">
+    CATS.map(c=>{const ev=(D.score_evidence||{})[c]||{};
+      const drv=(ev.drivers||[]).map(id=>`<a href="#" style="color:var(--accent);text-decoration:none;font-size:.74rem;font-weight:700"
+        onclick="jump('${esc(id)}');return false">#${num(id)}</a>`).join(" ");
+      return `<div class="bar" title="${esc(rat[c]||"")}">
       <span class="lbl"><b>${CATLBL[c]}</b></span>
       <span class="track"><span class="fill" style="width:${sc[c]||0}%;background:${sCol(sc[c]||0)}"></span></span>
-      <span style="color:${sCol(sc[c]||0)};font-weight:600">${sc[c]??"—"}</span></div>`).join("") +
-    `<div class="hint">Hover a row for the scoring rationale.</div></div></div>`;
+      <span style="color:${sCol(sc[c]||0)};font-weight:600">${sc[c]??"—"}</span>
+      <span style="white-space:nowrap">${drv}</span></div>`;}).join("") +
+    `<div class="hint">Hover a row for the scoring rationale; #n links are the findings that drove that score down.</div></div></div>`;
 
   h += `<details class="expl"><summary>What each category checks &amp; why it scored this way</summary>
     <table><tr><th style="cursor:default">Category</th><th style="cursor:default">Checks</th><th style="cursor:default">Why this score</th></tr>` +
-    CATS.map(c=>`<tr><td style="white-space:nowrap"><b>${CATLBL[c]}</b><br>
-      <span style="color:${sCol(sc[c]||0)};font-weight:700">${sc[c]??"—"}</span></td>
-      <td style="color:var(--muted)">${CATWHAT[c]}</td><td>${esc(rat[c]||"—")}</td></tr>`).join("") +
+    CATS.map(c=>{const ev=(D.score_evidence||{})[c]||{};
+      const li=(t,arr)=>(arr&&arr.length)?`<div style="color:var(--muted);font-size:.8rem;margin-top:3px"><b>${t}:</b> ${arr.map(esc).join(" · ")}</div>`:"";
+      return `<tr><td style="white-space:nowrap"><b>${CATLBL[c]}</b><br>
+      <span style="color:${sCol(sc[c]||0)};font-weight:700">${sc[c]??"—"}</span>
+      ${ev.band?`<br><span style="color:var(--muted);font-size:.74rem">band ${esc(ev.band)}</span>`:""}</td>
+      <td style="color:var(--muted)">${CATWHAT[c]}</td><td>${esc(rat[c]||"—")}
+      ${li("Drove it down",(ev.drivers||[]).map(id=>"#"+num(id)))}
+      ${li("Passed",ev.passes)}${li("Couldn't verify",ev.limitations)}</td></tr>`;}).join("") +
     `</table></details>`;
 
   h += `<div class="obt" style="background:var(--panel);border-left:3px solid var(--accent);
     border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0">
     <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);display:block;margin-bottom:4px">One big thing</span>
     ${esc(D.one_big_thing)}</div>`;
+
+  const pte = D.path_to_excellent;
+  if(pte){ const pj=pte.post_fix_projection||{}, [lo,hi]=pj.range||[], n=(D.findings||[]).length;
+    h += `<div style="background:var(--panel);border-radius:8px;padding:16px 18px;margin:18px 0">
+    <span style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);display:block;margin-bottom:6px">Path to excellent — why fixing the list doesn't equal 100</span>
+    <div>${n?`If every finding below is fixed: projected <b style="color:${sCol(lo||0)}">${lo}–${hi}</b> (${band(lo||0)})`
+      :`Nothing observed left to fix — the score already reflects a clean static pass`}
+      ${(pj.assumptions||[]).length?`<span style="color:var(--muted);font-size:.82rem"> · assumes: ${pj.assumptions.map(esc).join("; ")}</span>`:""}</div>
+    ${(pte.verification_backlog||[]).length?`<div style="margin-top:8px;color:var(--muted);font-size:.86rem">
+      <b>Still unverified after those fixes</b> (outside what a screenshot can prove — this is the remaining distance to 90+):</div>
+      <ul style="margin:6px 0 0;color:var(--muted);font-size:.86rem">${pte.verification_backlog.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
+    </div>`; }
 
   (IMGS||[]).forEach((src,i)=>{
     const sf = all.filter(f=>f.box_2d && (f.screen_index??0)===i);
@@ -221,6 +242,10 @@ function render(){
     <td>${(D.delta.new||[]).join(", ")||"—"}</td><td>${(D.delta.unchanged||[]).join(", ")||"—"}</td></tr></table>`; }
 
   h += `<h2>All findings</h2>`;
+  const cst = m.candidate_stats;
+  if(cst) h += `<div class="hint">Why this list is short: ${cst.generated} candidate issues raised →
+    ${cst.gate_dropped} dropped by the four filter gates (not goal-blocking / conventional / clutter / defensible design) →
+    ${cst.merged_away} merged as duplicates → ${cst.capped} over the 5-per-category cap → <b>${cst.reported} reported</b>.</div>`;
   if((D.findings||[]).length){
     h += `<table id="ftab"><thead><tr>
       <th onclick="sortBy('importance')">Importance ↓</th><th onclick="sortBy('severity')">Severity</th>
@@ -229,7 +254,7 @@ function render(){
       <div class="hint">Click a column header to sort; click a row to jump to its marker.</div>`;
   } else {
     h += `<div class="empty">✓ No issues found. Every check run on this screen passed —
-      see <strong>Coverage</strong> below for everything that was examined. A clean result
+      see <strong>Coverage</strong> below for every recorded outcome. A clean result
       is a real result; this report never pads findings to look thorough.</div>`;
   }
 
@@ -261,14 +286,14 @@ function render(){
   if(ids.length){
     const counts={finding:0,hypo:0,pass:0,ok:0,notrun:0,tier3:0};
     ids.forEach(id=>counts[status(id)]++);
-    const examined = counts.finding+counts.pass+counts.ok;
+    const evidenced = counts.finding+counts.pass;
     const segs=[`${counts.finding} raised findings`,
       `${counts.pass} passed with documented evidence`,
-      `${counts.ok} examined with nothing to report`];
+      `${counts.ok} scanned with nothing individually noted`];
     if(counts.notrun) segs.push(`${counts.notrun} not run (need a flow audit)`);
     if(counts.tier3) segs.push(`${counts.tier3} hypothesis-only (Tier 3)`);
     if(counts.hypo) segs.push(`${counts.hypo} hypotheses raised`);
-    h += `<h2>Coverage — ${examined} of ${ids.length} principles examined</h2>
+    h += `<h2>Coverage — ${evidenced} of ${ids.length} principles with a recorded outcome</h2>
     <div class="hint">${segs.join(" · ")}</div>`;
     const findsById={};
     (D.findings||[]).concat(D.hypotheses||[]).forEach(f=>(f.principles||[]).forEach(p=>
@@ -276,7 +301,7 @@ function render(){
     const groups={};
     ids.forEach(id=>{(groups[REG[id].framework]=groups[REG[id].framework]||[]).push(id);});
     const STAT={finding:["⚠ finding","finding"],hypo:["? hypothesis","hypo"],
-      pass:["✓ pass — documented","pass"],ok:["✓ examined","okst"],
+      pass:["✓ pass — documented","pass"],ok:["○ scanned","okst"],
       notrun:["– not run","nr"],tier3:["– hypothesis-only","nr"]};
     h += `<details class="expl" open><summary>All ${ids.length} principles, by framework</summary>` +
       Object.entries(groups).map(([fw,gids])=>`<div class="fwname">${esc(fw)}</div><table class="covtab">`+
@@ -285,13 +310,14 @@ function render(){
             : st==="pass" ? (noteById[id]||[]).map(esc).join("<br>")
             : st==="notrun" ? "needs a screen sequence — run a flow audit"
             : st==="tier3" ? "needs behavioral data — never scored"
-            : "scanned against its symptom checklist; nothing to report";
+            : "scanned against its symptom checklist; no individual pass evidence recorded";
           return `<tr><td class="st ${STAT[st][1]}">${STAT[st][0]}</td>
             <td style="font-family:var(--mono);font-size:.74rem;white-space:nowrap">${esc(id)}</td>
             <td>${esc(REG[id].name)}</td><td class="covnote">${note}</td></tr>`;}).join("")
         +`</table>`).join("") +
-      `<div class="hint">"Examined" means the screen(s) were scanned against that principle's
-       symptom checklist within static-screenshot limits; notable passes carry written evidence.</div></details>`;
+      `<div class="hint">"Scanned" means the screen(s) were checked against that principle's
+       symptom checklist within static-screenshot limits — it is a procedural claim, not
+       per-principle evidence. Only findings and documented passes count as recorded outcomes.</div></details>`;
   }
 
   h += `<div class="foot"><strong>Methodology.</strong> Frameworks: ${(m.frameworks_applied||[]).map(esc).join(", ")}.

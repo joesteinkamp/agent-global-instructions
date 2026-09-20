@@ -3,15 +3,31 @@
     "audit_id": "mobile-small-targets-2026-06-11",
     "date": "2026-06-11",
     "mode": "single",
-    "screens": ["screen-0.png"],
+    "screens": [
+      "screen-0.png"
+    ],
     "goal": "Control playback of the current track (play/pause, skip, scrub) and reach lyrics, queue, share, and sleep timer",
     "persona": "first-time visitor",
     "platform": "mobile",
     "stage": "hifi",
-    "frameworks_applied": ["wcag", "cognitive-laws", "gestalt", "gerhardt-powals", "content-design", "cialdini", "recurring-failures", "nielsen", "norman"],
-    "tiers_run": [1],
+    "frameworks_applied": [
+      "wcag",
+      "cognitive-laws",
+      "gestalt",
+      "gerhardt-powals",
+      "content-design",
+      "cialdini",
+      "recurring-failures",
+      "nielsen",
+      "norman"
+    ],
+    "tiers_run": [
+      1
+    ],
     "issue_overflow": 0,
-    "model": "claude-fable-5"
+    "model": "claude-fable-5",
+    "data_fidelity": "representative",
+    "candidate_stats": null
   },
   "scores": {
     "overall": 75,
@@ -30,7 +46,76 @@
     "content": "Labels name outcomes in user language with one consistent voice — strong band, 85.",
     "trust_persuasion": "No dark patterns and no high-stakes asks on screen — top band, 90."
   },
+  "score_evidence": {
+    "usability": {
+      "band": "66-79",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "Conventional player layout with outcome-named actions and no dead ends, but the primary transport controls invite mis-taps — functional band, 75."
+      ]
+    },
+    "cognitive_load": {
+      "band": "80-89",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "One decision per moment with a single focal task and chunked metadata — top band, 88."
+      ]
+    },
+    "visual_layout": {
+      "band": "80-89",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "Grouping matches semantics and the squint test passes with one clear hierarchy — strong band, 86."
+      ]
+    },
+    "accessibility": {
+      "band": "0-49",
+      "drivers": [
+        "F-01",
+        "F-02"
+      ],
+      "passes": [],
+      "limitations": []
+    },
+    "content": {
+      "band": "80-89",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "Labels name outcomes in user language with one consistent voice — strong band, 85."
+      ]
+    },
+    "trust_persuasion": {
+      "band": "90+",
+      "drivers": [],
+      "passes": [
+        "No dark patterns and no high-stakes asks on screen — top band, 90."
+      ],
+      "limitations": []
+    }
+  },
   "one_big_thing": "Hit areas were sized for a desktop cursor, not a thumb: every interactive element measures under half the 44px touch minimum while all static text passes its checks.",
+  "path_to_excellent": {
+    "post_fix_projection": {
+      "range": [
+        82,
+        88
+      ],
+      "assumptions": [
+        "both observed findings resolved",
+        "44px touch minimum applied consistently"
+      ]
+    },
+    "verification_backlog": [
+      "keyboard access & focus order",
+      "ARIA / semantic markup",
+      "loading, empty, and error states",
+      "real interaction timing"
+    ]
+  },
   "findings": [
     {
       "id": "F-01",
@@ -39,9 +124,17 @@
       "severity": "high",
       "reach": 5,
       "importance": 6.0,
-      "principles": ["WCAG-2.5.8", "FITTS-01"],
+      "principles": [
+        "WCAG-2.5.8",
+        "FITTS-01"
+      ],
       "screen_index": 0,
-      "box_2d": [705, 340, 740, 660],
+      "box_2d": [
+        705,
+        340,
+        740,
+        660
+      ],
       "element": "playback transport controls, five buttons center-screen",
       "issue": "All five playback controls are 19px squares, far below the 44px touch minimum.",
       "why_it_matters": "Tightly packed sub-thumb targets cause mis-taps at the product's most-used moment, so users skip tracks when they meant to pause.",
@@ -55,9 +148,17 @@
       "severity": "medium",
       "reach": 4,
       "importance": 4.0,
-      "principles": ["WCAG-2.5.8", "FITTS-01"],
+      "principles": [
+        "WCAG-2.5.8",
+        "FITTS-01"
+      ],
       "screen_index": 0,
-      "box_2d": [815, 240, 840, 760],
+      "box_2d": [
+        815,
+        240,
+        840,
+        760
+      ],
       "element": "secondary action links row (Lyrics, Queue, Share, Sleep timer)",
       "issue": "The four secondary links are 10px-tall tap targets packed into a single row.",
       "why_it_matters": "Tap accuracy on targets this small is poor, sending users to the wrong feature or nowhere at all.",
@@ -73,13 +174,104 @@
         "width": 390,
         "height": 844,
         "regions": [
-          {"box_2d": [705, 340, 740, 660], "kind": "element", "fg": "#8b93a1", "bg": "#14161c", "contrast": 5.84, "height_px": 19, "width_px": 115},
-          {"box_2d": [705, 475, 740, 535], "kind": "element", "fg": "#8b93a1", "bg": "#14161c", "contrast": 5.84, "height_px": 19, "width_px": 19},
-          {"box_2d": [815, 240, 840, 760], "kind": "text", "fg": "#89919f", "bg": "#14161c", "contrast": 5.7, "height_px": 11, "width_px": 192},
-          {"box_2d": [815, 245, 840, 335], "kind": "element", "fg": "#88909d", "bg": "#14161c", "contrast": 5.62, "height_px": 10, "width_px": 29},
-          {"box_2d": [490, 256, 525, 744], "kind": "text", "fg": "#ffffff", "bg": "#14161c", "contrast": 18.08, "height_px": 22, "width_px": 180},
-          {"box_2d": [535, 370, 565, 630], "kind": "text", "fg": "#89919e", "bg": "#14161c", "contrast": 5.69, "height_px": 11, "width_px": 97},
-          {"box_2d": [635, 100, 660, 200], "kind": "text", "fg": "#868e9c", "bg": "#14161c", "contrast": 5.48, "height_px": 8, "width_px": 22}
+          {
+            "box_2d": [
+              705,
+              340,
+              740,
+              660
+            ],
+            "kind": "element",
+            "fg": "#8b93a1",
+            "bg": "#14161c",
+            "contrast": 5.84,
+            "height_px": 19,
+            "width_px": 115
+          },
+          {
+            "box_2d": [
+              705,
+              475,
+              740,
+              535
+            ],
+            "kind": "element",
+            "fg": "#8b93a1",
+            "bg": "#14161c",
+            "contrast": 5.84,
+            "height_px": 19,
+            "width_px": 19
+          },
+          {
+            "box_2d": [
+              815,
+              240,
+              840,
+              760
+            ],
+            "kind": "text",
+            "fg": "#89919f",
+            "bg": "#14161c",
+            "contrast": 5.7,
+            "height_px": 11,
+            "width_px": 192
+          },
+          {
+            "box_2d": [
+              815,
+              245,
+              840,
+              335
+            ],
+            "kind": "element",
+            "fg": "#88909d",
+            "bg": "#14161c",
+            "contrast": 5.62,
+            "height_px": 10,
+            "width_px": 29
+          },
+          {
+            "box_2d": [
+              490,
+              256,
+              525,
+              744
+            ],
+            "kind": "text",
+            "fg": "#ffffff",
+            "bg": "#14161c",
+            "contrast": 18.08,
+            "height_px": 22,
+            "width_px": 180
+          },
+          {
+            "box_2d": [
+              535,
+              370,
+              565,
+              630
+            ],
+            "kind": "text",
+            "fg": "#89919e",
+            "bg": "#14161c",
+            "contrast": 5.69,
+            "height_px": 11,
+            "width_px": 97
+          },
+          {
+            "box_2d": [
+              635,
+              100,
+              660,
+              200
+            ],
+            "kind": "text",
+            "fg": "#868e9c",
+            "bg": "#14161c",
+            "contrast": 5.48,
+            "height_px": 8,
+            "width_px": 22
+          }
         ]
       }
     ]

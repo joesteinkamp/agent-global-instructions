@@ -3,15 +3,31 @@
     "audit_id": "dark-pricing-2026-06-11",
     "date": "2026-06-11",
     "mode": "single",
-    "screens": ["screen-0.png"],
+    "screens": [
+      "screen-0.png"
+    ],
     "goal": "Understand what the Pro plan actually costs and decide whether to upgrade",
     "persona": "first-time visitor",
     "platform": "desktop",
     "stage": "hifi",
-    "frameworks_applied": ["wcag", "cognitive-laws", "gestalt", "gerhardt-powals", "content-design", "cialdini", "recurring-failures", "nielsen", "norman"],
-    "tiers_run": [1],
+    "frameworks_applied": [
+      "wcag",
+      "cognitive-laws",
+      "gestalt",
+      "gerhardt-powals",
+      "content-design",
+      "cialdini",
+      "recurring-failures",
+      "nielsen",
+      "norman"
+    ],
+    "tiers_run": [
+      1
+    ],
     "issue_overflow": 0,
-    "model": "claude-fable-5"
+    "model": "claude-fable-5",
+    "data_fidelity": "representative",
+    "candidate_stats": null
   },
   "scores": {
     "overall": 57,
@@ -30,7 +46,80 @@
     "content": "The headline price misleads and the true charge is missing at the ask — near the broken anchor, 35.",
     "trust_persuasion": "Four dark patterns (fake urgency, pre-checked cost, confirmshaming, hidden fees) put this at the multiple-dark-pattern floor — 20."
   },
+  "score_evidence": {
+    "usability": {
+      "band": "66-79",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "Conventional single-card layout with no dead ends or destructive traps — functional band, 76."
+      ]
+    },
+    "cognitive_load": {
+      "band": "50-65",
+      "drivers": [
+        "F-08"
+      ],
+      "passes": [],
+      "limitations": []
+    },
+    "visual_layout": {
+      "band": "80-89",
+      "drivers": [],
+      "passes": [],
+      "limitations": [
+        "One clear hierarchy and semantic grouping; the layout craft itself is fine even where it serves deception — strong band, 85."
+      ]
+    },
+    "accessibility": {
+      "band": "0-49",
+      "drivers": [
+        "F-03",
+        "F-06",
+        "F-07"
+      ],
+      "passes": [],
+      "limitations": []
+    },
+    "content": {
+      "band": "0-49",
+      "drivers": [
+        "F-04"
+      ],
+      "passes": [],
+      "limitations": []
+    },
+    "trust_persuasion": {
+      "band": "0-49",
+      "drivers": [
+        "F-01",
+        "F-02",
+        "F-05"
+      ],
+      "passes": [],
+      "limitations": []
+    }
+  },
   "one_big_thing": "The screen withholds its one decision-critical fact — the actual charge ($108 today plus a $14/mo add-on) appears nowhere readable — while urgency devices push commitment before that fact can be found.",
+  "path_to_excellent": {
+    "post_fix_projection": {
+      "range": [
+        80,
+        87
+      ],
+      "assumptions": [
+        "all 8 observed findings resolved, including removal of all four dark patterns",
+        "true total cost shown at the decision point"
+      ]
+    },
+    "verification_backlog": [
+      "keyboard access & focus order",
+      "ARIA / semantic markup",
+      "loading, empty, and error states",
+      "real interaction timing",
+      "actual billing behavior vs displayed price"
+    ]
+  },
   "findings": [
     {
       "id": "F-01",
@@ -39,9 +128,17 @@
       "severity": "high",
       "reach": 2,
       "importance": 4.5,
-      "principles": ["DARK-01", "CLD-06"],
+      "principles": [
+        "DARK-01",
+        "CLD-06"
+      ],
       "screen_index": 0,
-      "box_2d": [224, 389, 277, 612],
+      "box_2d": [
+        224,
+        389,
+        277,
+        612
+      ],
       "element": "'Offer ends in 04:59' countdown banner (with 'Only 2 licenses left!' badge below)",
       "issue": "A countdown timer and 'Only 2 licenses left!' manufacture urgency for an unlimited digital license.",
       "why_it_matters": "Users rushed past price scrutiny later discover the real terms, converting urgency into refunds and distrust.",
@@ -55,9 +152,16 @@
       "severity": "high",
       "reach": 1,
       "importance": 3.0,
-      "principles": ["DARK-03"],
+      "principles": [
+        "DARK-03"
+      ],
       "screen_index": 0,
-      "box_2d": [589, 389, 613, 572],
+      "box_2d": [
+        589,
+        389,
+        613,
+        572
+      ],
       "element": "'Add Priority Support +$14/mo' pre-checked checkbox",
       "issue": "The $14/mo Priority Support add-on is pre-checked.",
       "why_it_matters": "Users who miss it commit to a recurring charge they never chose, driving chargebacks and trust collapse.",
@@ -71,9 +175,16 @@
       "severity": "low",
       "reach": 1,
       "importance": 1.0,
-      "principles": ["WCAG-1.4.3"],
+      "principles": [
+        "WCAG-1.4.3"
+      ],
       "screen_index": 0,
-      "box_2d": [658, 389, 715, 612],
+      "box_2d": [
+        658,
+        389,
+        715,
+        612
+      ],
       "element": "'Upgrade now' primary button",
       "issue": "Button text contrast measures 3.3:1, below the 4.5:1 AA threshold for 18px bold text.",
       "why_it_matters": "Low-vision users struggle to read the primary action.",
@@ -87,9 +198,17 @@
       "severity": "medium",
       "reach": 1,
       "importance": 2.0,
-      "principles": ["CNT-05", "CNT-01"],
+      "principles": [
+        "CNT-05",
+        "CNT-01"
+      ],
       "screen_index": 0,
-      "box_2d": [658, 389, 715, 612],
+      "box_2d": [
+        658,
+        389,
+        715,
+        612
+      ],
       "element": "'Upgrade now' primary button",
       "issue": "'Upgrade now' commits the user without stating the charge: $108 today plus the add-on.",
       "why_it_matters": "People click expecting $9 and are charged twelvefold, the worst possible first transaction.",
@@ -103,9 +222,16 @@
       "severity": "medium",
       "reach": 1,
       "importance": 2.0,
-      "principles": ["DARK-04"],
+      "principles": [
+        "DARK-04"
+      ],
       "screen_index": 0,
-      "box_2d": [737, 433, 754, 567],
+      "box_2d": [
+        737,
+        433,
+        754,
+        567
+      ],
       "element": "'No thanks, I hate saving money' decline link",
       "issue": "The decline option shames the user instead of neutrally naming the choice.",
       "why_it_matters": "Coerced declines breed resentment; users leave rather than be insulted into upgrading.",
@@ -119,9 +245,16 @@
       "severity": "medium",
       "reach": 1,
       "importance": 2.0,
-      "principles": ["WCAG-1.4.3"],
+      "principles": [
+        "WCAG-1.4.3"
+      ],
       "screen_index": 0,
-      "box_2d": [737, 433, 754, 567],
+      "box_2d": [
+        737,
+        433,
+        754,
+        567
+      ],
       "element": "decline link text below the primary button",
       "issue": "Decline-link text contrast measures 2.38:1, below the 4.5:1 AA minimum.",
       "why_it_matters": "The only visible exit from the offer is near-invisible to low-vision users.",
@@ -135,9 +268,17 @@
       "severity": "high",
       "reach": 2,
       "importance": 4.5,
-      "principles": ["DARK-06", "WCAG-1.4.3"],
+      "principles": [
+        "DARK-06",
+        "WCAG-1.4.3"
+      ],
       "screen_index": 0,
-      "box_2d": [950, 35, 975, 155],
+      "box_2d": [
+        950,
+        35,
+        975,
+        155
+      ],
       "element": "'*billed annually at $108 today' footnote, bottom-left corner",
       "issue": "The footnote contradicting the '$9/mo' headline is 10px text at 1.77:1 contrast.",
       "why_it_matters": "The only disclosure of the real $108 charge is designed to be unreadable, so users buy misinformed.",
@@ -151,7 +292,10 @@
       "severity": "medium",
       "reach": 3,
       "importance": 3.0,
-      "principles": ["GP-01", "GP-02"],
+      "principles": [
+        "GP-01",
+        "GP-02"
+      ],
       "screen_index": 0,
       "box_2d": null,
       "element": "pricing card as a whole",
@@ -169,11 +313,76 @@
         "width": 1440,
         "height": 900,
         "regions": [
-          {"box_2d": [950, 35, 975, 155], "kind": "text", "fg": "#bfc3cc", "bg": "#ffffff", "contrast": 1.77, "height_px": 10, "width_px": 149},
-          {"box_2d": [730, 430, 760, 570], "kind": "text", "fg": "#a1a9b3", "bg": "#ffffff", "contrast": 2.38, "height_px": 13, "width_px": 188},
-          {"box_2d": [235, 440, 265, 575], "kind": "text", "fg": "#c0392b", "bg": "#fde8e8", "contrast": 4.63, "height_px": 14, "width_px": 190},
-          {"box_2d": [515, 440, 540, 560], "kind": "text", "fg": "#8a6d00", "bg": "#fff3cd", "contrast": 4.44, "height_px": 14, "width_px": 153},
-          {"box_2d": [670, 450, 700, 550], "kind": "text", "fg": "#ffffff", "bg": "#16a34a", "contrast": 3.3, "height_px": 18, "width_px": 138}
+          {
+            "box_2d": [
+              950,
+              35,
+              975,
+              155
+            ],
+            "kind": "text",
+            "fg": "#bfc3cc",
+            "bg": "#ffffff",
+            "contrast": 1.77,
+            "height_px": 10,
+            "width_px": 149
+          },
+          {
+            "box_2d": [
+              730,
+              430,
+              760,
+              570
+            ],
+            "kind": "text",
+            "fg": "#a1a9b3",
+            "bg": "#ffffff",
+            "contrast": 2.38,
+            "height_px": 13,
+            "width_px": 188
+          },
+          {
+            "box_2d": [
+              235,
+              440,
+              265,
+              575
+            ],
+            "kind": "text",
+            "fg": "#c0392b",
+            "bg": "#fde8e8",
+            "contrast": 4.63,
+            "height_px": 14,
+            "width_px": 190
+          },
+          {
+            "box_2d": [
+              515,
+              440,
+              540,
+              560
+            ],
+            "kind": "text",
+            "fg": "#8a6d00",
+            "bg": "#fff3cd",
+            "contrast": 4.44,
+            "height_px": 14,
+            "width_px": 153
+          },
+          {
+            "box_2d": [
+              670,
+              450,
+              700,
+              550
+            ],
+            "kind": "text",
+            "fg": "#ffffff",
+            "bg": "#16a34a",
+            "contrast": 3.3,
+            "height_px": 18,
+            "width_px": 138
+          }
         ]
       }
     ]

@@ -24,7 +24,8 @@ symlink: `~/.claude/skills/ux-audit -> ~/projects/ux-audit-skill`.
   or don't change them.
 
 ## Workflows
-- Run scripts with `.venv/bin/python` (Pillow lives in `.venv`).
+- Run scripts with `.venv/bin/python` (Pillow lives in `.venv`). The venv is not
+  committed — `bash scripts/setup.sh` creates it, and is safe to re-run.
 - After any prompt/reference change: regenerate registry, then run the fixture check:
   `.venv/bin/python scripts/check_fixtures.py fixtures/`
 - Script unit tests: `.venv/bin/python scripts/tests/test_measure.py`

@@ -35,3 +35,6 @@ any gate is dropped silently — it does not appear as a low-severity finding in
   methodology note (no silent truncation).
 - A clean screen is a valid result. Never manufacture findings to look thorough; record
   what passed in `clean_checks` instead.
+- Count the funnel as you filter: `meta.candidate_stats` {generated, gate_dropped,
+  merged_away, capped, reported}. Dropped candidates stay unlisted (silence rule above)
+  but are counted — a short findings list must read as rigor, not thinness.
