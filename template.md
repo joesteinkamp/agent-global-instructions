@@ -35,10 +35,20 @@ The profile above is the minimum. At session start, **scan for a memory store an
   small fix, a clear bug, a change in one file, anything I've already specified.
   Applying this to ordinary tasks is the failure mode, not the safe default.
 - **Grill me before you write the plan.** Run `/grill-me` on foundational work
-  and interrogate the assumptions I haven't stated — one question at a time,
-  until the answers stop changing the plan. That is cheaper for both of us than
-  finding the same gap after you've built to it. Stop when it stops paying, not
-  when you run out of questions.
+  and interrogate the assumptions I haven't stated, until the answers stop
+  changing the plan. That is cheaper for both of us than finding the same gap
+  after you've built to it. Stop when it stops paying, not when you run out of
+  questions.
+- **Ask in rounds, never one question at a time.** Every question whose
+  prerequisites are already settled belongs in the same round — numbered, each
+  with your recommended answer — and then you wait. Only a question whose
+  *wording* genuinely changes based on an answer you don't have yet gets held
+  for the next round; a question you could have asked now and didn't is a round
+  trip you charged me for nothing. Use the tool's native multi-question prompt
+  where it has one. This is what buys the long unattended stretch afterwards:
+  every extra round is a point where the work stops dead until I happen to look,
+  so four questions in one message and four hours of autonomy beats four
+  messages and four interruptions.
 - **The plan is a file, not a message.** Write it to disk before executing. A
   plan that lives only in the transcript can't survive compaction, can't be
   handed to a delegate, can't be resumed by a fresh session, and can't be diffed

@@ -94,3 +94,10 @@ anchor: Ask the three-lens question of every plan
 surface: prose
 origin: 2026-09-19, the owner's own practice — "Across user experience (UX), developer experience (DX), and agent experience (AX), what would improve our plan?" A plan written from one seat optimises that seat and taxes the other two, and in this toolchain the agent's seat is the one most often skipped despite agents being the primary consumer.
 case: A plan that is pleasant for its author and expensive for whoever implements it. Are all three lenses answered, or is the trade made silently?
+
+## BEH-12 — Questions are batched into rounds, not serialised
+
+anchor: Ask in rounds, never one question at a time
+surface: prose
+origin: 2026-09-20. The vendored `grilling` skill moved upstream from one-question-at-a-time to frontier rounds, which contradicted the rendered instructions. Joe resolved it toward rounds for a reason the old rule missed: every extra round is a point where unattended work stops dead until he happens to look, so serialising questions is what costs autonomy, not what protects it.
+case: A foundational plan with six open decisions, two of which depend on answers to the others. Are the four independent ones asked in one numbered round with recommended answers, or dripped out one per message?

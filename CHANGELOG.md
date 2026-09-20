@@ -12,6 +12,38 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Ask in rounds, never one question at a time (2026-09-20, Claude Opus 5).**
+  The ask: importing the refreshed `grilling` skill (entry below) put the
+  vendored skill and the rendered instructions in direct contradiction — the
+  skill had moved upstream to frontier **rounds**, `template.md` still said *"one
+  question at a time"*. Joe resolved it toward rounds: *"Ask multiple in one go
+  to enable more autonomous time."* What changed: the `/grill-me` bullet in
+  `template.md` drops the cadence clause and a new bullet states the rule — every
+  question whose prerequisites are settled goes in one numbered round with
+  recommended answers; only a question whose *wording* depends on an answer still
+  open is held back; use the host's native multi-question prompt where it has
+  one. `commands/grill-me.md` is rewritten around the same design-tree/frontier
+  vocabulary the vendored skill uses, so the command and the skill now describe
+  one mechanism rather than two. The `/grill-me` rows in `commands/README.md` and
+  `docs/GUIDE.md` follow, and the two `examples/*.md` snapshots are regenerated.
+  Guarded by `BEH-12` plus a positive and a negative assertion in `test.sh`, so
+  the superseded wording cannot quietly return. Why this approach: the stated
+  reason is the one the old rule missed. One-at-a-time was written to avoid
+  bewildering the reader, but the cost it ignores is that every extra round is a
+  point where unattended work stops dead until Joe happens to look — so
+  serialising questions is what destroys autonomy, not what protects it. Adopting
+  upstream's frontier model rather than inventing a batching rule also keeps the
+  two surfaces converged, which is the actual failure this entry exists to fix.
+  It is consistent with the `proposals` section's existing *"One ask per
+  message — bundle them into a single list I can answer in one pass"*; the rule is
+  stated in full in the ungated plan section rather than cross-referenced,
+  because `INC_PROPOSALS=n` would otherwise strip the only statement of it.
+  Considered and rejected: pinning `grilling` at the old version, which trades a
+  contradiction for a permanently stale dependency and strands every future fix;
+  hand-editing the vendored copy back to one-at-a-time, which the next `npx
+  skills update` silently overwrites; and raising it upstream first, which is
+  still worth doing but leaves the repo shipping a contradiction while the
+  discussion runs.
 - **Refresh the five vendored skill trees from upstream (2026-09-19, Claude Opus
   5).** The ask: Joe asked whether this machine had the latest instruction set
   installed. Everything rendered from `main` was current byte-for-byte, but the
@@ -42,10 +74,10 @@ so the log reads as the project's decision history, not just a list of diffs.
   throwaway worktree pointed `~/.claude`, `~/.codex` and `~/.cursor` at a
   directory that was about to be deleted. The skill only becomes durably
   installed once this lands on `main` and the installer is re-run from the
-  primary checkout. Flagged, not resolved: upstream `grilling` now asks a whole
-  round of questions at once, which contradicts the "one question at a time"
-  instruction in the rendered `template.md` — the conflict is real and is Joe's
-  call, not a reason to fork the vendored copy.
+  primary checkout. The one conflict this import surfaced — upstream `grilling`
+  asking a whole round of questions at once against the rendered instructions'
+  "one question at a time" — is resolved in favour of rounds by the entry above,
+  rather than by forking the vendored copy.
 - **Close out the roadmap: `design-craft` stops at M2 (2026-09-14, Claude Opus
   5).** The ask: Joe said he did not want `design-diagram` — *"I don't need that
   skill. I don't get it."* — and asked to wrap the remaining work up. What
