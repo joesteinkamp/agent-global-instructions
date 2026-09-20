@@ -95,8 +95,8 @@ merge_json() {  # $1 = settings file, $2 = hooks object json
 
 cmd() { printf 'env HOOK_PLATFORM=%s "%s/%s.sh"' "$1" "$2" "$3"; }  # platform, hookdir, script
 
-# The SessionStart autonomy-reminder (offer /loop for ongoing work) only wires
-# under the aggressive posture — resolved via customize.sh --autonomy, the same
+# The SessionStart autonomy-reminder (offer /goal or /loop for ongoing work,
+# whichever the stopping rule calls for) only wires under the aggressive posture — resolved via customize.sh --autonomy, the same
 # seam install-commands.sh uses for the design group (my-context.env answers;
 # an explicit AUTONOMY env var outranks them). On resolver failure fall back to
 # the render's own default (aggressive) rather than aborting the install.
@@ -142,6 +142,12 @@ install_claude() {
 install_codex() {
   local hd="$HOME/.codex/hooks" sf="$HOME/.codex/hooks.json"
   copy_scripts "$hd"
+  # Codex's hooks.json uses the same PascalCase event keys and the same
+  # {hookSpecificOutput:{hookEventName,additionalContext}} stdout contract as
+  # Claude Code, SessionStart included — so both SessionStart hooks wire here
+  # too: the memory loader, and (under the aggressive posture) the autonomy
+  # reminder, which matters most in Codex since /goal is stable and on by
+  # default there.
   # Codex now surfaces file edits to hooks via the apply_patch tool (matched as
   # apply_patch, with Write/Edit aliases), so path-guard + auto-format wire up
   # alongside the shell guard and logging. guard-paths/format-edited extract the
@@ -151,7 +157,13 @@ install_codex() {
     --arg gb "$(cmd codex "$hd" guard-bash)" \
     --arg fm "$(cmd codex "$hd" format-edited)" \
     --arg lg "$(cmd codex "$hd" log-tool)" \
-    --arg qn "$(cmd codex "$hd" quality-nudge)" '{
+    --arg qn "$(cmd codex "$hd" quality-nudge)" \
+    --arg lm "$(cmd codex "$hd" load-memory)" \
+    --arg ar "$(cmd codex "$hd" autonomy-reminder)" \
+    --argjson arw "$WIRE_AR" '{
+    SessionStart: ([
+      {matcher:"startup|resume", hooks:[{type:"command",command:$lm}]}
+    ] + (if $arw then [{matcher:"startup|resume", hooks:[{type:"command",command:$ar}]}] else [] end)),
     PreToolUse: [
       {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
       {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$gp,timeout:30}]},
@@ -163,7 +175,7 @@ install_codex() {
     ],
     Stop: [ {hooks:[{type:"command",command:$qn,timeout:30}]} ]
   }')"
-  echo "  codex   -> $sf (log, guard paths, guard bash, auto-format, advisory quality-nudge)"
+  echo "  codex   -> $sf (memory-load, log, guard paths, guard bash, auto-format, advisory quality-nudge$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
 }
 
 install_cursor() {

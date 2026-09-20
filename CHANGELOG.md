@@ -78,6 +78,55 @@ so the log reads as the project's decision history, not just a list of diffs.
   asking a whole round of questions at once against the rendered instructions'
   "one question at a time" — is resolved in favour of rounds by the entry above,
   rather than by forking the vendored copy.
+- **Teach `/goal` and `/loop` as two primitives, chosen by stopping rule
+  (2026-09-19, Claude Opus 5).** The ask: Joe said Claude Code has `/goal` too,
+  that it is the better primitive to reach for than `/loop`, that both should be
+  nudged for the right cases, and asked to settle what Cursor actually has. What
+  changed: the `long-autonomy` template section no longer assigns one primitive
+  per tool. It now splits them by *stopping rule* — `/goal <condition>` takes
+  turns until the condition is judged met, `/loop [interval] <prompt>` re-runs on
+  a cadence, and the tell for a loop is the word *every* — states per-tool syntax
+  and availability (`/goal clear` in Claude Code, `/goal edit|pause|resume|clear`
+  in Codex, objective-only in Cursor where it is still a gated rollout), says how
+  to write a condition each tool's checker can actually verify (Claude Code's
+  evaluator reads only the transcript and runs nothing; Cursor's audits the real
+  working tree and has no turn budget), and warns that asking at a gate inside a
+  goal merely ends the turn and starts another — so an unattended or headless
+  goal must never depend on one. Crucially it tells the agent to *propose* a
+  goal, pre-filled and ready to paste, because `/goal` is a user command in all
+  three tools and no agent can invoke it. `playbooks/orchestration.md` gains the
+  same split in its per-host table plus the Cloud Agent and worktree rows for
+  Cursor; `~/.claude/loop.md` now offers a goal when the work turns out to have a
+  terminal end state. Both SessionStart hooks — `autonomy-reminder` and
+  `load-memory` — are now wired for Codex alongside Claude and Cursor.
+
+  Why this approach: the previous model was wrong on two of four rows. Claude
+  Code has had `/goal` (verified in its docs, and in the installed binary's
+  `goal_set` / `tengu_goal_restored_on_resume` / `goal-command-nudge` strings),
+  and Cursor has both — `/loop` as a bundled skill, which is why it never
+  appeared in the slash-command reference the earlier note checked, and `/goal`
+  since its 2026-08-26 CLI release. Organising by stopping rule survives vendor
+  drift better than a per-tool list, and it matches the line Cursor's own skill
+  file draws: *"'Every' describes recurring work and belongs to `/loop`, not
+  `/goal`."* The same audit killed a third false claim — that Codex has no
+  SessionStart hook. Codex 0.144.1 ships `session_start` with Claude Code's exact
+  `{hookSpecificOutput:{hookEventName,additionalContext}}` contract, so the one
+  tool where `/goal` is stable and on by default was the only one never reminded
+  it existed; both hooks now share that branch, and Antigravity is the only
+  platform that stays silent.
+
+  Rejected: a blanket "prefer `/goal` everywhere" — a refuter pass showed it
+  would aim the agent at the one primitive it cannot invoke, reproducing the
+  dead-end handoff the section exists to prevent, and would carry Claude Code's
+  transcript-only evaluator rule into Cursor, where transcript-only evidence is
+  explicitly rejected. Keeping `/goal` as Codex-only: contradicted by the docs
+  and by the installed binaries. Folding the per-tool facts into
+  `playbooks/orchestration.md` alone to avoid stating them twice: the template's
+  pointer to that playbook sits inside `<!--SECTION:cross-tool-orchestration-->`,
+  so `INC_ORCHESTRATION=n` would strip the pointer and leave an agent with
+  neither the map nor the facts — the duplication is a known drift risk kept
+  deliberately, not an oversight.
+
 - **Close out the roadmap: `design-craft` stops at M2 (2026-09-14, Claude Opus
   5).** The ask: Joe said he did not want `design-diagram` — *"I don't need that
   skill. I don't get it."* — and asked to wrap the remaining work up. What

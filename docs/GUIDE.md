@@ -108,10 +108,13 @@ every option:
   you set), since Claude Code's team construct is off by default. The
   aggressive posture also renders a **Long-running work** section — when a task
   outlives the turn, the agent reaches for the host tool's long-run primitive
-  (`/loop` in Claude Code and Cursor, `/goal` in Codex) with an explicit
-  done-condition, instead of ending with "next steps"; the install seeds
-  `~/.claude/loop.md` (bare `/loop`'s default maintenance prompt, seed-only)
-  and wires the `autonomy-reminder` SessionStart hook.
+  with an explicit done-condition instead of ending with "next steps", choosing
+  by stopping rule: `/goal <condition>` for a terminal end state (Claude Code
+  and Codex; Cursor is still rolling it out — it runs turns until the condition
+  is judged met), `/loop` for a recurring check on a cadence (Claude Code,
+  Cursor). The install seeds `~/.claude/loop.md` (bare `/loop`'s default
+  maintenance prompt, seed-only) and wires the `autonomy-reminder` SessionStart
+  hook.
 - **Where your memory lives** — a local file/db store (e.g. Hermes at
   `~/.hermes/`), a notes app over MCP (e.g. Notion, Obsidian), both, or
   generic. Set non-interactively with `MEM_KIND` + `MEM_PATH` / `MEM_TOOL` (or
@@ -221,10 +224,10 @@ present and skipping gracefully otherwise. Full detail in
 | `format-edited` | after edits | Auto-format the edited file with the project's Prettier/ESLint. |
 | `log-tool` | every tool call | **Observability** — append one JSONL record per tool event (secrets redacted, log is `0600`). |
 | `quality-nudge` | turn end | Emit at most one **non-blocking advisory** for a material code diff (default ≥4 files or ≥120 lines). Small, docs-only, and artifact-only diffs stay quiet. The note may mention relevant optional verification/review and the Change Log gate, but cannot auto-run a workflow or continue the turn. Claude + Codex + Cursor (Cursor: `followup_message` on `stop` with `loop_limit:1`). |
-| `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude + Cursor; silent when none exist. |
+| `load-memory` | session start | Surface your out-of-tool memory stores (Hermes `~/.hermes/`, OpenClaw, project `MEMORY.md`/`memory/`) so the agent reads them first. Claude + Codex + Cursor; silent when none exist. |
 | `precompact-archive` | before compaction | Archive the raw transcript to `~/.ai-logs/transcripts/` before Claude compacts, plus a `PreCompact` audit record. Claude only; never blocks. |
 | `log-session-end` | session end | Append a `SessionEnd` record (with the end reason) to the audit log, closing the trail. Claude only. |
-| `autonomy-reminder` | session start | Remind the agent that the tool has a long-run primitive (`/loop`) so ongoing work gets a loop with a done-condition instead of a "next steps" handoff. Advisory context only. Wired **only when the autonomy posture is aggressive** (resolved via `customize.sh --autonomy`; a posture flipped to balanced prunes it on re-install). Claude + Cursor; Codex learns `/goal` from the rendered instructions. |
+| `autonomy-reminder` | session start | Remind the agent that the tool has two long-run primitives — `/goal <condition>` for a terminal end state, `/loop` for a recurring check — so ongoing work gets one of them with a done-condition instead of a "next steps" handoff. Advisory context only. Wired **only when the autonomy posture is aggressive** (resolved via `customize.sh --autonomy`; a posture flipped to balanced prunes it on re-install). Claude + Codex + Cursor — every tool with SessionStart context injection (Codex shares Claude's wire shape); Antigravity has none, so the hook exits silently there. |
 
 Read the audit trail with `./audit.sh` (`--stats`, `--follow`, `-n N`). The log
 lives at `~/.ai-logs/tool-calls.jsonl` (`$AI_TOOL_LOG`); set `AI_LOG_RESPONSES=0`
