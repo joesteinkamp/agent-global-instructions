@@ -98,8 +98,42 @@ The profile above is the minimum. At session start, **scan for a memory store an
 <!--SECTION:long-autonomy-->
 ## Long-running work
 
-- **When work outlives the turn, reach for the host tool's long-run primitive** instead of ending with a list of next steps: in Claude Code and Cursor (`agent`) that's `/loop` (`/loop <prompt>` self-paces, `/loop 10m <prompt>` fixes the interval, bare `/loop` runs the default maintenance prompt at `~/.claude/loop.md`); in Codex it's `/goal <objective>` — a durable goal pursued turn after turn (`/goal` shows status; `pause`/`resume`/`clear` manage it; if goals are unavailable, suggest `codex features enable goals`).
-- **Use the whole autonomy surface, not just the loop.** Before settling for a
+- **When work outlives the turn, reach for the host tool's long-run primitive**
+  instead of ending with a list of next steps. There are two, and the choice
+  between them is the *stopping rule*, not how long the work runs:
+  - **A terminal end state → `/goal <condition>`.** The session keeps taking
+    turns until the condition is judged met — no interval, no cadence to guess.
+    Claude Code and Codex carry one; so do Cursor builds that have it, where it
+    is still a gated rollout, so check before promising it. **I type it, not
+    you:** `/goal` is a user command in all three, so the move is to hand me the
+    exact line to paste, pre-filled and ready — that is a proposal, not a
+    next-steps list. Managing it is mine too, and the syntax differs: `/goal`
+    alone for status and `/goal clear` in Claude Code (restored when I resume,
+    unless it already finished, and it runs headless as `claude -p "/goal …"`),
+    `/goal edit|pause|resume|clear`
+    in Codex (`codex features enable goals` if it is missing), and in Cursor the
+    objective only — no status, no `clear`, Ctrl+C pauses it.
+  - **A recurring check → `/loop [interval] <prompt>`** (Claude Code, Cursor).
+    Re-runs on a cadence; omit the interval to self-pace. In Claude Code a bare
+    `/loop` runs the default maintenance prompt — `.claude/loop.md` in the
+    project if there is one, else `~/.claude/loop.md`; Cursor's takes its prompt
+    on the command line and has no such file. This one you *can* start yourself. The tell is the word *every* — every 5 minutes, every time
+    CI finishes. That is a loop, never a goal.
+  - **Prefer the goal when the work has a verifiable end state.** A loop asks
+    "has it been N minutes?"; a goal asks "is it done yet?" and something other
+    than the clock answers, so it stops itself instead of running until I notice.
+    Reach for the loop when there is nothing to finish — only something to watch.
+- **Write the goal condition so it can actually be checked — and know who
+  checks it.** In Claude Code a separate small model reads only the conversation:
+  it runs no commands and opens no files, so the condition must be something your
+  own output demonstrates (`npm test exits 0 and git status is clean` works; "the
+  code is good" burns turns forever), and `or stop after 20 turns` in the
+  condition bounds work that could run away. In Cursor you audit it yourself
+  against the working tree and real state, and there is no turn, time, or token
+  budget at all — so a vague condition there has nothing to stop it. Either way:
+  one measurable end state, the check that proves it, and anything that must not
+  change on the way.
+- **Use the whole autonomy surface, not just these two.** Before settling for a
   slow, hand-held turn, reach for what the host actually offers: background
   execution for anything that blocks, a scheduled routine for anything
   recurring, plan-before-execute on a broad change, headless one-shots for work
@@ -111,10 +145,10 @@ The profile above is the minimum. At session start, **scan for a memory store an
   durable goal, which has a loop, which can only manage headless one-shots, and
   what each offers beyond that.
 <!--/SECTION:cross-tool-orchestration-->
-- **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop/goal yourself and say what cadence you picked and why. If the long tail is optional, offer it in one line at handoff.
-- **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges"), check it each iteration, and end the loop yourself when it's met — then report what happened.
-- **Loops don't loosen gates.** Every confirmation gate above applies inside every iteration — external sends, spending, and destructive actions still stop and ask. When an iteration hits a gate, pause on it; don't bypass it.
-- **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the loop stopped.
+- **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop yourself and say what cadence you picked and why; for a goal, give me the line to paste with the condition already written. If the long tail is optional, offer it in one line at handoff.
+- **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges") and check it each iteration. A loop is yours to end — stop it once the condition is met rather than letting it run on. A goal ends itself when its checker agrees, so the done-condition *is* the condition you handed me; report what happened either way.
+- **Loops and goals don't loosen gates.** Every confirmation gate above applies inside every iteration and every goal turn — external sends, spending, and destructive actions still stop and ask. A goal does not change the permission mode, and "the goal isn't met yet" is never a reason to push past a gate: stop and ask, exactly as you would in a single turn. Know what that costs inside a goal, though — asking ends the turn, the checker sees the condition still unmet, and another turn starts; the goal only halts once several turns pass with no progress. So don't set a goal whose only path to done runs through a gate I have to answer, and never headless (`claude -p "/goal …"`), where nobody is there to answer it.
+- **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the run stopped.
 - **Nudge me when a lever I'm not using would have helped — once per handoff, in
   one line.** If the work wanted a loop, a durable goal, a scheduled routine, a
   team, or a review I have to trigger myself, name it and say what it would have

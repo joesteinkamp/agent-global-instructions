@@ -127,13 +127,23 @@ primitives instead of hand-holding a long job through repeated prompts.
 
 - **The orchestrator gets a long-run primitive too.** Multi-wave work — spawn,
   fold into `STATE.md`, spawn again, reconcile — rarely fits in one turn. Put the
-  whole orchestration under the host's loop or goal with the done-condition
-  stated up front, so the waves continue without the user re-prompting between
-  each one.
+  whole orchestration under a goal with the done-condition stated up front, so
+  the waves continue without the user re-prompting between each one. A goal fits
+  better than a loop here: waves finish when the work is done, not on a clock,
+  and in Claude Code a goal defers its evaluation while background delegates are
+  still running instead of firing mid-wave. `/goal` is a user command in every
+  tool that has one, so hand the user the line with the condition already
+  written rather than reporting that you cannot start it.
 - **Bound every delegate; give durable work a goal.** Each launch carries a
   `timeout` (above). A delegate that is genuinely long-lived does not belong in a
-  longer timeout — it belongs in its own worktree making WIP commits, and a Codex
-  delegate can carry a `/goal` so its objective survives compaction and restarts.
+  longer timeout — it belongs in its own worktree making WIP commits, under a
+  goal rather than a wall-clock budget. A Claude Code delegate takes one inline:
+  `claude -p "/goal <condition>"` runs turns until the condition is met, all in
+  one invocation — so the objective outlives compaction, though nothing restores
+  it if the process dies (restart survival is the interactive `--resume` path).
+  Nobody is there to answer a prompt in that shape, so the condition must not
+  depend on a gate. For other vendors, check whether their headless mode accepts
+  a goal before depending on it.
 - **Background anything that blocks.** A wave of delegates, a test suite, a
   build, a deploy watch: start it in the background and wait on it once rather
   than polling on a sleep. Poll only external state the host cannot notify you
@@ -152,9 +162,9 @@ rather than assuming it is absent because you have not used it here.
 
 | Host | Runs past the turn | Parallel lenses | Also worth reaching for |
 |---|---|---|---|
-| Claude Code | `/loop`, self-paced or on a fixed interval; scheduled routines for recurring work | agent teams and subagents, roles from `~/.claude/agents/` | background shell jobs for anything slow · plan-before-execute on a broad change · session checkpoints, so a bad turn is cheap to undo · `--append-system-prompt` and `--agents` when driving it headless |
+| Claude Code | `/goal <condition>` — turns until an evaluator judges it met, restored on resume, works under `-p` (ungated conditions only, see above) · `/loop` for a cadence, self-paced or fixed · `/schedule` for cloud routines | agent teams and subagents, roles from `~/.claude/agents/` | background shell jobs for anything slow · plan-before-execute on a broad change · session checkpoints, so a bad turn is cheap to undo · `--append-system-prompt` and `--agents` when driving it headless |
 | Codex | `/goal <objective>` — durable across turns and restarts; `codex features enable goals` if it is missing | `multi_agent` subagents, roles from `~/.codex/agents/` | `codex exec` for headless one-shots · `unified_exec` for a shell that persists across calls · hooks for guardrails |
-| Cursor (`agent`) | `/loop` | roles inline in the prompt — no reusable agent-definition format | `agent -p` for headless one-shots |
+| Cursor (`agent`) | `/goal <objective>` where the build has it (gated rollout — check before promising it) · `/loop [interval] <prompt>` as the bundled skill | roles inline in the prompt — no reusable agent-definition format | `agent -p` for headless one-shots · `&<message>` hands the work to a Cloud Agent · scheduled and event-triggered runs via Automations, set up from the Agents Window or cursor.com/automations rather than the CLI · `agent -w` for an isolated worktree |
 | Antigravity (`agy`) | check `agy --help`; do not assume one exists | roles inline in the prompt | `agy -p` for headless one-shots, text output only |
 
 ## Local models (behind `lm`)

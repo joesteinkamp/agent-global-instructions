@@ -49,10 +49,13 @@ left in place).
 - **Guardrails** — hooks that block edits to generated/sensitive paths, trip on
   catastrophic shell, auto-format edits, and log every tool call.
 - **Long autonomy** (aggressive posture) — the instructions teach every tool to
-  keep long work alive with its own primitive (`/loop` in Claude Code and
-  Cursor, `/goal` in Codex) behind an explicit done-condition; the install
+  keep long work alive with the right primitive for its stopping rule: `/goal
+  <condition>` when the work has a verifiable end state (Claude Code and Codex;
+  Cursor is still rolling it out), `/loop` when it is only a recurring check
+  (Claude Code, Cursor) — both behind an explicit done-condition. The install
   seeds `~/.claude/loop.md` (bare `/loop`'s default maintenance prompt) and a
-  session-start reminder hook. Confirmation gates apply unchanged inside loops.
+  session-start reminder hook. Confirmation gates apply unchanged inside every
+  iteration and every goal turn.
 - **Session lessons** — corrections you make in-session are written to your
   memoryOS (Hermes, Obsidian, or plain markdown — `setup-memory-os.sh`) and read
   back at every session start, so a correction lands once and holds.

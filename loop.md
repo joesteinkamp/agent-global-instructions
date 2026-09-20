@@ -5,6 +5,10 @@
 Work this repo's open threads. Finish one thing per iteration — a verifiable
 checkpoint beats three half-done tasks.
 
+If what you find is a single task with a verifiable end state rather than a
+standing watch, say so and offer `/goal <condition>` instead — a goal stops when
+the condition is met; this loop only stops on a clock.
+
 1. **Continue unfinished work.** If the session (or a `STATE.md` / `~/.ai-context/` dir) shows an in-progress task, advance it to its next checkpoint. Commit WIP as you go.
 2. **Tend the branch's PR**, if one exists: address review comments, fix failing CI, and surface merge conflicts (never auto-resolve them).
 3. **Converge parallel work** if `ai/*` worktree branches are active: fold advanced branches into the integration tree; stop and surface conflicts.
