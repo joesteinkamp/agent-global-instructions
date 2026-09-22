@@ -19,6 +19,7 @@ Install with `../install-hooks.sh` (all tools) or `../install-hooks.sh claude co
 | `format-edited.sh` | edit tools (after) | Auto-formats the edited file with the project's Prettier/ESLint. Never blocks. |
 | `log-tool.sh` | every tool (before + after) | **Observability** — appends one JSONL record per tool event to an audit log. Never blocks. |
 | `quality-nudge.sh` | turn end (Stop) | Emits one **non-blocking advisory** after a material code diff (default: ≥4 code files or ≥120 code lines). Documentation/artifact-only and small diffs stay quiet. The note may mention verification for a substantial UI diff, improvement review for a large diff, and the Change Log approval gate—but explicitly forbids auto-running `/verify` or `/improve`. Claude + Codex (`systemMessage`); Cursor (`followup_message` on `stop`, `loop_limit:1`). |
+| `worktree-reap.sh` | turn end (Stop) · CLI | Removes worktrees whose branch is **provably merged** (git ancestry, or a forge-merged PR whose head SHA matches this tip) and prunes registrations whose directory is already gone, then emits one **non-blocking advisory** naming what it reaped and what it left and why. A fresh branch, a tree holding ignored files it cannot regenerate, and anything inside the cooling window are never touched. Rate-limited per repo (`WORKTREE_REAP_MIN_INTERVAL`, default 900s). Also the sweep CLI installed at `~/.ai/worktree-sweep.sh` (`--sweep [--apply] [--all <dir>] [--json]`). Claude + Codex (`systemMessage`); Cursor (`followup_message` on `stop`, `loop_limit:1`). See the safety model below. |
 | `load-memory.sh` | session start | Injects a pointer to your **out-of-tool** memory stores (Hermes `~/.hermes/`, OpenClaw `~/.openclaw/workspace/`, project `MEMORY.md`/`memory/`) so the agent reads them before personal tasks. Lists only stores that exist; silent otherwise. Never blocks. Claude and Codex (`hookSpecificOutput.additionalContext` — the same wire shape) + Cursor (`additional_context`); Antigravity has no SessionStart event. Complements Claude's native auto-memory (`~/.claude/projects/<project>/memory/`), which it doesn't duplicate. |
 | `precompact-archive.sh` | before compaction (PreCompact) | Copies the **raw transcript** to `<log-dir>/transcripts/` before Claude compacts (and silently drops detail), and logs a `PreCompact` audit record. The platform forbids context injection here, so it preserves the record on disk rather than curating it. Never blocks. Claude only. |
 | `log-session-end.sh` | session end (SessionEnd) | Appends a `SessionEnd` audit record with the end reason (`clear`/`logout`/`prompt_input_exit`/`resume`/`other`), closing the trail the SessionStart loader opened. Output is ignored by the platform — pure observability. Claude only. |
@@ -58,6 +59,104 @@ verify & improve"** section:
 d="${AI_NUDGE_STATE:-$HOME/.ai-logs}"; k="$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)"
 mkdir -p "$d"; touch "$d/.nudge-skip-quality.$k"
 ```
+
+### Worktree reaping — the two-arm safety model
+
+`worktree-reap.sh` deletes directories, so it is built around one rule: **only
+proof of merge authorises a removal, and a likelihood never does.** Four things
+that look like proof and are not are listed below, because each one of them
+deleted real work in testing before it was closed.
+
+**The auto-delete arm acts only on proof.** A branch qualifies when
+`git merge-base --is-ancestor <branch> <default>` is true (a fast-forward or a
+real merge commit landed), or when a forge reports a merged PR/MR **into the
+default branch whose head commit is exactly this branch's tip** — `gh pr list
+--state merged --head <branch> --base <default> --json headRefOid`, and the
+`glab` equivalent. The forge arm is load-bearing rather than a nicety:
+**a squash merge is not an ancestor of the default branch**, so an ancestry-only
+check reaps nothing at all in a squash-merge flow, which is the failure this
+hook exists to avoid. The SHA comparison is what keeps it honest — `ai/<agent>`
+is a standing branch name that is recreated every run, so "a PR with this name
+was merged once" says nothing about the tree in front of you.
+
+**The advise-only arm never acts.** An upstream marked `gone` (what a
+`--delete-branch` or a forge's auto-delete leaves behind) is reported as
+`LIKELY-MERGED` with the exact command to run, and the command is never run —
+a deleted upstream is also what an abandoned branch looks like.
+
+**Never touched by either arm:**
+
+- the main/primary worktree, and the worktree the caller is standing in
+  (compared as physical paths, so a symlinked `/tmp` cannot defeat it);
+- a `locked` worktree — the lock is honoured as recorded, with no pid-liveness
+  check, because a lock legitimately outlives the process that took it;
+- a tree with uncommitted or untracked changes, **or one holding ignored files
+  it cannot regenerate**. `git status --porcelain` is blind to `.env`,
+  `*.sqlite`, `my-context.env` and friends — and so is `git worktree remove`,
+  which is why "let git refuse" is not sufficient on its own. Ignored paths are
+  inspected: an all-regenerable set (`node_modules/`, `dist/`, `.venv/`,
+  `__pycache__/`, …) clears the gate, anything else is `DIRTY` and the paths are
+  named;
+- a branch that never carried a commit of its own (`UNSTARTED`). Ancestry is
+  reflexive: `git worktree add -b ai/<agent>` creates the branch **at** the
+  default tip, so a brand-new agent tree is "merged" before any work exists.
+  The branch's own reflog is the discriminator — `branch: Created from HEAD`
+  with no `commit:` entry means it never began;
+- anything younger than `WORKTREE_REAP_MIN_AGE` (`COOLING`). Agents are told to
+  commit WIP often, which manufactures a clean, merged-looking sample seconds
+  after every commit; the clock is what separates a live sibling tree from a
+  finished one. The age is the newer of the branch tip's commit time and the
+  tree's own activity, measured **before** this script probes the tree (a
+  `git status` that refreshes the index would otherwise reset the clock it
+  reads — hence `--no-optional-locks`, which also keeps the probe from writing
+  into another agent's worktree);
+- anything matching `WORKTREE_REAP_KEEP_RE`. A malformed pattern **aborts the
+  whole sweep** (`grep -E` exits 2 on a bad pattern, which a naive caller reads
+  as "no match" — a keep-list that fails open protects nothing);
+- anything at all, in any repo whose default branch had to be guessed. Only
+  `origin/HEAD` — or exactly one of `main`/`master`/`trunk` that is also what
+  the primary worktree has checked out — counts as resolved; otherwise the
+  sweep reports and deletes nothing.
+
+Removal uses `git worktree remove` **without** `--force` and `git branch -d`
+(not `-D`) so git itself is a second net. A refusal from `git branch -d` is a
+**veto**, not a reason to escalate: `-D` runs only when a forge-merged PR's head
+SHA still equals this branch's tip, which is the one case `-d` cannot recognise
+(a squash). `git worktree prune` clears registrations whose directory is already
+gone — not free, since the admin dir it drops carries that worktree's HEAD
+reflog and `refs/worktree/*`, so it runs only under `--apply` and never during a
+dry run.
+
+Statuses, used verbatim in both the report and `--json`: `REAPABLE` `CURRENT`
+`MAIN` `LOCKED` `DIRTY` `UNMERGED` `LIKELY-MERGED` `PRUNABLE` `KEEP`
+`UNSTARTED` `COOLING`.
+
+Knobs: `WORKTREE_REAP=auto|advise|off` (default `auto`; `advise` reports without
+deleting, `off` silences the hook), `WORKTREE_REAP_MIN_INTERVAL` (seconds
+between hook runs per repo, default 900), `WORKTREE_REAP_MIN_AGE` (cooling
+window in seconds, default 86400 — **pass `0` from a command that just merged
+the branch itself**, such as `/ship`), `WORKTREE_REAP_KEEP_RE` (ERE of worktree
+paths to never touch). The rate-limit stamp lives in `$AI_NUDGE_STATE` (default
+`~/.ai-logs`) as `.worktree-reap.<key>`, keyed on the repo's shared git dir so
+every worktree of one repo shares one budget; where `flock` exists it also
+serialises two agents ending a turn in the same repo at once. A repeated
+identical advisory is suppressed.
+
+The forge lookup is capped: at most 3 per sweep, 10s each, and **only where a
+`timeout` binary exists** — without one, a degraded network would turn a Stop
+hook into a multi-minute stall, so the forge arm is skipped entirely and the
+result degrades to ancestry plus advice.
+
+The same script is the CLI the commands call:
+
+```
+~/.ai/worktree-sweep.sh --sweep                 # dry-run report for this repo
+~/.ai/worktree-sweep.sh --sweep --apply         # perform the safe removals
+~/.ai/worktree-sweep.sh --sweep --all ~/projects --json
+```
+
+`--sweep` on its own writes nothing — `--apply` is what acts. `install-hooks.sh`
+installs that copy; `uninstall.sh` removes it.
 
 ## Observability
 

@@ -63,12 +63,13 @@ The profile above is the minimum. At session start, **scan for a memory store an
   stated falsifier is a guess written down confidently, and it costs most when
   you're running unattended and nothing stops you at the wrong turn.
 
-### Workspace safety — before the first write
+### Workspace safety — before the first write, and after the last
 
 - **Before any filesystem mutation, establish the workspace state:** repository root, current branch, working-tree status, and `git worktree list --porcelain`. Where git is blind, also check for sibling `../<repo>-*` dirs, a populated `~/.ai-context/`, and `find . -newermt '-30 minutes'` — a directory can be `git init`ed *underneath you* mid-task.
 - **The primary checkout is integration-only.** If worktrees are enabled or another writer may be present, a feature branch in the primary checkout is **not** sufficient — create or reuse a sibling worktree on `ai/<agent>` and do all writes there. Only when worktrees are disabled and no concurrent writer is present is a feature branch in the current checkout enough.
 - **Bootstrap by ownership, not by git presence — and don't block on it.** In an empty or non-Git directory with no other agent detected, `git init`, make a root commit, and branch before generating content. "No repo exists" is the setup step, not a reason to stop and ask. What *does* warrant asking is ambiguous ownership: the directory holds content you didn't create, HEAD is unborn or detached, or another agent may own the tree.
 - **Isolation comes before generation.** Establish the worktree or branch *before* the first write. Raising it after the deliverable exists is too late — by then a collision has either happened or been survived by luck.
+- **Isolation is a loan — hand the tree back once its branch is proven merged.** That is where a worktree's life ends, whoever made it (yours, the host tool's own `.claude/worktrees/<id>`, a command's scratch tree): `git worktree remove` then `git branch -d`, plus `git worktree prune` for registrations whose directories are already gone. Proof is `git merge-base --is-ancestor <branch> <default>` or the forge reporting the PR merged — a squash merge fails the ancestor check and is merged anyway. Never force either command: a tree that is dirty, unmerged, locked, the one you're standing in, the primary checkout, or one you didn't create stays put, and you tell me what you left and why. `~/.ai/worktree-sweep.sh --sweep` reports what's reapable and changes nothing; `--apply` performs the safe removals.
 - **Never author a root commit in a repo another agent is working in** without my go-ahead. When I approve it, use the form that leaves HEAD, the index, and the working tree untouched — `git branch main $(git commit-tree $(git hash-object -t tree /dev/null) -m "chore: root commit")`
 - **Re-check after compaction, a directory change, or any sign another agent appeared.** If another agent is using the same working tree, stop before writing and move to an isolated worktree — never try to distinguish or merge concurrent edits.
 
@@ -78,7 +79,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Check in at real forks:** ambiguous scope, multiple valid approaches, or anything hard to undo — with a recommended default.
 - **Make assumptions explicit;** note what you assumed.
 - **Never edit on the default branch.** Run the workspace-safety preflight above before changing files. When worktrees are enabled or another writer may be present, never edit in the primary checkout — use an isolated worktree. Absence of git is never a license to edit in place: initialize and branch instead.
-- **Verify before handoff;** report failures/skips plainly. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
+- **Verify before handoff;** report failures/skips plainly, and leave no reapable worktree behind. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 - **Stop for:** destructive/irreversible actions, spending money, or external sends unless I asked.
 - **Confirmation gates always win.** Per-tool rules below (external sends, placing orders, etc.) override autonomy — ask at the gate.
 

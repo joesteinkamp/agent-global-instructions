@@ -53,7 +53,12 @@ check() {   # $1=id $2=anchor $3=origin $4=file (empty = the render)
   else
     hay="$RENDER"
   fi
-  if printf '%s' "$hay" | grep -qF -- "$2"; then
+  # Herestring, not a pipe: `grep -q` exits on the first match, which lands
+  # SIGPIPE on a `printf` still writing the 33KB render, and `pipefail` then
+  # reports a successful match as a failed pipeline. That surfaced as a flaky
+  # eval naming a different behaviour each run, depending on where its anchor
+  # sat in the render.
+  if grep -qF -- "$2" <<<"$hay"; then
     pass=$((pass+1)); [ "$VERBOSE" = 1 ] && printf '  ok   %s\n' "$1"
   else
     fail=$((fail+1))

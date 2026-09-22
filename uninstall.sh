@@ -367,6 +367,16 @@ if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.l
   rm -f "$HOME/.local/bin/lm"
   echo "  removed $HOME/.local/bin/lm (local-model shim)"
 fi
+# The tool-agnostic worktree sweep CLI install-hooks.sh copied out of hooks/.
+# Content-checked against our own header, so a foreign file parked at that path
+# is never removed. (The hook wiring and the copies under each tool's hooks dir
+# are handled by strip_hooks / the HOOK_NAMES matcher above.) The per-repo
+# rate-limit stamps in ~/.ai-logs are logs and stay, like every other log.
+if [ -f "$HOME/.ai/worktree-sweep.sh" ] \
+   && grep -q 'Worktree reaper' "$HOME/.ai/worktree-sweep.sh" 2>/dev/null; then
+  rm -f "$HOME/.ai/worktree-sweep.sh"
+  echo "  removed $HOME/.ai/worktree-sweep.sh (worktree sweep CLI)"
+fi
 
 echo "Done. Backups saved next to each file. ~/AGENTS.md left in place;"
 echo "per-tool instruction pointers were restored from their newest backup where one existed."

@@ -778,14 +778,15 @@ PYEOF
     || bad "load-memory injects recent session lessons at SessionStart"
   rm -rf "$SC" "$LMPROJ"
 
-  # One conservative advisory replaces the three blocking Stop hooks.
+  # Two advisories replace the three blocking Stop hooks: the quality nudge and
+  # the worktree reaper. Neither may block, and none of the retired ones return.
   if jq -e '[.hooks.Stop[].hooks[].command] as $c
-            | ($c|length)==1 and ($c[0]|test("quality-nudge"))
+            | ($c|length)==2 and ($c[0]|test("quality-nudge")) and ($c[1]|test("worktree-reap"))
               and ([$c[]|select(test("verify-nudge|improve-nudge|changelog-nudge"))]|length)==0' \
       "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
-    ok "install-hooks consolidates Stop into one quality advisory"
+    ok "install-hooks wires Stop to the two advisories (quality + worktree-reap)"
   else
-    bad "install-hooks consolidates Stop into one quality advisory"
+    bad "install-hooks wires Stop to the two advisories (quality + worktree-reap)"
   fi
 
   if command -v git >/dev/null 2>&1; then
@@ -1251,21 +1252,21 @@ PYEOF
   c2="$(jq '[.hooks[]|length]|add' "$MT/.cursor/hooks.json" 2>/dev/null)"
   if [ "$(jq '.version' "$MT/.cursor/hooks.json" 2>/dev/null)" = "1" ] \
      && [ -n "$c1" ] && [ "$c1" = "$c2" ] \
-     && jq -e '[.hooks.stop[].command] | length==1 and (.[0]|test("quality-nudge"))' "$MT/.cursor/hooks.json" >/dev/null 2>&1 \
-     && jq -e '.hooks.stop[0].loop_limit == 1' "$MT/.cursor/hooks.json" >/dev/null 2>&1; then
-    ok "install-hooks cursor is idempotent and wires one advisory quality-nudge stop hook"
+     && jq -e '[.hooks.stop[].command] | length==2 and (.[0]|test("quality-nudge")) and (.[1]|test("worktree-reap"))' "$MT/.cursor/hooks.json" >/dev/null 2>&1 \
+     && jq -e '[.hooks.stop[].loop_limit] | all(. == 1)' "$MT/.cursor/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks cursor is idempotent and wires both advisory stop hooks"
   else
-    bad "install-hooks cursor is idempotent and wires one advisory quality-nudge stop hook"
+    bad "install-hooks cursor is idempotent and wires both advisory stop hooks"
   fi
 
   # Codex hooks: file edits wired via the apply_patch matcher (path-guard + format).
   HOME="$MT" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
   if jq -e '[.hooks.PreToolUse[].matcher]  | any(test("apply_patch"))' "$MT/.codex/hooks.json" >/dev/null 2>&1 \
      && jq -e '[.hooks.PostToolUse[].matcher] | any(test("apply_patch"))' "$MT/.codex/hooks.json" >/dev/null 2>&1 \
-     && jq -e '[.hooks.Stop[].hooks[].command] | length==1 and (.[0]|test("quality-nudge"))' "$MT/.codex/hooks.json" >/dev/null 2>&1; then
-    ok "install-hooks codex wires edit guards and one quality advisory"
+     && jq -e '[.hooks.Stop[].hooks[].command] | length==2 and (.[0]|test("quality-nudge")) and (.[1]|test("worktree-reap"))' "$MT/.codex/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks codex wires edit guards and both Stop advisories"
   else
-    bad "install-hooks codex wires edit guards and one quality advisory"
+    bad "install-hooks codex wires edit guards and both Stop advisories"
   fi
 
   # Hook dialects: cursor blocks a secret read via {permission:deny}; codex
@@ -1630,6 +1631,343 @@ CURLEOF
 else
   echo "  (skipped — jq not installed)"
 fi
+
+# ---- worktree reaper: proof-of-merge, and everything that is not proof ------
+# A hook that deletes directories earns fixtures, not assertions about prose.
+# Every refusal gets a real repo. The falsifier is tested in both directions —
+# nothing unproven is ever removed, AND a squash merge (which is NOT an ancestor
+# of the default branch, so an ancestry-only check would reap nothing in Joe's
+# /ship flow) is still reapable when the forge proves it with a matching SHA.
+# Fixtures are seconds old, so the tests that expect a removal waive the cooling
+# window explicitly with WORKTREE_REAP_MIN_AGE=0; one test asserts the window.
+echo ""
+echo "== worktree reaper (proof-of-merge safety model) =="
+WRS="$DIR/hooks/worktree-reap.sh"
+if command -v git >/dev/null 2>&1; then
+  WR="$TMPD/wtreap"; mkdir -p "$WR"
+  WRR="$WR/repo"
+  (
+    set -e
+    git init -q "$WRR"
+    cd "$WRR"
+    git symbolic-ref HEAD refs/heads/main
+    git config user.email t@t.t; git config user.name t
+    printf '.env\n*.sqlite\nmy-context.env\nnode_modules/\n' > .gitignore
+    echo base > f.txt; git add -A; git commit -qm init
+    # provably merged (fast-forward) — the one thing that may be removed
+    git worktree add -q ../wt-merged -b feat-merged
+    ( cd ../wt-merged && echo m > m.txt && git add -A && git commit -qm m )
+    git merge -q --no-edit feat-merged
+    # merged too, but it is the tree the caller will be standing in
+    git worktree add -q ../wt-current -b feat-current
+    ( cd ../wt-current && echo c > c.txt && git add -A && git commit -qm c )
+    git merge -q --no-edit feat-current
+    # never merged
+    git worktree add -q ../wt-unmerged -b feat-unmerged
+    ( cd ../wt-unmerged && echo u > u.txt && git add -A && git commit -qm u )
+    # merged, but carrying work that is not committed
+    git worktree add -q ../wt-dirty -b feat-dirty
+    ( cd ../wt-dirty && echo d > d.txt && git add -A && git commit -qm d )
+    git merge -q --no-edit feat-dirty
+    echo scratch > ../wt-dirty/untracked.txt
+    # merged and clean to `git status`, but holding IGNORED files nobody can
+    # regenerate — the class both `status --porcelain` and `worktree remove`
+    # are blind to, and the class this repo's own .env/my-context.env fall in
+    git worktree add -q ../wt-ignored -b feat-ignored
+    ( cd ../wt-ignored && echo i > i.txt && git add -A && git commit -qm i )
+    git merge -q --no-edit feat-ignored
+    printf 'SECRET=1\n' > ../wt-ignored/.env
+    : > ../wt-ignored/dev.sqlite
+    mkdir -p ../wt-ignored/node_modules/p; echo x > ../wt-ignored/node_modules/p/i.js
+    # merged, clean, and holding ONLY regenerable ignored files
+    git worktree add -q ../wt-regen -b feat-regen
+    ( cd ../wt-regen && echo r > r.txt && git add -A && git commit -qm r )
+    git merge -q --no-edit feat-regen
+    mkdir -p ../wt-regen/node_modules/p; echo x > ../wt-regen/node_modules/p/i.js
+    # brand new, exactly as `/worktrees` creates one: branched AT the default
+    # tip, nothing committed. Ancestry is reflexive, so this is "merged" from
+    # birth — and deleting it eats a tree the same turn created.
+    git worktree add -q ../wt-fresh -b ai/fresh
+    mkdir -p ../wt-fresh/node_modules/p; echo x > ../wt-fresh/node_modules/p/i.js
+    # merged, but locked by another session
+    git worktree add -q ../wt-locked -b feat-locked
+    ( cd ../wt-locked && echo l > l.txt && git add -A && git commit -qm l )
+    git merge -q --no-edit feat-locked
+    git worktree lock ../wt-locked
+    # registration whose directory is already gone
+    git worktree add -q ../wt-gone -b feat-gone
+    rm -rf ../wt-gone
+    # squash-merged: `merge-base --is-ancestor` is FALSE for this one
+    git worktree add -q ../wt-squash -b feat-squash
+    ( cd ../wt-squash && echo s > s.txt && git add -A && git commit -qm s )
+    git merge -q --squash feat-squash; git commit -qm "squash: feat-squash"
+  ) >/dev/null 2>&1
+
+  wr_before="$(find "$WR" -maxdepth 1 | sort | tr '\n' ' ')"
+  wr_rep="$( cd "$WRR" && WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep 2>/dev/null )"
+  wr_after="$(find "$WR" -maxdepth 1 | sort | tr '\n' ' ')"
+
+  wr_ok=1
+  printf '%s\n' "$wr_rep" | grep -Eq 'REAPABLE +.*/wt-merged .*proof: ancestor'   || wr_ok=0
+  printf '%s\n' "$wr_rep" | grep -Eq 'REAPABLE +.*/wt-regen .*proof: ancestor'    || wr_ok=0
+  printf '%s\n' "$wr_rep" | grep -Eq 'UNMERGED +.*/wt-unmerged'                   || wr_ok=0
+  printf '%s\n' "$wr_rep" | grep -Eq 'DIRTY +.*/wt-dirty'                         || wr_ok=0
+  printf '%s\n' "$wr_rep" | grep -Eq 'LOCKED +.*/wt-locked'                       || wr_ok=0
+  printf '%s\n' "$wr_rep" | grep -Eq 'PRUNABLE +.*/wt-gone'                       || wr_ok=0
+  printf '%s\n' "$wr_rep" | grep -Eq 'MAIN +.*/repo'                              || wr_ok=0
+  [ "$wr_ok" = 1 ] && ok "worktree-reap classifies main, dirty, locked, unmerged, prunable and reapable trees" \
+                   || bad "worktree-reap classifies main, dirty, locked, unmerged, prunable and reapable trees"
+
+  # Half one of the falsifier: an ancestry-only check must NOT call a squash
+  # merge merged, and with no forge to ask, the tree survives untouched.
+  printf '%s\n' "$wr_rep" | grep -Eq 'UNMERGED +.*/wt-squash' \
+    && ok "worktree-reap treats a squash merge as unproven without a forge to ask" \
+    || bad "worktree-reap treats a squash merge as unproven without a forge to ask"
+
+  # `git status --porcelain` is empty for a tree full of .env and *.sqlite, and
+  # `git worktree remove` deletes it without complaint. The ignored-file gate is
+  # the only thing standing between a merged branch and someone's credentials.
+  if printf '%s\n' "$wr_rep" | grep -Eq 'DIRTY +.*/wt-ignored .*ignored files' \
+     && printf '%s\n' "$wr_rep" | grep -Eq 'DIRTY +.*/wt-ignored .*\.env'; then
+    ok "worktree-reap refuses a merged tree holding ignored files it cannot regenerate"
+  else
+    bad "worktree-reap refuses a merged tree holding ignored files it cannot regenerate"
+  fi
+
+  # Ancestry is reflexive: a branch created at the default tip is already an
+  # ancestor of it. Only reflog evidence separates "finished" from "never began".
+  printf '%s\n' "$wr_rep" | grep -Eq 'UNSTARTED +.*/wt-fresh' \
+    && ok "worktree-reap never reaps a brand-new branch that was born at the default tip" \
+    || bad "worktree-reap never reaps a brand-new branch that was born at the default tip"
+
+  # A dry run is a report: no directory appears or disappears, no branch dies,
+  # and the stale registration is still registered (pruning is an --apply act).
+  if [ "$wr_before" = "$wr_after" ] \
+     && [ -d "$WR/wt-merged" ] \
+     && git -C "$WRR" show-ref --verify --quiet refs/heads/feat-merged \
+     && git -C "$WRR" worktree list --porcelain 2>/dev/null | grep -q 'prunable'; then
+    ok "worktree-reap --sweep without --apply writes nothing"
+  else
+    bad "worktree-reap --sweep without --apply writes nothing"
+  fi
+
+  # The cooling window: everything above is minutes old, so with the default
+  # WORKTREE_REAP_MIN_AGE nothing is reapable at all — a sibling tree another
+  # agent just committed WIP into looks exactly like a finished one.
+  wr_cool="$( cd "$WRR" && bash "$WRS" --sweep --apply 2>/dev/null )"
+  if printf '%s\n' "$wr_cool" | grep -Eq 'COOLING +.*/wt-merged' \
+     && [ -d "$WR/wt-merged" ] \
+     && ! printf '%s\n' "$wr_cool" | grep -Eq 'REAPABLE'; then
+    ok "worktree-reap holds a freshly-merged tree inside the cooling window"
+  else
+    bad "worktree-reap holds a freshly-merged tree inside the cooling window"
+  fi
+
+  # A malformed keep-list must fail CLOSED. `grep -E` exits 2 on a bad pattern,
+  # which a naive caller reads as "no match" — and then protects nothing.
+  ( cd "$WRR" && WORKTREE_REAP_KEEP_RE='[' WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep --apply ) >/dev/null 2>&1
+  wr_rc=$?
+  if [ "$wr_rc" = 2 ] && [ -d "$WR/wt-merged" ] && [ -d "$WR/wt-regen" ]; then
+    ok "worktree-reap refuses to sweep at all on a malformed WORKTREE_REAP_KEEP_RE"
+  else
+    bad "worktree-reap refuses to sweep at all on a malformed WORKTREE_REAP_KEEP_RE"
+  fi
+
+  # A valid keep-list is honored.
+  wr_rep="$( cd "$WRR" && WORKTREE_REAP_KEEP_RE='wt-merged$' WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep 2>/dev/null )"
+  printf '%s\n' "$wr_rep" | grep -Eq 'KEEP +.*/wt-merged .*KEEP_RE' \
+    && ok "worktree-reap honors a valid WORKTREE_REAP_KEEP_RE" \
+    || bad "worktree-reap honors a valid WORKTREE_REAP_KEEP_RE"
+
+  # --apply from INSIDE a merged worktree: it removes the other proven ones and
+  # prunes the stale registration, but never the tree it is standing in, never
+  # the main worktree, and nothing that is dirty, ignored-precious, locked,
+  # unmerged or unstarted.
+  ( cd "$WR/wt-current" && WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep --apply ) >/dev/null 2>&1
+  wr_ok=1
+  [ -d "$WR/wt-merged" ]   && wr_ok=0        # proven merged -> removed
+  [ -d "$WR/wt-regen" ]    && wr_ok=0        # only regenerable ignored files -> removed
+  git -C "$WRR" show-ref --verify --quiet refs/heads/feat-merged && wr_ok=0
+  [ -d "$WR/wt-current" ]  || wr_ok=0        # the caller's own tree survives
+  [ -d "$WRR" ]            || wr_ok=0        # the main worktree survives
+  [ -d "$WR/wt-dirty" ]    || wr_ok=0
+  [ -d "$WR/wt-ignored" ]  || wr_ok=0
+  [ -f "$WR/wt-ignored/.env" ] || wr_ok=0
+  [ -d "$WR/wt-locked" ]   || wr_ok=0
+  [ -d "$WR/wt-unmerged" ] || wr_ok=0
+  [ -d "$WR/wt-fresh" ]    || wr_ok=0
+  [ -d "$WR/wt-squash" ]   || wr_ok=0
+  git -C "$WRR" worktree list --porcelain 2>/dev/null | grep -q 'prunable' && wr_ok=0
+  [ "$wr_ok" = 1 ] && ok "worktree-reap --apply reaps only proven trees, prunes the stale one, spares the rest" \
+                   || bad "worktree-reap --apply reaps only proven trees, prunes the stale one, spares the rest"
+
+  # Standing elsewhere, the formerly-CURRENT tree becomes reapable — proving the
+  # refusal above was about the caller's position, not about that tree.
+  ( cd "$WRR" && WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep --apply ) >/dev/null 2>&1
+  if [ ! -d "$WR/wt-current" ] && [ -d "$WR/wt-unmerged" ] && [ -d "$WR/wt-dirty" ] && [ -d "$WRR" ]; then
+    ok "worktree-reap reaps a merged tree once the caller is no longer standing in it"
+  else
+    bad "worktree-reap reaps a merged tree once the caller is no longer standing in it"
+  fi
+
+  # Half two of the falsifier, and the trap inside it. The forge arm is what
+  # makes a squash-merge flow reapable at all — but a branch NAME proves
+  # nothing: `ai/<agent>` is recreated every run and trails merged PRs forever.
+  # The stub answers with a head SHA, exactly as `gh --json headRefOid` does:
+  # the real tip for feat-squash, a stranger's SHA for anything else.
+  mkdir -p "$WR/bin"
+  wr_tip="$(git -C "$WRR" rev-parse refs/heads/feat-squash 2>/dev/null)"
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'head=""; prev=""\n'
+    printf 'for a in "$@"; do [ "$prev" = "--head" ] && head="$a"; prev="$a"; done\n'
+    printf 'if [ "$head" = "feat-squash" ]; then echo "%s"; else echo "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"; fi\n' "$wr_tip"
+    printf 'exit 0\n'
+  } > "$WR/bin/gh"
+  chmod +x "$WR/bin/gh"
+  git -C "$WRR" remote add origin https://github.com/acme/demo.git 2>/dev/null
+  wr_rep="$( cd "$WRR" && PATH="$WR/bin:$PATH" WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep --apply 2>/dev/null )"
+  wr_ok=1
+  printf '%s\n' "$wr_rep" | grep -Eq 'REAPABLE +.*/wt-squash .*proof: forge' || wr_ok=0
+  [ -d "$WR/wt-squash" ] && wr_ok=0
+  git -C "$WRR" show-ref --verify --quiet refs/heads/feat-squash && wr_ok=0
+  [ "$wr_ok" = 1 ] && ok "worktree-reap reaps a squash merge whose forge head SHA matches this tip" \
+                   || bad "worktree-reap reaps a squash merge whose forge head SHA matches this tip"
+
+  # The same forge answer for a branch whose SHA does NOT match is not evidence
+  # about this tree — and `git branch -d` refusing is a veto, never a trigger
+  # to escalate to -D.
+  wr_ok=1
+  printf '%s\n' "$wr_rep" | grep -Eq 'UNMERGED +.*/wt-unmerged' || wr_ok=0
+  [ -d "$WR/wt-unmerged" ] || wr_ok=0
+  git -C "$WRR" show-ref --verify --quiet refs/heads/feat-unmerged || wr_ok=0
+  [ "$wr_ok" = 1 ] && ok "worktree-reap ignores a merged PR that shares the branch name but not the SHA" \
+                   || bad "worktree-reap ignores a merged PR that shares the branch name but not the SHA"
+
+  # ADVISE-ONLY arm: a `gone` upstream is a likelihood. It is reported with the
+  # exact command and never acted on, even under --apply.
+  WRG="$TMPD/wtgone"; mkdir -p "$WRG"
+  (
+    set -e
+    git init -q --bare "$WRG/remote.git"
+    git init -q "$WRG/repo"
+    cd "$WRG/repo"
+    git symbolic-ref HEAD refs/heads/main
+    git config user.email t@t.t; git config user.name t
+    echo base > f.txt; git add -A; git commit -qm init
+    git remote add origin "$WRG/remote.git"; git push -q -u origin main
+    git worktree add -q ../wt-shipped -b feat-shipped
+    ( cd ../wt-shipped && echo x > x.txt && git add -A && git commit -qm x && git push -q -u origin feat-shipped )
+    git push -q origin --delete feat-shipped
+    git fetch -q --prune
+  ) >/dev/null 2>&1
+  wr_rep="$( cd "$WRG/repo" && WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep --apply 2>/dev/null )"
+  wr_ok=1
+  printf '%s\n' "$wr_rep" | grep -Eq 'LIKELY-MERGED +.*/wt-shipped' || wr_ok=0
+  printf '%s\n' "$wr_rep" | grep -q "worktree remove"               || wr_ok=0
+  [ -d "$WRG/wt-shipped" ]                                          || wr_ok=0
+  git -C "$WRG/repo" show-ref --verify --quiet refs/heads/feat-shipped || wr_ok=0
+  [ "$wr_ok" = 1 ] && ok "worktree-reap only advises on a gone upstream — never removes it" \
+                   || bad "worktree-reap only advises on a gone upstream — never removes it"
+
+  # A default branch that had to be guessed may report, but may never delete.
+  WRA="$TMPD/wtambig"; mkdir -p "$WRA"
+  (
+    set -e
+    git init -q "$WRA/repo"
+    cd "$WRA/repo"
+    git symbolic-ref HEAD refs/heads/integration
+    git config user.email t@t.t; git config user.name t
+    echo base > f.txt; git add -A; git commit -qm init
+    git branch main; git branch master
+    git worktree add -q ../wt-x -b feat-x
+    ( cd ../wt-x && echo x > x.txt && git add -A && git commit -qm x )
+    git merge -q --no-edit feat-x
+  ) >/dev/null 2>&1
+  wr_rep="$( cd "$WRA/repo" && WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep --apply 2>/dev/null )"
+  if printf '%s\n' "$wr_rep" | grep -q 'could not be resolved confidently' && [ -d "$WRA/wt-x" ]; then
+    ok "worktree-reap will not delete when the default branch had to be guessed"
+  else
+    bad "worktree-reap will not delete when the default branch had to be guessed"
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    wr_json="$( cd "$WRG/repo" && bash "$WRS" --sweep --json 2>/dev/null )"
+    printf '%s' "$wr_json" | jq -e 'map(.status) | index("LIKELY-MERGED") != null and (index("MAIN") != null)' >/dev/null 2>&1 \
+      && ok "worktree-reap --json emits the status vocabulary" \
+      || bad "worktree-reap --json emits the status vocabulary"
+
+    # Hook mode: advisory JSON, auto-delete of the proven tree only, rate limit,
+    # stop_hook_active, the off switch, and the Cursor dialect.
+    WRH="$TMPD/wtreap-hook"; mkdir -p "$WRH"
+    (
+      set -e
+      git init -q "$WRH/repo"
+      cd "$WRH/repo"
+      git symbolic-ref HEAD refs/heads/main
+      git config user.email t@t.t; git config user.name t
+      echo base > f.txt; git add -A; git commit -qm init
+      git worktree add -q ../wt-m -b feat-m
+      ( cd ../wt-m && echo m > m.txt && git add -A && git commit -qm m )
+      git merge -q --no-edit feat-m
+      git worktree add -q ../wt-u -b feat-u
+      ( cd ../wt-u && echo u > u.txt && git add -A && git commit -qm u )
+    ) >/dev/null 2>&1
+    WRST="$TMPD/wtreap-state"; mkdir -p "$WRST"
+
+    h_off="$(printf '{"cwd":"%s"}' "$WRH/repo" | WORKTREE_REAP=off WORKTREE_REAP_MIN_AGE=0 AI_NUDGE_STATE="$WRST" HOOK_PLATFORM=claude bash "$WRS" 2>/dev/null)"
+    h_act="$(printf '{"cwd":"%s","stop_hook_active":true}' "$WRH/repo" | WORKTREE_REAP_MIN_AGE=0 AI_NUDGE_STATE="$WRST" HOOK_PLATFORM=claude bash "$WRS" 2>/dev/null)"
+    h_adv="$(printf '{"cwd":"%s"}' "$WRH/repo" | WORKTREE_REAP=advise WORKTREE_REAP_MIN_AGE=0 AI_NUDGE_STATE="$TMPD/wtreap-state2" HOOK_PLATFORM=claude bash "$WRS" 2>/dev/null)"
+    h_bad="$(printf '{"cwd":"%s"}' "$WRH/repo" | WORKTREE_REAP_KEEP_RE='[' WORKTREE_REAP_MIN_AGE=0 AI_NUDGE_STATE="$TMPD/wtreap-state5" HOOK_PLATFORM=claude bash "$WRS" 2>/dev/null)"
+    if [ -z "$h_off" ] && [ -z "$h_act" ] && [ -d "$WRH/wt-m" ] \
+       && printf '%s' "$h_adv" | jq -e '.continue==true and (.systemMessage|test("provably merged")) and (has("decision")|not)' >/dev/null 2>&1 \
+       && printf '%s' "$h_bad" | jq -e '.systemMessage|test("not a valid extended regular expression")' >/dev/null 2>&1 \
+       && [ -d "$WRH/wt-m" ]; then
+      ok "worktree-reap hook honors off, stop_hook_active, advise, and a bad keep-list (deletes nothing)"
+    else
+      bad "worktree-reap hook honors off, stop_hook_active, advise, and a bad keep-list (deletes nothing)"
+    fi
+
+    h1="$(printf '{"cwd":"%s"}' "$WRH/repo" | WORKTREE_REAP_MIN_AGE=0 AI_NUDGE_STATE="$WRST" HOOK_PLATFORM=claude bash "$WRS" 2>/dev/null)"; h1rc=$?
+    h2="$(printf '{"cwd":"%s"}' "$WRH/repo" | WORKTREE_REAP_MIN_AGE=0 AI_NUDGE_STATE="$WRST" HOOK_PLATFORM=claude bash "$WRS" 2>/dev/null)"
+    if [ "$h1rc" = 0 ] \
+       && printf '%s' "$h1" | jq -e '.continue==true and (.systemMessage|test("Removed 1 provably-merged")) and (.systemMessage|test("Advisory only")) and (has("decision")|not)' >/dev/null 2>&1 \
+       && [ ! -d "$WRH/wt-m" ] && [ -d "$WRH/wt-u" ] \
+       && git -C "$WRH/repo" show-ref --verify --quiet refs/heads/feat-u \
+       && [ -z "$h2" ]; then
+      ok "worktree-reap hook is advisory, non-blocking, reaps only the proven tree, and rate-limits"
+    else
+      bad "worktree-reap hook is advisory, non-blocking, reaps only the proven tree, and rate-limits"
+    fi
+
+    hc="$(printf '{"cwd":"%s","loop_count":0}' "$WRG/repo" | WORKTREE_REAP_MIN_AGE=0 AI_NUDGE_STATE="$TMPD/wtreap-state3" HOOK_PLATFORM=cursor bash "$WRS" 2>/dev/null)"
+    hc2="$(printf '{"cwd":"%s","loop_count":1}' "$WRG/repo" | WORKTREE_REAP_MIN_AGE=0 AI_NUDGE_STATE="$TMPD/wtreap-state4" HOOK_PLATFORM=cursor bash "$WRS" 2>/dev/null)"
+    if printf '%s' "$hc" | jq -e '.followup_message | test("Worktree reap")' >/dev/null 2>&1 && [ -z "$hc2" ]; then
+      ok "worktree-reap emits the cursor followup_message dialect and honors loop_count"
+    else
+      bad "worktree-reap emits the cursor followup_message dialect and honors loop_count"
+    fi
+
+    # The dual-mode script is also installed as the tool-agnostic sweep CLI, and
+    # uninstall takes it back off the machine.
+    WRHOME="$TMPD/wtreap-home"; mkdir -p "$WRHOME"
+    HOME="$WRHOME" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+    wr_ok=1
+    [ -x "$WRHOME/.ai/worktree-sweep.sh" ] || wr_ok=0
+    cmp -s "$DIR/hooks/worktree-reap.sh" "$WRHOME/.ai/worktree-sweep.sh" || wr_ok=0
+    HOME="$WRHOME" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+    [ -e "$WRHOME/.ai/worktree-sweep.sh" ] && wr_ok=0
+    jq -e '[(.hooks.Stop // [])[].hooks[].command] | any(test("worktree-reap"))' \
+      "$WRHOME/.claude/settings.json" >/dev/null 2>&1 && wr_ok=0
+    [ "$wr_ok" = 1 ] && ok "install-hooks installs ~/.ai/worktree-sweep.sh and uninstall removes it" \
+                     || bad "install-hooks installs ~/.ai/worktree-sweep.sh and uninstall removes it"
+  else
+    echo "  (hook-mode tests skipped — jq not installed)"
+  fi
+else
+  echo "  (skipped — git not installed)"
+fi
+
 
 echo ""
 echo "$pass passed, $fail failed"

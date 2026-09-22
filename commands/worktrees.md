@@ -1,7 +1,7 @@
 ---
-description: Set up parallel-agent git worktrees and converge them into one live dev tree
+description: Set up parallel-agent git worktrees, converge them into one live dev tree, and tear each one down once its branch is merged
 argument-hint: [agent names, e.g. "claude codex antigravity"]
-allowed-tools: Bash(git:*), Bash(./converge.sh:*)
+allowed-tools: Bash(git:*), Bash(./converge.sh:*), Bash(~/.ai/worktree-sweep.sh:*)
 ---
 
 Current state:
@@ -56,5 +56,13 @@ Steps:
 5. **Remind me of the rules that keep it live:** scope each agent to a disjoint
    area, commit WIP often (liveness = commit cadence), and that conflicts are
    flagged via `.converge-conflict-*` markers rather than auto-resolved.
-6. **Teardown, when I ask:** `git worktree remove ../<repo>-<agent>` and delete
-   the `ai/<agent>` branch once merged.
+6. **Tear a tree down as soon as its branch is proven merged** — don't wait to
+   be asked. Proof is `git merge-base --is-ancestor ai/<agent> <default>` or the
+   forge reporting the PR merged (a squash merge fails the ancestor check and is
+   merged anyway). Then `git worktree remove ../<repo>-<agent>` and
+   `git branch -d ai/<agent>` — neither forced — plus `git worktree prune` for
+   registrations whose directories are already gone. Leave, and report, any tree
+   that is dirty, unmerged, locked, the one you're standing in, or the
+   integration tree itself. To sweep beyond this repo,
+   `~/.ai/worktree-sweep.sh --sweep` reports every reapable tree and writes
+   nothing; `--apply` performs the safe removals.
