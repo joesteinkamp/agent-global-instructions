@@ -47,7 +47,9 @@ left in place).
   get them auto-registered at `~/.ai/local-models` and wired into cross-tool
   delegation behind the `lm` shim; machines without any get a clean no-op.
 - **Guardrails** — hooks that block edits to generated/sensitive paths, trip on
-  catastrophic shell, auto-format edits, and log every tool call.
+  catastrophic shell, auto-format edits, log every tool call, and reap the
+  worktrees whose branches are provably merged (never the dirty, unmerged,
+  locked or current ones).
 - **Long autonomy** (aggressive posture) — the instructions teach every tool to
   keep long work alive with the right primitive for its stopping rule: `/goal
   <condition>` when the work has a verifiable end state (Claude Code and Codex;

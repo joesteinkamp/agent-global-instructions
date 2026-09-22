@@ -1,6 +1,6 @@
 ---
-description: Update the default branch and rebase the current branch on it
-allowed-tools: Bash(git:*)
+description: Update the default branch, rebase the current branch on it, and sweep worktrees whose branches are now merged
+allowed-tools: Bash(git:*), Bash(~/.ai/worktree-sweep.sh:*)
 ---
 
 Current state:
@@ -20,4 +20,8 @@ Steps:
    Otherwise: rebase the current branch onto `origin/<default>`.
 5. If you stashed, pop it back.
 6. If there are rebase conflicts, stop and report them — don't guess resolutions.
-7. Report what changed (commits pulled in, current position).
+7. **Sweep merged worktrees.** The fetch in step 1 is what makes trees
+   reapable, so run `~/.ai/worktree-sweep.sh --sweep` here — it writes nothing —
+   then `--apply` to remove the proven-merged ones. Report what it left standing
+   and why. Skip the step if the script isn't installed.
+8. Report what changed (commits pulled in, current position, anything reaped).

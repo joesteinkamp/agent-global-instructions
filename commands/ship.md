@@ -1,5 +1,5 @@
 ---
-description: Commit on a feature branch (moving off the default first if needed), push, and open the PR/MR — merging only on explicit go-ahead
+description: Commit on a feature branch (moving off the default first if needed), push, and open the PR/MR — merging only on explicit go-ahead, then reaping the merged branch and its worktree
 argument-hint: [optional commit message / PR title]
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(glab:*)
 ---
@@ -55,6 +55,18 @@ Steps:
    `git checkout` the default branch and `git pull`. If the merge is blocked
    (failing checks, conflicts, branch protection), stop and report exactly
    what blocked it — do not force anything.
+   Then reap what the merge just made safe. The proof is the merge you just
+   performed on this exact branch tip — a squash merge isn't an ancestor of the
+   default branch, so `git merge-base --is-ancestor` says no and is wrong, and a
+   merged PR found by branch *name* alone proves nothing (`ai/<agent>` gets
+   reused across dozens of merges). Delete the local branch (`git branch -d`;
+   `-D` only when the merge you just made is what deleted the remote head),
+   remove the
+   worktree it lived in (`git worktree remove`, unforced), and
+   `git worktree prune`. Never remove the tree you're standing in
+   or one that's dirty, locked, or somebody else's — name it and hand me the
+   command to run from elsewhere instead.
 9. Report what happened: tidy results (if run), the branch it shipped on (and
    whether step 3 moved the work off the default), commit hash, push, PR/MR
-   URL, and the merge result or the pending merge question.
+   URL, the merge result or the pending merge question, and what was reaped or
+   deliberately left behind.

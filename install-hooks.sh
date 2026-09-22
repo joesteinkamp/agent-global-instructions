@@ -26,7 +26,7 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 # mentions the bare name; not end-anchored since wired commands end in .sh").
 # memory-os is not an event hook: memory-os.sh is a sourced lib, installed beside
 # the hooks that use it.
-HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge load-memory precompact-archive log-session-end memory-os autonomy-reminder)
+HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge worktree-reap load-memory precompact-archive log-session-end memory-os autonomy-reminder)
 # Keep retired names in the matcher so an update removes what a previous install
 # left behind: the three aggressive legacy Stop entries, and the session rating
 # survey (removed 2026-09-06 — 22 of its 23 records were dismissals). Listing
@@ -117,7 +117,7 @@ WIRE_AR=false; [ "$AUTONOMY_MODE" = "aggressive" ] && WIRE_AR=true
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
-  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg ar "$(cmd claude "$hd" autonomy-reminder)" --argjson arw "$WIRE_AR" '{
+  merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg wr "$(cmd claude "$hd" worktree-reap)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg ar "$(cmd claude "$hd" autonomy-reminder)" --argjson arw "$WIRE_AR" '{
     SessionStart: ([
       {matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$lm}]}
     ] + (if $arw then [{matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$ar}]}] else [] end)),
@@ -131,12 +131,15 @@ install_claude() {
       {matcher:"Edit|Write|MultiEdit", hooks:[{type:"command",command:$fm}]}
     ],
     PreCompact: [ {matcher:"manual|auto", hooks:[{type:"command",command:$pc}]} ],
-    Stop: [ {hooks:[{type:"command",command:$qn}]} ],
+    Stop: [
+      {hooks:[{type:"command",command:$qn}]},
+      {hooks:[{type:"command",command:$wr,timeout:60}]}
+    ],
     SessionEnd: [
       {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se,timeout:10}]}
     ]
   }')"
-  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, precompact-archive, session-end$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
+  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, worktree-reap, precompact-archive, session-end$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
 }
 
 install_codex() {
@@ -158,6 +161,7 @@ install_codex() {
     --arg fm "$(cmd codex "$hd" format-edited)" \
     --arg lg "$(cmd codex "$hd" log-tool)" \
     --arg qn "$(cmd codex "$hd" quality-nudge)" \
+    --arg wr "$(cmd codex "$hd" worktree-reap)" \
     --arg lm "$(cmd codex "$hd" load-memory)" \
     --arg ar "$(cmd codex "$hd" autonomy-reminder)" \
     --argjson arw "$WIRE_AR" '{
@@ -173,9 +177,12 @@ install_codex() {
       {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
       {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$fm,timeout:30}]}
     ],
-    Stop: [ {hooks:[{type:"command",command:$qn,timeout:30}]} ]
+    Stop: [
+      {hooks:[{type:"command",command:$qn,timeout:30}]},
+      {hooks:[{type:"command",command:$wr,timeout:60}]}
+    ]
   }')"
-  echo "  codex   -> $sf (memory-load, log, guard paths, guard bash, auto-format, advisory quality-nudge$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
+  echo "  codex   -> $sf (memory-load, log, guard paths, guard bash, auto-format, advisory quality-nudge, worktree-reap$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
 }
 
 install_cursor() {
@@ -203,15 +210,16 @@ install_cursor() {
     --arg lg "$(cmd cursor "$hd" log-tool)" \
     --arg lm "$(cmd cursor "$hd" load-memory)" \
     --arg qn "$(cmd cursor "$hd" quality-nudge)" \
+    --arg wr "$(cmd cursor "$hd" worktree-reap)" \
     --arg ar "$(cmd cursor "$hd" autonomy-reminder)" \
     --argjson arw "$WIRE_AR" '{
     sessionStart: ([ {command:$lm} ] + (if $arw then [{command:$ar}] else [] end)),
     beforeShellExecution: [ {command:$lg}, {command:$gb} ],
     beforeReadFile: [ {command:$gpr} ],
     afterFileEdit: [ {command:$lg}, {command:$gp}, {command:$fm} ],
-    stop: [ {command:$qn, loop_limit:1} ]
+    stop: [ {command:$qn, loop_limit:1}, {command:$wr, loop_limit:1} ]
   }')"
-  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, advisory quality-nudge$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"); write-block via permissions)"
+  echo "  cursor  -> $sf (memory-load, log, guard-bash, guard-read-paths, format, advisory quality-nudge, worktree-reap$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"); write-block via permissions)"
 }
 
 # Antigravity reads its own ~/.gemini/antigravity-cli/
@@ -257,6 +265,23 @@ install_antigravity() {
   echo "  antigravity -> $hj (log, guard paths, guard bash, format via ~/.gemini/antigravity-cli/hooks/)"
 }
 
+# worktree-reap.sh is dual-mode: the Stop hook above, and a sweep CLI. Install a
+# second copy at the tool-agnostic path the commands call (/worktrees, /sync,
+# /ship) so one source of truth serves both — no tool's hooks dir is on the
+# path a command can rely on. Not per-tool: it is installed once per run.
+install_sweep_cli() {
+  local dest="$HOME/.ai/worktree-sweep.sh"
+  mkdir -p "$HOME/.ai" 2>/dev/null || true
+  if cmp -s "$SRC/worktree-reap.sh" "$dest" 2>/dev/null; then
+    echo "  ok ~/.ai/worktree-sweep.sh (up to date)"
+  elif cp "$SRC/worktree-reap.sh" "$dest" 2>/dev/null && chmod +x "$dest" 2>/dev/null; then
+    echo "  wrote ~/.ai/worktree-sweep.sh (tool-agnostic worktree sweep CLI)"
+  else
+    echo "  (could not write ~/.ai/worktree-sweep.sh — sweep CLI skipped)" >&2
+  fi
+  return 0
+}
+
 targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 # Guard each install so a single tool's merge failure (bad jq, missing file)
 # doesn't abort the whole run under `set -e` — the others still install.
@@ -269,4 +294,5 @@ for t in "${targets[@]}"; do
     *) echo "  unknown target: $t (use: claude codex cursor antigravity)" >&2;;
   esac
 done
+install_sweep_cli
 echo "Done. Backups saved next to each settings file."
