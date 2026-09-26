@@ -1969,6 +1969,57 @@ else
 fi
 
 
+# ---- project mode never renders the globals into this checkout --------------
+# The repo used to carry an untracked AGENTS.md/CLAUDE.md render at its root, so
+# a session here loaded the whole instruction set twice: once via ~/AGENTS.md and
+# again as project instructions. write_project now targets $PWD and refuses the
+# harness checkout, and the project files are committed instead.
+echo ""
+echo "== project mode =="
+
+PROJ="$TMPD/a-project"; mkdir -p "$PROJ"
+if ( cd "$PROJ" && "$CUSTOMIZE" --project >/dev/null 2>&1 ) && [ -f "$PROJ/AGENTS.md" ] && [ -f "$PROJ/CLAUDE.md" ]; then
+  ok "--project writes AGENTS.md/CLAUDE.md into the current directory"
+else
+  bad "--project writes AGENTS.md/CLAUDE.md into the current directory"
+fi
+
+# A directory holding both template.md and customize.sh is a harness checkout.
+FAKE="$TMPD/fake-harness"; mkdir -p "$FAKE"
+cp "$DIR/customize.sh" "$DIR/template.md" "$FAKE/" 2>/dev/null
+: > "$FAKE/AGENTS.md"
+if ( cd "$FAKE" && "$FAKE/customize.sh" --project >/dev/null 2>&1 ); then
+  bad "--project refuses to render into a harness checkout"
+else
+  ok "--project refuses to render into a harness checkout"
+fi
+if [ -s "$FAKE/AGENTS.md" ]; then
+  bad "--project leaves a refused checkout's AGENTS.md untouched"
+else
+  ok "--project leaves a refused checkout's AGENTS.md untouched"
+fi
+
+# The committed project instructions are instructions, not a render of the globals.
+if [ -f "$DIR/AGENTS.md" ] && ! grep -qF 'GENERATED FILE' "$DIR/AGENTS.md"; then
+  ok "repo AGENTS.md is committed project instructions, not a global render"
+else
+  bad "repo AGENTS.md is committed project instructions, not a global render"
+fi
+if grep -qF '@AGENTS.md' "$DIR/CLAUDE.md" && [ "$(wc -l < "$DIR/CLAUDE.md")" -lt 12 ]; then
+  ok "repo CLAUDE.md is a pointer at AGENTS.md, not a second copy"
+else
+  bad "repo CLAUDE.md is a pointer at AGENTS.md, not a second copy"
+fi
+
+# Claude Code's SessionStart matchers include fork; without it a forked session
+# starts with neither the memory context nor the autonomy reminder.
+if grep -qF 'startup|resume|clear|compact|fork' "$DIR/install-hooks.sh"; then
+  ok "install-hooks wires SessionStart for forked sessions too"
+else
+  bad "install-hooks wires SessionStart for forked sessions too"
+fi
+
+
 echo ""
 echo "$pass passed, $fail failed"
 rm -f "$OUT" "$ERR"

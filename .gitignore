@@ -38,6 +38,7 @@ extras.local.md
 codex-vs-claude-code.html
 parallel-worktrees-playbook.html
 
-# Rendered, personalized output — generate locally with ./customize.sh
-/AGENTS.md
-/CLAUDE.md
+# NOTE: /AGENTS.md and /CLAUDE.md used to be ignored here, because `customize.sh
+# --project` rendered the personalized globals on top of this checkout. They are
+# now committed project instructions, and that render is refused — a copy here is
+# loaded a second time alongside ~/AGENTS.md in every session.

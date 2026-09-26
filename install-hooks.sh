@@ -114,13 +114,18 @@ WIRE_AR=false; [ "$AUTONOMY_MODE" = "aggressive" ] && WIRE_AR=true
 # a loaded or few-core box that window is routinely missed, and the abort
 # surfaces to the user as `SessionEnd hook [...] failed: Hook cancelled`.
 # Declaring 10s widens the batch window to 10s; the hooks still finish in ~0.2s.
+# Claude Code's documented SessionStart matchers are startup|resume|clear|
+# compact|fork. `fork` was missing, so a forked session started with neither
+# the memory context nor the autonomy reminder. Codex's matcher vocabulary is
+# not documented as including fork, so its list below is deliberately left at
+# startup|resume.
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
   merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg wr "$(cmd claude "$hd" worktree-reap)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg ar "$(cmd claude "$hd" autonomy-reminder)" --argjson arw "$WIRE_AR" '{
     SessionStart: ([
-      {matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$lm}]}
-    ] + (if $arw then [{matcher:"startup|resume|clear|compact", hooks:[{type:"command",command:$ar}]}] else [] end)),
+      {matcher:"startup|resume|clear|compact|fork", hooks:[{type:"command",command:$lm}]}
+    ] + (if $arw then [{matcher:"startup|resume|clear|compact|fork", hooks:[{type:"command",command:$ar}]}] else [] end)),
     PreToolUse: [
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
       {matcher:"Edit|Write|MultiEdit|NotebookEdit", hooks:[{type:"command",command:$gp}]},
