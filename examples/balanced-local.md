@@ -73,13 +73,27 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Never author a root commit in a repo another agent is working in** without my go-ahead. When I approve it, use the form that leaves HEAD, the index, and the working tree untouched — `git branch main $(git commit-tree $(git hash-object -t tree /dev/null) -m "chore: root commit")`
 - **Re-check after compaction, a directory change, or any sign another agent appeared.** If another agent is using the same working tree, stop before writing and move to an isolated worktree — never try to distinguish or merge concurrent edits.
 
+### Gates — stop and ask
+
+These override everything else here, autonomy included, and they hold
+identically inside every loop iteration, every goal turn, every agent and every
+delegate — **nothing about the shape of the work loosens a gate.** When in doubt
+at one, ask.
+
+- **Destructive or irreversible actions.**
+- **Spending money.**
+- **External sends** — email, posts, commits — unless I asked.
+- **A Change Log entry** — propose it; never write or commit one unapproved.
+- **The per-tool confirmations below** — sends, calendar writes, placing orders.
+- **Never launch a delegate with a full-bypass flag**
+  (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`,
+  `--yolo`) unless I explicitly say so. Sandbox, don't bypass.
+
 **Proceed on clear tasks; check in at genuine forks.**
 
 - **Proceed when the path is clear.** Don't narrate options you won't pursue.
 - **Check in at real forks:** ambiguous scope, multiple valid approaches, or anything hard to undo — with a recommended default.
 - **Make assumptions explicit;** note what you assumed.
-- **Stop for:** destructive/irreversible actions, spending money, or external sends unless I asked.
-- **Confirmation gates always win.** Per-tool rules below (external sends, placing orders, etc.) override autonomy — ask at the gate.
 - **Never edit on the default branch.** Run the workspace-safety preflight above before changing files; absence of git is never a license to edit in place — initialize and branch instead.
 - **Verify before handoff;** report failures/skips plainly, and leave no reapable worktree behind. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 
@@ -124,9 +138,8 @@ file.
   team of a session: what each tool's construct can and can't do (Claude Code
   teammates message each other, Codex subagents report only to you), how to spawn
   by role, and what to fall back to where there's no team construct.
-- **A team doesn't loosen a gate.** Every confirmation gate applies inside every
-  agent, and delegation goes one level deep — agents don't spawn their own
-  agents. The main thread integrates the results and reports.
+- **Delegation goes one level deep** — agents don't spawn their own agents. The
+  main thread integrates the results and reports.
 
 
 

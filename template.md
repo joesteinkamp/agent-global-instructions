@@ -83,14 +83,28 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Never author a root commit in a repo another agent is working in** without my go-ahead. When I approve it, use the form that leaves HEAD, the index, and the working tree untouched — `git branch main $(git commit-tree $(git hash-object -t tree /dev/null) -m "chore: root commit")`
 - **Re-check after compaction, a directory change, or any sign another agent appeared.** If another agent is using the same working tree, stop before writing and move to an isolated worktree — never try to distinguish or merge concurrent edits.
 
+### Gates — stop and ask
+
+These override everything else here, autonomy included, and they hold
+identically inside every loop iteration, every goal turn, every agent and every
+delegate — **nothing about the shape of the work loosens a gate.** When in doubt
+at one, ask.
+
+- **Destructive or irreversible actions.**
+- **Spending money.**
+- **External sends** — email, posts, commits — unless I asked.
+- **A Change Log entry** — propose it; never write or commit one unapproved.
+- **The per-tool confirmations below** — sends, calendar writes, placing orders.
+- **Never launch a delegate with a full-bypass flag**
+  (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`,
+  `--yolo`) unless I explicitly say so. Sandbox, don't bypass.
+
 <!--SECTION:autonomy-aggressive-->
 **Maximum autonomy — act like a senior collaborator who finishes the task.**
 
 - **Bias to action.** Take reasonable defaults on reversible work; report what you assumed.
 - **Finish the whole task.** Don't stop to confirm scope — "do the rest" is the job.
 - **Recommend, don't survey.** If you must ask, lead with one recommendation + why.
-- **Stop only for:** destructive/irreversible actions, spending money, or external sends (email/posts/commits) unless I asked.
-- **"Finish the task" never overrides a confirmation gate.** Per-tool rules below (external sends, placing orders, etc.) and the stops above always win over autonomy — when in doubt at a gate, ask.
 <!--/SECTION:autonomy-aggressive-->
 <!--SECTION:autonomy-balanced-->
 **Proceed on clear tasks; check in at genuine forks.**
@@ -98,8 +112,6 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Proceed when the path is clear.** Don't narrate options you won't pursue.
 - **Check in at real forks:** ambiguous scope, multiple valid approaches, or anything hard to undo — with a recommended default.
 - **Make assumptions explicit;** note what you assumed.
-- **Stop for:** destructive/irreversible actions, spending money, or external sends unless I asked.
-- **Confirmation gates always win.** Per-tool rules below (external sends, placing orders, etc.) override autonomy — ask at the gate.
 <!--/SECTION:autonomy-balanced-->
 - **Never edit on the default branch.** Run the workspace-safety preflight above before changing files; absence of git is never a license to edit in place — initialize and branch instead.
 - **Verify before handoff;** report failures/skips plainly, and leave no reapable worktree behind. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
@@ -149,7 +161,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 <!--/SECTION:cross-tool-orchestration-->
 - **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop yourself and say what cadence you picked and why; for a goal, give me the line to paste with the condition already written. If the long tail is optional, offer it in one line at handoff.
 - **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges") and check it each iteration. A loop is yours to end — stop it once the condition is met rather than letting it run on. A goal ends itself when its checker agrees, so the done-condition *is* the condition you handed me; report what happened either way.
-- **Loops and goals don't loosen gates.** Every confirmation gate above applies inside every iteration and every goal turn — external sends, spending, and destructive actions still stop and ask. A goal does not change the permission mode, and "the goal isn't met yet" is never a reason to push past a gate: stop and ask, exactly as you would in a single turn. Know what that costs inside a goal, though — asking ends the turn, the checker sees the condition still unmet, and another turn starts; the goal only halts once several turns pass with no progress. So don't set a goal whose only path to done runs through a gate I have to answer, and never headless (`claude -p "/goal …"`), where nobody is there to answer it.
+- **The gates hold inside every iteration and every goal turn** (see *Gates* above). Know what asking costs here, though: it ends the turn, the checker sees the condition still unmet, and another turn starts, so the goal only halts once several turns pass with no progress. Never set a goal whose only path to done runs through a gate I have to answer, and never run one headless (`claude -p "/goal …"`), where nobody is there to answer it.
 - **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the run stopped.
 - **Nudge me when a lever I'm not using would have helped — once per handoff, in
   one line.** If the work wanted a loop, a durable goal, a scheduled routine, a
@@ -213,9 +225,8 @@ file.
   team of a session: what each tool's construct can and can't do (Claude Code
   teammates message each other, Codex subagents report only to you), how to spawn
   by role, and what to fall back to where there's no team construct.
-- **A team doesn't loosen a gate.** Every confirmation gate applies inside every
-  agent, and delegation goes one level deep — agents don't spawn their own
-  agents. The main thread integrates the results and reports.
+- **Delegation goes one level deep** — agents don't spawn their own agents. The
+  main thread integrates the results and reports.
 <!--/SECTION:agent-teams-->
 
 <!--SECTION:parallel-worktrees-->
@@ -240,7 +251,7 @@ file.
 - **Local models are delegates too — behind `lm`.** If `~/.ai/local-models` exists, the `lm` shim runs them (`lm -p "…"`; `lm list` for health) — one-shot text-only work, routed by tier per the orchestration playbook. If the file or shim is absent, this machine has no local models: skip silently, and never install or start one to get some.
 <!--/SECTION:local-models-->
 - **If your prompt points you at an existing `~/.ai-context/` dir, you *are* the delegate:** read the brief, do your piece, write your file, stop — and spawn nothing further.
-- **My gates still apply — and sandbox, don't bypass.** Delegates inherit every confirmation gate above; never delegate an action you'd need my approval for, and never launch a delegate with full-bypass flags (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`, `--yolo`) unless I explicitly say so.
+- **Sandbox, don't bypass.** Never delegate an action you'd need my approval for — the gates above bind a delegate exactly as they bind you.
 <!--/SECTION:cross-tool-orchestration-->
 
 <!--SECTION:improve-->

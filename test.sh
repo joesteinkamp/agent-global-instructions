@@ -124,6 +124,18 @@ assert_no "INC_LOCAL_MODELS=n leaves no marker leak" 'SECTION:'
 INC_ORCHESTRATION=n render
 assert_no "INC_ORCHESTRATION=n drops the nested local-models block too" 'Local models are delegates'
 
+# 2a-bis. The gates block is ungated: it must render under BOTH autonomy postures,
+# because it is the only enumeration of what stops the agent. It used to live
+# inside the aggressive variant, where a balanced render got a drifted copy.
+render
+assert_has "default render carries the canonical gates block" '### Gates — stop and ask'
+assert_has "gates block states the invariant"                 'nothing about the shape of the work loosens a gate'
+assert_has "gates block enumerates the money gate"            '**Spending money.**'
+assert_has "gates block enumerates the bypass-flag gate"      '--dangerously-skip-permissions'
+AUTONOMY=balanced render
+assert_has "balanced render carries the gates block too"      '### Gates — stop and ask'
+assert_has "balanced render keeps the gate invariant"         'nothing about the shape of the work loosens a gate'
+
 # 2b. Autonomy posture gates the long-running-work (loops/goals) section.
 render
 assert_has "default (aggressive) render includes Long-running work" '## Long-running work'
