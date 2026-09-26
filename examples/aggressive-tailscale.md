@@ -71,7 +71,7 @@ The profile above is the minimum. At session start, **scan for a memory store an
 ### Workspace safety — before the first write, and after the last
 
 - **Before any filesystem mutation, establish the workspace state:** repository root, current branch, working-tree status, and `git worktree list --porcelain`. Where git is blind, also check for sibling `../<repo>-*` dirs, a populated `~/.ai-context/`, and `find . -newermt '-30 minutes'` — a directory can be `git init`ed *underneath you* mid-task.
-- **The primary checkout is integration-only.** If worktrees are enabled or another writer may be present, a feature branch in the primary checkout is **not** sufficient — create or reuse a sibling worktree on `ai/<agent>` and do all writes there. Only when worktrees are disabled and no concurrent writer is present is a feature branch in the current checkout enough.
+- **The primary checkout is integration-only.** If worktrees are enabled or another writer may be present, a feature branch in the primary checkout is **not** sufficient — create or reuse a sibling worktree (`../<repo>-<agent>` on branch `ai/<agent>`) and do all writes there. Only when worktrees are disabled and no concurrent writer is present is a feature branch in the current checkout enough.
 - **Bootstrap by ownership, not by git presence — and don't block on it.** In an empty or non-Git directory with no other agent detected, `git init`, make a root commit, and branch before generating content. "No repo exists" is the setup step, not a reason to stop and ask. What *does* warrant asking is ambiguous ownership: the directory holds content you didn't create, HEAD is unborn or detached, or another agent may own the tree.
 - **Isolation comes before generation.** Establish the worktree or branch *before* the first write. Raising it after the deliverable exists is too late — by then a collision has either happened or been survived by luck.
 - **Isolation is a loan — hand the tree back once its branch is proven merged.** That is where a worktree's life ends, whoever made it (yours, the host tool's own `.claude/worktrees/<id>`, a command's scratch tree): `git worktree remove` then `git branch -d`, plus `git worktree prune` for registrations whose directories are already gone. Proof is `git merge-base --is-ancestor <branch> <default>` or the forge reporting the PR merged — a squash merge fails the ancestor check and is merged anyway. Never force either command: a tree that is dirty, unmerged, locked, the one you're standing in, the primary checkout, or one you didn't create stays put, and you tell me what you left and why. `~/.ai/worktree-sweep.sh --sweep` reports what's reapable and changes nothing; `--apply` performs the safe removals.
@@ -83,10 +83,10 @@ The profile above is the minimum. At session start, **scan for a memory store an
 - **Bias to action.** Take reasonable defaults on reversible work; report what you assumed.
 - **Finish the whole task.** Don't stop to confirm scope — "do the rest" is the job.
 - **Recommend, don't survey.** If you must ask, lead with one recommendation + why.
-- **Never edit on the default branch.** Run the workspace-safety preflight above before changing files. When worktrees are enabled or another writer may be present, never edit in the primary checkout — use an isolated worktree. Absence of git is never a license to edit in place: initialize and branch instead.
-- **Verify before handoff;** report failures/skips plainly, and leave no reapable worktree behind. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 - **Stop only for:** destructive/irreversible actions, spending money, or external sends (email/posts/commits) unless I asked.
 - **"Finish the task" never overrides a confirmation gate.** Per-tool rules below (external sends, placing orders, etc.) and the stops above always win over autonomy — when in doubt at a gate, ask.
+- **Never edit on the default branch.** Run the workspace-safety preflight above before changing files; absence of git is never a license to edit in place — initialize and branch instead.
+- **Verify before handoff;** report failures/skips plainly, and leave no reapable worktree behind. A *handoff* is any message that gives the work back to me and stops — the end of a task, not every turn inside one.
 
 ## Long-running work
 
@@ -95,22 +95,17 @@ The profile above is the minimum. At session start, **scan for a memory store an
   between them is the *stopping rule*, not how long the work runs:
   - **A terminal end state → `/goal <condition>`.** The session keeps taking
     turns until the condition is judged met — no interval, no cadence to guess.
-    Claude Code and Codex carry one; so do Cursor builds that have it, where it
-    is still a gated rollout, so check before promising it. **I type it, not
-    you:** `/goal` is a user command in all three, so the move is to hand me the
-    exact line to paste, pre-filled and ready — that is a proposal, not a
-    next-steps list. Managing it is mine too, and the syntax differs: `/goal`
-    alone for status and `/goal clear` in Claude Code (restored when I resume,
-    unless it already finished, and it runs headless as `claude -p "/goal …"`),
-    `/goal edit|pause|resume|clear`
-    in Codex (`codex features enable goals` if it is missing), and in Cursor the
-    objective only — no status, no `clear`, Ctrl+C pauses it.
-  - **A recurring check → `/loop [interval] <prompt>`** (Claude Code, Cursor).
-    Re-runs on a cadence; omit the interval to self-pace. In Claude Code a bare
-    `/loop` runs the default maintenance prompt — `.claude/loop.md` in the
-    project if there is one, else `~/.claude/loop.md`; Cursor's takes its prompt
-    on the command line and has no such file. This one you *can* start yourself. The tell is the word *every* — every 5 minutes, every time
-    CI finishes. That is a loop, never a goal.
+    **I type it, not you:** `/goal` is a user command, so the move is to hand me
+    the exact line to paste, pre-filled and ready — that is a proposal, not a
+    next-steps list. Managing it is mine too.
+  - **A recurring check → `/loop [interval] <prompt>`.** Re-runs on a cadence;
+    omit the interval to self-pace. This one you *can* start yourself. The tell
+    is the word *every* — every 5 minutes, every time CI finishes. That is a
+    loop, never a goal.
+  - **Which hosts have which, and the management syntax, differ** — and one is
+    still a gated rollout. Check the host before promising a primitive rather
+    than assuming; if you have no map of them, say the primitive may not exist
+    here instead of naming a command that doesn't.
   - **Prefer the goal when the work has a verifiable end state.** A loop asks
     "has it been N minutes?"; a goal asks "is it done yet?" and something other
     than the clock answers, so it stops itself instead of running until I notice.
@@ -126,15 +121,13 @@ The profile above is the minimum. At session start, **scan for a memory store an
   one measurable end state, the check that proves it, and anything that must not
   change on the way.
 - **Use the whole autonomy surface, not just these two.** Before settling for a
-  slow, hand-held turn, reach for what the host actually offers: background
-  execution for anything that blocks, a scheduled routine for anything
-  recurring, plan-before-execute on a broad change, headless one-shots for work
-  another tool can do unattended, and checkpoints so a bad turn is cheap to
-  undo. Check what the host actually offers rather than assuming a capability is
-  missing because you haven't used it here before.
+  slow, hand-held turn, reach for what the host actually offers — background
+  execution, scheduled routines, plan-before-execute, headless one-shots,
+  checkpoints — rather than assuming a capability is missing because you haven't
+  used it here before.
 - **The per-tool map is in `~/.ai/orchestration.md`** — which host carries a
-  durable goal, which has a loop, which can only manage headless one-shots, and
-  what each offers beyond that.
+  durable goal, which has a loop, which can only manage headless one-shots, the
+  management syntax for each, and what each offers beyond that.
 - **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop yourself and say what cadence you picked and why; for a goal, give me the line to paste with the condition already written. If the long tail is optional, offer it in one line at handoff.
 - **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges") and check it each iteration. A loop is yours to end — stop it once the condition is met rather than letting it run on. A goal ends itself when its checker agrees, so the done-condition *is* the condition you handed me; report what happened either way.
 - **Loops and goals don't loosen gates.** Every confirmation gate above applies inside every iteration and every goal turn — external sends, spending, and destructive actions still stop and ask. A goal does not change the permission mode, and "the goal isn't met yet" is never a reason to push past a gate: stop and ask, exactly as you would in a single turn. Know what that costs inside a goal, though — asking ends the turn, the checker sees the condition still unmet, and another turn starts; the goal only halts once several turns pass with no progress. So don't set a goal whose only path to done runs through a gate I have to answer, and never headless (`claude -p "/goal …"`), where nobody is there to answer it.
@@ -203,7 +196,7 @@ file.
 
 ## Parallel AI models on one repo
 
-- I often run several AI assistants on the same repo at once. **Treat concurrent-agent use as the default assumption:** every writing agent gets its own sibling worktree (`../<repo>-<agent>` on branch `ai/<agent>`) so no two agents share a working tree. The primary checkout is the **integration** tree and is integration-only — even when it looks clean right now.
+- I often run several AI assistants on the same repo at once. **Treat concurrent-agent use as the default assumption** — the preflight above then applies every time, not just when you can see another agent, and the primary checkout is the **integration** tree even when it looks clean right now.
 - **One dev server, in the integration tree only** — bound `0.0.0.0`, served the way I preview web work. Never start a server per worktree. **You own its lifecycle:** stop any server you start when the task ends, and never serve a directory another agent is working in.
 - **Converge continuously:** fold each `ai/*` branch into `integration` as it advances (a short-interval auto-merge loop); hot-reload then surfaces every agent's changes near-live. Liveness tracks commit cadence — commit WIP often. On a merge conflict, stop and surface it; never auto-resolve.
 - **Reap an agent tree when its work is proven merged, not when the agent goes quiet.** A branch folded into `integration` is only safe to reap once `integration` itself has landed on the default branch — until then the tree stays. Then `git worktree remove ../<repo>-<agent>` and `git branch -d ai/<agent>`, neither forced. **The integration tree is never removed** — it's the primary checkout, and the dev server is watching it.
@@ -215,19 +208,19 @@ file.
 
 - **This machine may run several AI CLIs — use them as delegates** in headless one-shot mode. This is the second transport of the agent-team system above, not a separate one: same roles, same gates, chosen when another vendor's judgment is worth its cost. The roster lives at `~/.ai/clis` (bare names, one per line; exclude the tool you're running as); the advisory per-task-type vendor rankings at `~/.ai/model-routing.md`.
 - **`~/.ai/orchestration.md` is the whole contract — read it before the first team or delegation** — how to choose the shape, how to carry a role across a vendor boundary, and everything delegate-specific: invocation forms, the shared `~/.ai-context/` dir and its file ownership, routing by strength, sandboxing, worktrees for editing delegates, and failure handling.
-- **A model must never be the sole checker of its own work** — route review through a different vendor's model, prompted to refute ("find what's wrong"), not to confirm. Surface disagreements to me; don't silently pick a winner.
+- **Across a vendor boundary the sole-checker rule above still binds** — and a same-model refuter checks the agent, not the model, so route review that matters through a *different* vendor's model, prompted to refute.
 - **Local models are delegates too — behind `lm`.** If `~/.ai/local-models` exists, the `lm` shim runs them (`lm -p "…"`; `lm list` for health) — one-shot text-only work, routed by tier per the orchestration playbook. If the file or shim is absent, this machine has no local models: skip silently, and never install or start one to get some.
-- **One level only.** Delegates never spawn further delegates. If your prompt points you at an existing `~/.ai-context/` dir, you *are* the delegate: read the brief, do your piece, write your file, stop.
+- **If your prompt points you at an existing `~/.ai-context/` dir, you *are* the delegate:** read the brief, do your piece, write your file, stop — and spawn nothing further.
 - **My gates still apply — and sandbox, don't bypass.** Delegates inherit every confirmation gate above; never delegate an action you'd need my approval for, and never launch a delegate with full-bypass flags (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`, `--yolo`) unless I explicitly say so.
 
 ## When to verify & improve
 
 **Explicit-only — never run `/verify` or `/improve` unprompted.** Run them only when I explicitly ask. The `quality-nudge` Stop hook is a conservative advisory, never a request: when one appears, mention the relevant option in the handoff — don't run it, block completion, or make me dismiss it.
 
-- **`/improve` is an advisory, read-only review** — a multi-role panel run in the background against a pinned snapshot. Surface findings; don't apply changes unless I say so.
+- **`/improve` is advisory and read-only** — surface its findings; don't apply changes unless I say so.
 - **`/verify` is a synchronous handoff gate** — don't call work done, hand it off, or ship while a verify is pending. (`/verify --bg` is the long-run exception, tied to an explicit done-condition the handoff waits on — deferred, never fire-and-forget.)
 - **Applying fixes I already approved** ("yes, do those"): just make them and confirm — **don't re-run** verify/improve on the result; that review already happened, and re-running loops.
-- **Mechanics live in `~/.ai/quality-workflows.md`** — the review panel, snapshot pinning, and the advisory skip marker. Read it before running either workflow or suppressing an advisory.
+- **Everything else is in `~/.ai/quality-workflows.md`** — the review panel, snapshot pinning, the `--bg` worktree, and the advisory skip marker. Read it before running either workflow or suppressing an advisory.
 
 ## Tools & MCP servers
 

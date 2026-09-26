@@ -5,8 +5,12 @@
 #   ./customize.sh             interactive — asks questions, then writes output
 #   ./customize.sh --print     non-interactive — render to stdout (uses defaults
 #                              + my-context.env if present)
-#   ./customize.sh --project   non-interactive — write AGENTS.md/CLAUDE.md
-#                              into this directory (uses defaults + my-context.env)
+#   ./customize.sh --project   non-interactive — write AGENTS.md/CLAUDE.md into
+#                              the CURRENT directory (uses defaults +
+#                              my-context.env). Refuses to write into this
+#                              harness checkout: rendering the globals on top of
+#                              the repo that authors them makes every session
+#                              here load the same instructions twice.
 #   ./customize.sh --global    non-interactive — write the machine-wide files
 #                              (~/.claude, ~/AGENTS.md, ~/.codex).
 #                              Prompts to confirm; add --yes (or -y) to skip the
@@ -481,9 +485,19 @@ render_to() {  # $1 = destination path, $2 = "backup" to save dest.bak.XXXXXX if
 }
 
 write_project() {
-  render_to "$DIR/AGENTS.md" || return 1
-  echo "  wrote $DIR/AGENTS.md"
-  cp "$DIR/AGENTS.md" "$DIR/CLAUDE.md"; echo "  wrote $DIR/CLAUDE.md"
+  local target="$PWD"
+  # Never render the globals into the harness's own checkout. The repo already
+  # ships committed project instructions, and a render here is loaded a second
+  # time alongside ~/AGENTS.md — the duplication the instructions themselves ban.
+  if [ -f "$target/template.md" ] && [ -f "$target/customize.sh" ]; then
+    echo "Refusing to write project files into the agent-global-instructions checkout." >&2
+    echo "  Its own AGENTS.md/CLAUDE.md are committed; the globals live in ~/AGENTS.md." >&2
+    echo "  cd into the project you want instructions for, then re-run --project." >&2
+    return 1
+  fi
+  render_to "$target/AGENTS.md" backup || return 1
+  echo "  wrote $target/AGENTS.md"
+  cp "$target/AGENTS.md" "$target/CLAUDE.md"; echo "  wrote $target/CLAUDE.md"
 }
 
 # Back up $1 to a collision-free .bak name, keeping only the 5 newest backups.
