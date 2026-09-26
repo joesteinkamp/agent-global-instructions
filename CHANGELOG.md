@@ -12,6 +12,65 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Stopped loading the instruction set twice, and routed what the playbooks
+  already own (2026-09-26, Claude).** The ask: Joe asked how large the
+  instructions had grown — *"It's likely bloated at this point and I want to
+  keep it as clean as possible."* A three-lens audit (duplication across
+  hooks/playbooks/installers, a rule-by-rule pass, and a refuter told to break
+  the bloat thesis) found the largest recoverable cost was not prose. The repo
+  root carried an untracked `AGENTS.md`/`CLAUDE.md` render, so every session here
+  loaded the whole set twice — once via `~/AGENTS.md`, once as project
+  instructions — in the repo whose own rule reads *"Global = me; project =
+  this codebase. Don't duplicate global rules into it."* What changed:
+  `write_project()` targeted `$DIR`, the script's own directory, so `--project`
+  could never write into a project at all; it now targets `$PWD`, refuses a
+  directory holding both `template.md` and `customize.sh`, and backs up an
+  existing project `AGENTS.md` instead of clobbering it. The repo ships committed
+  project instructions instead — `AGENTS.md` with what is true only here
+  (`template.md` is the only editable surface, regenerate `examples/` after any
+  change, what `test.sh` pins and why green CI is not proof a cut was safe, which
+  trees are generated), and `CLAUDE.md` as a pointer at it rather than a second
+  copy. Separately, the per-host `/goal` and `/loop` management syntax moved into
+  `playbooks/orchestration.md`'s host table (which gained Claude Code's status
+  and `clear` verbs, Codex's `edit|pause|resume|clear`, Cursor's no-status
+  behaviour and the `.claude/loop.md` distinction); the sole-checker and
+  one-level-deep rules are each stated once instead of three times; the
+  `/verify`-`/improve` panel mechanics defer to their playbook; and the two
+  bullets that were byte-identical in both autonomy variants are hoisted out of
+  them into one ungated copy. `install-hooks.sh` wired Claude Code's SessionStart
+  as `startup|resume|clear|compact`, omitting the documented `fork` matcher, so a
+  forked session started with neither the memory context nor the autonomy
+  reminder. Rendered instructions 5,545 → 5,405 words. Why this approach: the
+  2026-07-26 decision below — extract mechanics into `playbooks/`, keep every
+  gate — is the only intervention this repo has evidence *worked*, so it was
+  re-applied to the sections that have tripled since rather than inventing a new
+  principle. Every routed fact was added to the playbook **before** the template
+  lost it, and the surviving fallback clause deliberately names no path, so
+  `INC_ORCHESTRATION=n` leaves a usable rule instead of stripping both the
+  pointer and the facts — the toggle-safety trap recorded in the 2026-09-19
+  entry. Hoisting the shared autonomy bullets rather than deleting one copy keeps
+  both postures rendering both bullets, which is what the 2026-09-04 handoff
+  entry requires, while removing the drift class. Considered and rejected: a 34%
+  cut to ~3,600 words, proposed by the rule-by-rule pass. The refuter demolished
+  it by experiment — replacing the 985-word *Long-running work* section with a
+  93-word version passes 227/227 `test.sh` and 12/12 evals, because five
+  substring assertions are its only guard. Ten recorded failures trace to rules
+  being *too terse* and none to length; the two largest additions (`4595cc3`
+  +477 workspace safety, `60f07df` +362 agent teams, 15% of the file) have no
+  changelog entry at all, so a changelog-driven cut list would rank pure scar
+  tissue as unmotivated and cut it hardest. This entry supersedes nothing: the
+  2026-07-26 call stands, and the new information that justifies acting again is
+  the double load and the pointer drift, not any evidence that length hurts
+  compliance — `evals/PLAN.md:31` states outright that no instrument here
+  measures that. Also rejected, by Joe: consolidating the scattered confirmation
+  gates into one canonical block, trimming ~500 words of rationale prose,
+  removing the resident macOS `playwright-cli` anecdote, and leaning on
+  `load-memory.sh` for the Memory section — the last correctly, since
+  SessionStart hooks never reach subagents. The implementation's own finding is
+  worth recording: of the duplication three passes measured textually, roughly
+  four fifths turned out to be a confirmation gate, a moment-of-action rule, or
+  documented scar tissue, which is why the prose saving came to 140 words rather
+  than the ~650 projected.
 - **Ask in rounds, never one question at a time (2026-09-20, Claude Opus 5).**
   The ask: importing the refreshed `grilling` skill (entry below) put the
   vendored skill and the rendered instructions in direct contradiction — the
