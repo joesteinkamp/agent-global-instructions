@@ -51,21 +51,31 @@ Steps:
    PR/MR URL and ask "merge it?". This is a confirmation gate; never merge
    without my explicit go-ahead in this session ("ship" alone is not it).
 8. **Only if I say merge:** GitHub `gh pr merge --squash --delete-branch`;
-   GitLab `glab mr merge --squash --remove-source-branch`. After merge,
-   `git checkout` the default branch and `git pull`. If the merge is blocked
-   (failing checks, conflicts, branch protection), stop and report exactly
-   what blocked it — do not force anything.
+   GitLab `glab mr merge --squash --remove-source-branch`. If the merge is
+   blocked (failing checks, conflicts, branch protection), stop and report
+   exactly what blocked it — do not force anything.
+   **Never trust the merge command's exit code — confirm against the forge.**
+   Run from inside a worktree, `gh` aborts its own local cleanup with
+   `fatal: '<default>' is already used by worktree at …` — it tries to check the
+   default branch out, which a worktree can't do — and still **exits 0**. The
+   merge landed, the branch survived on both sides, and the tool reported
+   success. So confirm with `gh pr view <n> --json state,mergedAt,mergeCommit`
+   (GitLab: `glab mr view <n>`), then finish whatever cleanup it skipped:
+   `git ls-remote --heads origin <branch>`, and `git push origin --delete
+   <branch>` if the branch is still there.
+   Don't `git checkout` the default branch from inside a worktree either — it is
+   checked out in the primary tree, so the command fails. Run
+   `git fetch origin --prune` instead and tell me the primary tree needs a pull.
    Then reap what the merge just made safe. The proof is the merge you just
    performed on this exact branch tip — a squash merge isn't an ancestor of the
    default branch, so `git merge-base --is-ancestor` says no and is wrong, and a
    merged PR found by branch *name* alone proves nothing (`ai/<agent>` gets
    reused across dozens of merges). Delete the local branch (`git branch -d`;
    `-D` only when the merge you just made is what deleted the remote head),
-   remove the
-   worktree it lived in (`git worktree remove`, unforced), and
-   `git worktree prune`. Never remove the tree you're standing in
-   or one that's dirty, locked, or somebody else's — name it and hand me the
-   command to run from elsewhere instead.
+   remove the worktree it lived in (`git worktree remove`, unforced), and
+   `git worktree prune`. Never remove the tree you're standing in or one that's
+   dirty, locked, or somebody else's — name it and hand me the command to run
+   from elsewhere instead.
 9. Report what happened: tidy results (if run), the branch it shipped on (and
    whether step 3 moved the work off the default), commit hash, push, PR/MR
    URL, the merge result or the pending merge question, and what was reaped or
