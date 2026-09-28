@@ -12,6 +12,49 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Hoisted the confirmation gates into one canonical, ungated block
+  (2026-09-26, Claude).** The ask: finding 5 of the 2026-09-20 instruction-bloat
+  review, deferred when the other findings shipped (entry below) and picked up
+  after Joe asked for the reasoning behind it in full. What changed: a new
+  ungated `### Gates — stop and ask` block above both autonomy posture variants,
+  listing the five gates plus the no-bypass-flags rule and stating the invariant
+  once — *nothing about the shape of the work loosens a gate*, not a loop
+  iteration, a goal turn, an agent or a delegate. The four restatement sites
+  (the two posture-variant precedence bullets, the loops-and-goals bullet, the
+  teams bullet and the delegates bullet) now reference it and keep only what is
+  genuinely local: the goal-specific cost of asking mid-goal, one-level-deep
+  delegation, and sandbox-don't-bypass. `BEH-14` anchors the invariant; six
+  `test.sh` assertions cover the block under both postures. Rendered
+  instructions 5,405 → 5,386 words. Why this approach: the gates were stated at
+  eight sites and enumerated nowhere, and the one enumeration sat inside
+  `<!--SECTION:autonomy-aggressive-->`, so it rendered under a single posture —
+  and it **had already drifted** from its balanced twin, one listing "external
+  sends (email/posts/commits)" and the other just "external sends". That is the
+  same drift class the entry below fixed for two byte-identical variant bullets,
+  here on the most important bullet in the file. Every other site phrased the
+  rule as "X doesn't loosen a gate", which reads as a qualifier on X rather than
+  as a statement of what the gates are, so the set could only be assembled by
+  having read all of them. The block is placed *before* the posture variants so
+  a skimming reader meets the brake before the accelerator, and it is ungated so
+  no render can lose it. The eval closes a matching asymmetry: `BEH-07` anchored
+  "Finish the whole task" — the accelerator — while nothing anchored the brake,
+  and exactly one `test.sh` substring sat anywhere in gate text, so a
+  consolidation that kept the list and dropped the invariant would have passed
+  every existing check. Considered and rejected: leaving it as-is, which was the
+  call three days earlier. The argument against consolidating still stands and is
+  recorded here because it may yet prove right — a cross-reference is weaker than
+  a restatement for a reader who skims one section, and this is the one place
+  where "don't duplicate" and "make it findable" genuinely conflict. It was
+  resolved toward consolidation on the grounds that eight scattered copies
+  already fails the skim test, which is a judgement rather than a measurement,
+  since nothing here measures gate compliance. **Falsifier:** an agent violating
+  a gate in a section that used to restate it inline means the restatements were
+  load-bearing and should return. Worth recording alongside: at −19 words this
+  was the third finding running to come in far under its projection (~90), for
+  the same reason as the others — textual duplication is a weak proxy for
+  removable text in a policy file, and roughly four fifths of what three
+  independent passes measured as duplication turned out to be a gate, a
+  moment-of-action rule, or documented scar tissue.
 - **Stopped loading the instruction set twice, and routed what the playbooks
   already own (2026-09-26, Claude).** The ask: Joe asked how large the
   instructions had grown — *"It's likely bloated at this point and I want to
