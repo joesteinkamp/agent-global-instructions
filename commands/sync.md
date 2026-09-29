@@ -89,5 +89,30 @@ Steps:
    state — that tree is step 9's job, not the sweep's. Report what it left
    standing and why. Skip the step if the script isn't installed.
 11. Report what changed: commits pulled in, current position, anything reaped —
-    and when I'm in a worktree, where `<primary>` now sits, what was folded back
-    or left unmerged, and the teardown question.
+    and when I'm in a worktree, where `<primary>` now sits, and what was folded
+    back or left unmerged.
+12. **Then nudge me about the remote — everything above this line is local.**
+    `/sync` fetches and never pushes, so finish by asking whether to sync the
+    remote too. Never push on your own initiative, and fold this into the **same
+    single ask** as step 9's teardown question rather than sending a second
+    message. Raise only what actually applies:
+    - **The rebase moved this branch off its remote counterpart.** If the branch
+      has an upstream at all (`git rev-parse --abbrev-ref @{upstream}`; a
+      `fatal: no upstream configured for branch …` means it was never pushed, so
+      there's nothing to sync and nothing to raise) and `git rev-list
+      --left-right --count @{upstream}...HEAD` reports a non-zero **left** count,
+      the histories diverged and a plain `git push` will be rejected as a
+      non-fast-forward. Offer `git push --force-with-lease` — never a plain
+      `--force`. The lease is the whole safety margin when another agent has
+      pushed to the same branch, so a refusal from it is the signal to report,
+      not to escalate past.
+    - **`<primary>` moving forward is not a push.** Step 8's fast-forward came
+      *from* `origin/<default>`, so the remote is already at or ahead of it.
+      Don't offer to push the default branch.
+    - **A reaped branch outliving its remote head.** Once step 9 has actually
+      deleted the local branch, `git ls-remote --heads origin <branch>` says
+      whether the remote still carries it; if it does, offer `git push origin
+      --delete <branch>`. Step 9 only runs after I approve it, so this one
+      belongs to that later turn, not to the first ask.
+    If none of them apply, say in one line that the remote needs nothing — a
+    nudge with nothing behind it is noise.
