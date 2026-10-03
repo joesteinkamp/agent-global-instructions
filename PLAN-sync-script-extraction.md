@@ -1,6 +1,11 @@
 # Plan — put `/sync` on a token diet by extracting a script
 
 **Status:** not started. Written 2026-10-02 by Claude (Opus 5), after PR #55.
+Revised 2026-10-03 by Claude (Opus 5.5) after a review of this plan against
+`46ff387`: teardown ownership, the install owner, forge proof for the current
+tree, a 1-round-trip target, a usage gate, and the output contract.
+**Lives on:** branch `ai/sync-script`, worktree
+`../agent-global-instructions-sync-script` (step 0 is already done).
 **Owner on execution:** a fresh Claude Code session, run interactively.
 **Read this whole file before doing anything.** Steps 0–4 are not optional
 preamble; step 5 is the only step that writes product code.
@@ -45,8 +50,20 @@ with its own documented safety model) in one line. That line costs ~15 tokens
 and does more careful work than 300 tokens of instructions could. This plan
 applies that same pattern to the rest of `/sync`.
 
-**Target:** `commands/sync.md` from ~1,205 words to **≤200 words**, and the
-per-run Bash round-trips from a dozen-plus to **one or two**.
+**Target:** `commands/sync.md` from ~1,205 words to **≤200 words** (frontmatter
+plus body, as `wc -w` counts it), and the per-run Bash round-trips from a
+dozen-plus to **one** on the primary-checkout path.
+
+**The cost that is always on is the description, not the body.** The body
+loads only when `/sync` runs. The frontmatter `description` is loaded into the
+skill listing of *every* session, and #55 roughly doubled it (~19 → ~40 words,
+adding "— folding the work back and offering teardown…"). If `/sync` is rarely
+run, that is the larger cost. Target: **description ≤20 words**.
+
+**Nothing here is live yet on this machine.** `~/.claude/commands/sync.md` is a
+regular 1,313-byte file dated 2026-09-28: the pre-#55 version. Commands install
+by **copy**, not symlink, so neither #55 nor this plan reaches a session until
+Joe re-runs the installer.
 
 ---
 
@@ -84,9 +101,20 @@ work; they are the reason several instructions are worded as they are.
 | A never-pushed branch: `git rev-parse --abbrev-ref @{upstream}` → `fatal: no upstream configured for branch …` | Nothing to sync; raise nothing |
 | `gh pr merge` run from a worktree aborts its own cleanup with `fatal: 'main' is already used by worktree at …` **and still exits 0** | Confirm merges against the forge, never by exit code. Hit for real on PR #55 |
 
+Added 2026-10-03, each read from the repo or the machine rather than re-tested:
+
+| Fact | Why it matters |
+|---|---|
+| A script's `cd` cannot move its caller's shell. Claude's Bash tool keeps a persistent cwd across calls | Moving teardown into the script does **not** carry the "`cd <primary>` first" rule with it. The caller is still left inside a deleted directory. The script must refuse when its inherited `$PWD` is inside the target, so the only form that works is `cd <primary> && ~/.ai/sync.sh --teardown <path>` |
+| `hooks/worktree-reap.sh:380–382` assigns `CURRENT` **before** any merge-proof logic runs | The sweep never judges the branch of the tree you stand in. `sync.sh` cannot get forge proof for its own branch from the sweep as it is today |
+| `install-hooks.sh:21` exits with `jq is required.` when jq is missing | A script installed only by `install-hooks.sh` can be absent while the command that calls it is installed. The sweep CLI already has this flaw |
+| `render-commands.sh:56` rewrites each `` !`cmd` `` into "run `cmd`" for the Codex and Cursor ports | Each injection costs a full round-trip on the ports. Fewer injections save more there than on Claude |
+| `customize.sh:31–35` supports **bash 3.2** (macOS system bash) | `sync.sh` must too: no associative arrays, no `mapfile`, no `${v,,}`. The git facts above were seen on 2.43 only, so tests should assert the property relied on, not the version |
+
 ### The install precedent, with line numbers
 
-`~/.ai/worktree-sweep.sh` is the model to copy:
+`~/.ai/worktree-sweep.sh` is the model to copy, **except for which installer
+owns it** (see Q1):
 
 - **Source in repo:** `hooks/worktree-reap.sh` (it lives in `hooks/` because it
   is dual-mode — a Stop hook *and* a sweep CLI).
@@ -124,7 +152,9 @@ on the machine, so its script has to be installed machine-wide under `~/.ai/`.
   `render-commands.sh` and gitignored. Never hand-author them. A thin wrapper
   command ports *better* than a long one.
 - **Installers are blocked as self-modification in auto mode.** Do not run
-  `install-hooks.sh`; hand Joe the command to run himself.
+  `install-hooks.sh` or `install-commands.sh`; hand Joe the command to run
+  himself. This is why a live `/sync` run cannot be part of the agent's own
+  done-condition (see §5).
 
 ---
 
@@ -150,53 +180,115 @@ git -C /home/jsteinka/projects/agent-global-instructions worktree add \
   -b ai/sync-script ../agent-global-instructions-sync-script main
 ```
 
+**Done 2026-10-03.** The worktree exists and this plan is committed on
+`ai/sync-script` (first commit `99f0853`, the plan as originally written; the
+revision follows it). A stray untracked copy may still sit in the primary
+checkout; removing it is Joe's call. Re-run the four inventory commands above
+anyway before the first write, since another agent may have appeared.
+
 Known at the time of writing — leave both alone, neither is yours:
 
 - `../agent-global-instructions-claude` (`ai/claude`) — one unmerged changelog
   commit from another session; flagged `DIRTY` by the sweep.
 - two `.claude/worktrees/bridge-cse_*` trees, one `locked`.
 
+### Step 0.5 — Measure usage, and let the refuter decide whether to go on
+
+The last falsifier in §5 ("if `/sync` is run rarely…") can be checked now, so
+check it before spending anything on steps 1–5.
+
+1. Count real `/sync` invocations: transcripts under
+   `~/.claude/projects/*/*.jsonl` (match the command invocation, not any
+   mention of the word) plus `~/.ai-logs/tool-calls.jsonl`. A rough grep on
+   2026-10-03 matched only 3 transcript files. That was a loose pattern match,
+   not a count, so redo it properly.
+2. Compute: invocations × per-invocation tokens (body + injections) against
+   sessions × description tokens (the always-on cost from §1).
+3. Hand both numbers to the refuter (step 3) **first**. If its case for leaving
+   `/sync` alone survives those numbers, stop here and recommend the small fix
+   instead: shrink the description and drop the `git worktree list` injection.
+
 ### Step 1 — `/grill-me` (do this *before* writing any code)
 
 This is an architecture change to a command every session can invoke, so it is
 foundational by Joe's rules: grill first, and **ask in rounds — every question
 whose prerequisites are settled goes in the same round, numbered, each with a
-recommended answer.** The seven below are all answerable now, so they are
-**one round**, not seven messages.
+recommended answer.** The ten below are all answerable now, so they are
+**one round**, not ten messages.
 
 1. **Where does the script live, and which installer copies it?**
    *Recommend:* source at repo root as `sync.sh` (beside `converge.sh` and
    `audit.sh`, so existing `shellcheck ./*.sh` covers it), installed to
-   `~/.ai/sync.sh` by `install-hooks.sh` reusing the helper at `:273–285`.
+   `~/.ai/sync.sh` by **`install-commands.sh`**, because that installer ships
+   the command that calls it. `install-hooks.sh` exits early without jq
+   (`:21`), which would leave a thin `/sync` with no script behind it. Reuse
+   the *shape* of the sweep helper at `install-hooks.sh:273–285` (`cmp -s`
+   short-circuit, `cp` + `chmod +x`), not its location. Record the sweep CLI's
+   own install-owner flaw as a follow-up, not something to fix in this pass.
    *Alternative:* `hooks/sync.sh` — also shellchecked, but semantically wrong
    since it is not a hook.
 2. **What is the script's stdout contract?** This is the single most important
    design artifact in this plan: it is what the model reads instead of running
    twelve commands.
-   *Recommend:* mirror `worktree-sweep.sh` — a short human-readable report by
-   default plus a `--json` mode, with a stable status vocabulary (the sweep's
-   own is `REAPABLE CURRENT MAIN LOCKED DIRTY UNMERGED …`). The command consumes
-   `--json`; a human running it by hand gets the text.
+   *Recommend:* the default output is written **for the agent**: a fixed set of
+   `key: value` lines (state, what `--apply` would do or did, a status word
+   from a stable vocabulary), ending in `ask:` lines. Each `ask:` line names one
+   of the three §2 judgment calls that is open, with the facts it needs on the
+   same line. No `ask:` lines means there is nothing to decide. `--json` exists
+   for `test.sh` and other programs, not for the model: JSON's quotes, braces
+   and repeated keys cost tokens and give the model nothing. This inverts the
+   sweep, whose `--json` is the machine path, deliberately.
+   **Plus an exit-code table, written into this plan before step 5**, with a
+   reason string for each code. At minimum: rebase conflict (rebase left in
+   progress), stash-pop conflict after a clean rebase, `--ff-only` refused in
+   the primary, primary dirty, teardown refused (dirty / locked / unmerged),
+   and teardown refused because the caller stands inside the target.
 3. **Dry-run by default, or act by default?**
    *Recommend:* exactly the sweep's split — default reports and writes nothing;
    `--apply` performs the safe mutations. **Teardown and any push stay out of
-   `--apply` entirely**; they are gated on Joe and happen in a later turn.
+   `--apply` entirely.** Push is never in the script. Teardown is its own
+   subcommand (Q8), run only after Joe says yes.
 4. **Does the rebase itself move into the script?** It mutates the working tree,
    which is more than the sweep ever does.
    *Recommend:* yes, under `--apply`, including stash/pop, because the whole
    token win evaporates if the model still drives six git calls. Conflicts →
-   non-zero exit plus a machine-readable reason, and the script stops.
+   non-zero exit plus a reason from the Q2 table, and the script stops.
 5. **What happens when `~/.ai/sync.sh` is not installed?** A thin wrapper that
    assumes it becomes a broken command on a fresh machine (this repo is a
    portable installer — it must work on *any* machine).
    *Recommend:* the command keeps a ~3-line prose fallback (fetch + rebase +
-   "tell Joe to run `install-hooks.sh`"), and nothing more.
-6. **Do the frontmatter injections shrink?**
-   *Recommend:* drop `` !`git worktree list` `` (572 of 627 bytes) and
-   `` !`git rev-parse --show-toplevel` ``; the script reports both. Keep
-   `branch` and `status --short` — they are ~5 bytes and orient the model when
-   the script is missing.
-7. **Scope: `/sync` only, or also `/ship` and `/worktrees`?** All three
+   "tell Joe to run `install-commands.sh`"), and nothing more. The fallback
+   never offers teardown.
+6. **What do the frontmatter injections become?**
+   *Recommend:* replace all four with **one**: the dry run itself,
+   `` !`~/.ai/sync.sh 2>/dev/null || echo "sync.sh: not installed"` ``.
+   The model sees the full state before it acts, so the primary-checkout path
+   is a single `--apply` call, and a missing script shows up with no tool call
+   at all. Mutation stays a real tool call, so `allowed-tools` still gates it.
+   This also cuts the Codex and Cursor ports from four round-trips to one
+   (`render-commands.sh:56`).
+7. **Does the dry run fetch?**
+   *Recommend:* no. Fetching at prompt expansion slows every invocation and
+   hits the network before the model has seen anything. The dry run reports
+   local state, labelled `as of last fetch: <time>`, and `--apply` fetches
+   first, then re-derives everything it acts on.
+8. **Who runs the teardown once the prose is gone?** If it stays in prose,
+   steps 9a–c (~250 words) stay and the ≤200 target fails. If it moves into the
+   script, the §3 cwd fact no longer protects the caller (a script's `cd`
+   cannot move its caller's shell).
+   *Recommend:* a separate `sync.sh --teardown <path>`: tree removal, then
+   `branch -d`, never `--force` or `-D`. It refuses, with its own exit code,
+   when its inherited `$PWD` is inside `<path>`, so the only form that works is
+   `cd <primary> && ~/.ai/sync.sh --teardown <path>`. The dry run prints that
+   exact line in its `ask:` output for the model to copy after Joe says yes.
+9. **Where does forge proof for the current branch come from?** The sweep
+   marks the caller's tree `CURRENT` before judging merges
+   (`hooks/worktree-reap.sh:380–382`), so it cannot answer today.
+   *Recommend:* add a single-branch mode to the sweep (e.g.
+   `--proof <branch>`, reporting merged / unmerged and the evidence) and have
+   `sync.sh` call it. Copying the forge logic into `sync.sh` is the route that
+   drifts. This puts `hooks/worktree-reap.sh` in scope.
+10. **Scope: `/sync` only, or also `/ship` and `/worktrees`?** All three
    restate default-branch lookup, merge-proof and teardown logic in prose.
    *Recommend:* `/sync` only in this pass, but have the script expose
    subcommands general enough that `/ship` can adopt them next, and record the
@@ -212,50 +304,77 @@ this plan?** Answer all three or state which is being traded away.
 
 AX is not a courtesy here — the consumer of `commands/sync.md` *is* an agent, so
 the stdout contract from question 2 is an agent-experience design problem, and
-an illegible summary is a product defect. Concretely: can the model act on one
-block of script output without re-running anything to interpret it?
+an illegible summary is a product defect. The test: **can the model act on one
+block of dry-run output without re-running anything to interpret it?** The
+`ask:` lines in Q2 are the concrete answer; check them against that test.
 
-### Step 3 — Rival draft (cross-vendor)
+### Step 3 — Cross-vendor refuter (replaces the separate rival draft)
 
 Architectural and expensive to reverse, so it trips the cross-vendor escalation
 in `~/.ai/orchestration.md` (read it first). Available delegates, all verified
-present: `codex`, `agy`, `agent`.
+present on 2026-10-02: `codex`, `agy`, `agent`.
 
-Send the **same brief** to one other vendor and ask for *its own* draft of the
-script/prompt split — not a review of this one — then diff the two. Grilling
-attacks Joe's assumptions; a rival draft attacks the author's.
+A separate rival draft and a same-model refuter do overlapping jobs for a
+script this size. Use **one** delegate for both: send `codex` the refuter brief
+plus the step 0.5 numbers. Ask it to argue for leaving `/sync` alone, and, if
+it concedes, to give *its own* script/prompt split rather than a review of this
+one. Diff that split against this plan. A cross-vendor refuter checks the model,
+not just the agent, so this one call satisfies both the sole-checker rule and
+the rival-draft rule.
+
+If Joe wants the full escalation anyway, because the command runs in every
+repo, restore the separate rival draft. That is his call.
 
 ### Step 4 — Agent team
 
-Spawn 3–4 roles in parallel with disjoint scope (see `~/.ai/agent-teams.md`):
+Spawn 3 in-tool roles in parallel with disjoint scope (see
+`~/.ai/agent-teams.md`). The refuter is the step 3 delegate:
 
-- **`technical-architect`** — the script/prompt boundary and the stdout contract.
-- **`harness-steward`** — installer, uninstaller, `test.sh` coverage, the ports.
-- **`backend-engineer`** — the shell itself: quoting, `set -u`, exit codes,
-  worktree edge cases.
-- **`refuter`** — mandatory. Its job is to **break** the conclusion that this
-  extraction is worth it, not to confirm it. Give it the strongest case for
-  *leaving `/sync` alone* and let it argue. No agent may be the sole checker of
-  its own work.
+- **`technical-architect`** — the script/prompt boundary, the stdout contract,
+  and the exit-code table.
+- **`harness-steward`** — `install-commands.sh`, `uninstall.sh`, `test.sh`
+  coverage, the ports, and the sweep's new `--proof` mode in
+  `hooks/worktree-reap.sh`.
+- **`backend-engineer`** — the shell itself: quoting, `set -u`, bash 3.2,
+  exit codes, the `--teardown` cwd refusal, worktree edge cases.
 
 ### Step 5 — Implementation
 
-1. `sync.sh` (location per Q1) implementing everything in §2's "mechanical"
-   list, with the §3 facts honoured and cited in comments.
-2. Rewrite `commands/sync.md` to a thin wrapper — target **≤200 words** —
-   keeping only the three judgment calls from §2 and the minimal fallback.
-3. Wire the installer (`install-hooks.sh`), the uninstaller (`uninstall.sh`,
-   content-grep guarded), mirroring `:273–285` / `:375–378`.
-4. Add `test.sh` coverage modelled on `:1968–1975`, **plus** behavioural tests
-   in throwaway repos for the §3 facts the script now depends on.
-5. **Add an eval anchor.** PR #55 shipped these steps **unanchored** —
+1. **Anchor first.** PR #55 shipped these steps **unanchored** —
    `evals/behaviours.md` pins nothing about them, so a future bloat pass could
    delete them without failing CI by name. This repo's own `AGENTS.md` warns
-   that green CI is not proof a cut was safe. Fix that here: anchor the
-   worktree-awareness behaviour and the gated-teardown behaviour with an
-   `origin:` field pointing at PR #55.
-6. Run the full CI matrix from §3, in order.
-7. `/ship` it.
+   that green CI is not proof a cut was safe. Write the anchors *before* the
+   rewrite, so the rewrite is forced to keep them. `evals/run.sh:15–19`
+   supports `file:`, as BEH-13 already does for `commands/ship.md`:
+   - **BEH-15** — the gated teardown ask, `file: commands/sync.md` (that
+     judgment stays in the prompt).
+   - **BEH-16** — teardown refuses while the caller stands inside the tree,
+     `file: sync.sh`.
+   Both with `origin:` pointing at PR #55 and this plan.
+2. **The sweep's `--proof <branch>` mode** in `hooks/worktree-reap.sh` (Q9),
+   with its own `test.sh` case, before `sync.sh` depends on it.
+3. `sync.sh` (location per Q1) implementing everything in §2's "mechanical"
+   list plus `--teardown` (Q8), honouring the §3 facts with each cited in a
+   comment. Bash 3.2 compatible. Output and exit codes exactly as the Q2
+   contract and table say.
+4. Rewrite `commands/sync.md` to a thin wrapper — target **≤200 words** —
+   keeping only the three judgment calls from §2, the single dry-run injection
+   (Q6), and the minimal fallback (Q5). Shrink the `description` to **≤20
+   words**. Update `allowed-tools`: add `Bash(~/.ai/sync.sh:*)`, keep
+   `Bash(git:*)` for the fallback and `Bash(cd:*)` for the teardown line.
+   Without the new entry every script call prompts for permission.
+5. Wire the installer (**`install-commands.sh`**, per Q1) and the uninstaller
+   (`uninstall.sh`, content-grep guarded), mirroring the shape of
+   `install-hooks.sh:273–285` / `uninstall.sh:375–378`.
+6. Add `test.sh` coverage modelled on `:1968–1975` (installed, executable,
+   byte-identical, gone after uninstall), **plus** behavioural tests in
+   throwaway repos that run `./sync.sh` from the repo, not `~/.ai/sync.sh`:
+   one case per row of the exit-code table, the worktree fold-back, and the
+   `--teardown` cwd refusal. Assert the git behaviour each relies on, not the
+   git version.
+7. Run the full CI matrix from §3, in order.
+8. `/ship` it. In the PR body, hand Joe the post-merge install command and the
+   live check from §5 as one pasteable block.
 
 ---
 
@@ -263,13 +382,27 @@ Spawn 3–4 roles in parallel with disjoint scope (see `~/.ai/agent-teams.md`):
 
 **Done when all of:**
 
-- `commands/sync.md` is ≤200 words (`wc -w commands/sync.md`), down from 1,205.
-- A primary-checkout `/sync` run costs **≤2 Bash round-trips**.
+The agent can prove these itself, before the PR:
+
+- `commands/sync.md` is ≤200 words (`wc -w commands/sync.md`), down from 1,205,
+  and its `description` is ≤20 words.
+- A primary-checkout `/sync` costs **≤1 Bash round-trip**: the one `--apply`
+  call. Measured by counting Bash tool calls in a transcript of a
+  primary-checkout run. Since the installed command is not this one (§1), the
+  check runs the rewritten prompt against `./sync.sh`, not via the slash
+  command.
 - `shellcheck` clean; `./test.sh` ≥258 passing, 0 failed; `./evals/run.sh` 0
-  broken with ≥15 behaviours (the new anchor); `./verify-skills.sh` 0 problems.
-- Every behaviour PR #55 added still happens — verified by *running* `/sync`
-  from inside a throwaway worktree, not by reading the script.
+  broken with ≥16 behaviours (BEH-15, BEH-16); `./verify-skills.sh` 0 problems.
+- Every behaviour PR #55 added still happens — proven by the `test.sh`
+  behavioural cases *running* `./sync.sh` in throwaway repos and worktrees,
+  not by reading the script.
 - `git status` clean on the branch; PR open.
+
+Joe's part, after merge, which the agent cannot do (installers are gated):
+
+- Run `./install-commands.sh` from the primary checkout on `main`, then run
+  `/sync` once from inside a throwaway worktree. The PR body carries both
+  lines, ready to paste.
 
 **Falsifier — what would prove this plan wrong:**
 
@@ -283,6 +416,11 @@ Spawn 3–4 roles in parallel with disjoint scope (see `~/.ai/agent-teams.md`):
   `-D` reachable without forge proof, or a push the script performs itself.
   Any one of those means **abandon the extraction and keep the prose.** Prose
   degrades gracefully; a script fails silently.
+- `--teardown` succeeds when invoked from inside the tree it removes. That
+  means the cwd refusal is broken, and the caller's shell would be left in a
+  deleted directory.
+- `sync.sh` judges a squash merge differently from the sweep. That means the
+  forge logic was copied rather than shared through `--proof`.
 - The refuter's case for leaving `/sync` alone survives contact with the
   measurements. If `/sync` is run rarely, 1,205 words of a 200k window may
   simply not be worth a new installed script and its test surface.
@@ -293,8 +431,8 @@ Spawn 3–4 roles in parallel with disjoint scope (see `~/.ai/agent-teams.md`):
 
 These override the autonomy posture, and hold inside every iteration:
 
-- **Do not run `install-hooks.sh` or any installer.** Blocked as
-  self-modification; hand Joe the command.
+- **Do not run `install-hooks.sh`, `install-commands.sh`, or any installer.**
+  Blocked as self-modification; hand Joe the command.
 - **The changelog entry is a confirmation gate.** Propose it at session end;
   never write or commit `CHANGELOG.md` unapproved. (Note: PR #55's own
   changelog entry is **still outstanding** — draft below.)
