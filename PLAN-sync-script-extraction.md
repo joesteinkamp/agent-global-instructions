@@ -1,6 +1,15 @@
 # Plan — put `/sync` on a token diet by extracting a script
 
-**Status:** not started. Written 2026-10-02 by Claude (Opus 5), after PR #55.
+**Status: STOPPED at step 0.5 (2026-10-05).** The usage gate failed: one
+`/sync` invocation in 268 logged Claude sessions (2026-06-14 → 2026-10-05), and
+zero typed in the 73 retained transcripts. The cross-vendor refuter (agy,
+inline tier) returned SMALL FIX, putting the ~6.5k tokens of overhead over 16
+weeks against an estimated 250k–500k tokens to build. The small fix shipped
+instead: description 32 → 16 words, `git worktree list` injection dropped. The
+full record is in §8. Revisit only if `/sync` usage rises once #55 is
+installed. Everything below is kept as the record of the plan.
+
+Written 2026-10-02 by Claude (Opus 5), after PR #55.
 Revised 2026-10-03 by Claude (Opus 5.5) after a review of this plan against
 `46ff387`: teardown ownership, the install owner, forge proof for the current
 tree, a 1-round-trip target, a usage gate, and the output contract.
@@ -476,3 +485,36 @@ Draft, for Joe to approve or edit:
 > *Not done:* the new steps shipped unanchored in `evals/behaviours.md`.
 > *Known cost:* grew the command 198 → 1,205 words, which
 > `PLAN-sync-script-extraction.md` exists to undo.
+
+---
+
+## 8. Step 0.5 result — 2026-10-05, Claude (Opus 5.5)
+
+**Measured:**
+
+- `~/.ai-logs/tool-calls.jsonl`, Claude, 2026-06-14 → 2026-10-05: 268 distinct
+  sessions. Skill calls with `skill=sync`: **one** invocation (a
+  Pre/PostToolUse pair, 2026-07-21, started by the model). For scale, `ship`
+  has 46 log lines.
+- `~/.claude/projects/**/*.jsonl`, 73 retained transcripts (2026-08-12 →
+  2026-10-05, excluding the measuring session): **zero** user-typed
+  `<command-name>/sync</command-name>`.
+- Not measured: typed use before 2026-08-12 (those transcripts are gone, and
+  typed commands are not in the tool log), and Codex, Cursor and agy port usage.
+
+**Cost** (estimated at ~1.3 tokens/word): description +14 words × 268 sessions
+≈ 5k tokens; body and injections ≈ +1.5k per run × 1 run. That is about 6.5k
+tokens over 16 weeks, and none of it was actually paid, since the installed
+copy is pre-#55.
+
+**Refuter verdict: SMALL FIX** (`~/.ai-context/agent-global-instructions-sync-usage/agents/refuter.md`).
+Codex and agy-with-tools both failed to run; see `PLAN-cross-vendor-delegates.md`
+on `ai/delegate-fix`. The verdict came from agy with the brief inlined, so it
+could not check the repo itself. Its strongest counterpoint, recorded here so it
+is not lost: usage was measured against the **pre-#55** command, so low use of
+worktree syncing is partly because nobody had it. Re-measure after #55 is
+installed before reopening this plan.
+
+**Shipped instead:** description 32 → 16 words; `` !`git worktree list` ``
+injection removed (572 of 627 injected bytes). Step 3 of the body already runs
+`git worktree list --porcelain` itself when it needs it.

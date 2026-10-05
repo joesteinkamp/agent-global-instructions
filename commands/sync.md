@@ -1,5 +1,5 @@
 ---
-description: Update the default branch, rebase the current branch on it, and sweep worktrees whose branches are now merged — folding the work back and offering teardown when you're standing in a worktree
+description: Update the default branch, rebase onto it, and sweep merged worktrees — worktree-aware, with gated teardown
 allowed-tools: Bash(git:*), Bash(cd:*), Bash(~/.ai/worktree-sweep.sh:*)
 ---
 
@@ -7,7 +7,6 @@ Current state:
 - Branch: !`git branch --show-current`
 - Status: !`git status --short`
 - This tree: !`git rev-parse --show-toplevel`
-- Worktrees: !`git worktree list`
 
 Bring my branch up to date with the latest default branch.
 
