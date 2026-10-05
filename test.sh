@@ -55,6 +55,16 @@ assert_has "default render points at the local-model registry" '~/.ai/local-mode
 assert_has "default render points at the orchestration playbook" '~/.ai/orchestration.md'
 assert_has "default render points at the quality-workflows playbook" '~/.ai/quality-workflows.md'
 assert_has "default render points at the web-preview playbook" '~/.ai/web-preview.md'
+
+# Every documented codex delegate runs with a context dir as its workspace, which
+# is never a git repo, so without --skip-git-repo-check codex refuses before
+# doing anything ("Not inside a trusted directory"). Observed 2026-10-05.
+codex_untrusted="$(grep -rnE 'codex exec[^`]*--cd' "$DIR/playbooks" "$DIR"/commands/*.md 2>/dev/null \
+  | grep -v -- '--skip-git-repo-check')"
+[ -z "$codex_untrusted" ] \
+  && ok "every documented codex exec --cd delegate passes --skip-git-repo-check" \
+  || bad "every documented codex exec --cd delegate passes --skip-git-repo-check: $codex_untrusted"
+
 INC_ORCHESTRATION=n render
 assert_no "INC_ORCHESTRATION=n removes the orchestration-playbook pointer" '~/.ai/orchestration.md'
 INC_IMPROVE=n render
