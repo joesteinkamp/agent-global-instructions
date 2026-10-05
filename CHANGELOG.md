@@ -12,6 +12,33 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Made the documented cross-vendor delegate forms run (2026-10-05,
+  Claude, #57).** The ask: fix the cross-vendor team members after every
+  delegate failed in one session. What changed: `--skip-git-repo-check` added
+  to every documented `codex exec --cd` form (the orchestration playbook,
+  `/verify`, `/improve`), pinned by a `test.sh` assertion; the playbook's
+  silent-wave bullet now names each failure by its exact text (two of them exit
+  0), adds a pre-wave smoke test, and documents the inline-context tier with
+  its grounding cost; `PLAN-cross-vendor-delegates.md` records the diagnosis.
+  Why this approach: the documented codex form could never run, because a
+  context dir is never a git repo, and codex refuses a non-repo working dir.
+  Considered and rejected: the `--dangerously-skip-permissions` that agy's own
+  error message suggests (a full bypass); disabling the system-wide
+  user-namespace restriction (widens risk for every process). Not done: the
+  host fixes for codex (`bwrap` / user namespaces) and agy (a read-only
+  headless allowlist), which are gated.
+- **Put `/sync` on a small fix instead of a script extraction (2026-10-05,
+  Claude, #56).** The ask: make `/sync` as token-efficient as possible after
+  #55 grew it from 198 to 1,205 words. What changed: the description went from
+  32 to 16 words, and the `` !`git worktree list` `` injection was dropped (572
+  of 627 injected bytes). Why: one `/sync` run in 268 logged sessions, so the
+  extra cost was about 6.5k tokens over 16 weeks, mostly from the description
+  that loads in every session; building the script was estimated at
+  250k–500k tokens. Considered and rejected: moving the logic into an
+  installed `sync.sh` (planned in `PLAN-sync-script-extraction.md`, then
+  stopped by its own usage check and a cross-vendor refuter). Reopen it if
+  usage rises once #55 is installed; usage so far was measured against the
+  pre-#55 command.
 - **Hoisted the confirmation gates into one canonical, ungated block
   (2026-09-26, Claude).** The ask: finding 5 of the 2026-09-20 instruction-bloat
   review, deferred when the other findings shipped (entry below) and picked up
