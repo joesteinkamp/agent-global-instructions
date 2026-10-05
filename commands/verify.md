@@ -110,7 +110,7 @@ up**. Grade A–F; an **A** means you'd ship it proudly, not merely that it work
 as, and have each of the others — the more independent vendors the better — take the stated goal + the diff
 and independently
 grade **Goal fit** headless, with writes scoped to a context dir it reports into — the repo stays read-only
-to it (e.g. `codex exec "…" --sandbox workspace-write --cd ~/.ai-context/<repo>-verify`, `agy -p "…" --mode
+to it (e.g. `codex exec "…" --skip-git-repo-check --sandbox workspace-write --cd ~/.ai-context/<repo>-verify`, `agy -p "…" --mode
 accept-edits --add-dir ~/.ai-context/<repo>-verify`; read its full verdict from the file it writes there,
 not just stdout), prompted to find where the
 work falls short. Where its grade differs from yours, report both and say why — don't average the
