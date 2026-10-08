@@ -12,6 +12,19 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Gave headless agy a read-only allowlist (2026-10-08, Claude, #60).** The
+  ask: plan steps 4–5, so cross-vendor delegates work. What changed:
+  `install-settings.sh antigravity` adds a read-only command allowlist to
+  `~/.gemini/antigravity-cli/settings.json`, keeping the user's own rules, and
+  `uninstall.sh` takes back only its own entries. A new `test.sh` case covers
+  both. The playbook now lists Cursor's headless auth failure, and the GUIDE
+  describes the allowlist. Why: headless `agy -p` can't prompt, so every shell
+  command without an allow rule was auto-denied and a reviewer delegate
+  returned nothing. Considered and rejected: `--dangerously-skip-permissions`,
+  which is a full bypass; including `rg`, `sed` and `find`, since each has a
+  flag that runs a program or writes; and a `regex:` deny for `git --output`,
+  because the docs don't make its matching clear enough to rely on untested.
+  Known gap: `git log|show|diff --output=<file>` can still write a file.
 - **Made the documented cross-vendor delegate forms run (2026-10-05,
   Claude, #57).** The ask: fix the cross-vendor team members after every
   delegate failed in one session. What changed: `--skip-git-repo-check` added
