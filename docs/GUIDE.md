@@ -246,6 +246,11 @@ adds the **client-enforced** half, mapped to each tool's native model:
 - **Cursor** — the same `deny` set in `~/.cursor/cli-config.json` (the CLI agent;
   the GUI agent is allowlist-only, so there the read-guard hook is the net).
   Tune via `settings-permissions.cursor.snippet.json`.
+- **Antigravity** — a read-only command `allow` list (`git log/show/diff/status`,
+  `cat`, `grep`, …) in `~/.gemini/antigravity-cli/settings.json`, so a headless
+  `agy -p` reviewer delegate can read a repo; headless mode can't prompt, so
+  anything unlisted is auto-denied. Your own rules are kept. Tune via
+  `settings-permissions.antigravity.snippet.json`.
 - **Codex** — `approval_policy = "on-request"` + `sandbox_mode = "workspace-write"`
   in `~/.codex/config.toml` (a managed, sentinel-delimited block; skipped if you
   already set those keys). Codex's sandbox is directory-scoped, so fine-grained
