@@ -355,6 +355,7 @@ for t in "${targets[@]}"; do
       ;;
     antigravity)
       strip_antigravity_hooks "$HOME/.gemini/antigravity-cli/hooks.json"
+      strip_permissions_json "$HOME/.gemini/antigravity-cli/settings.json" "$DIR/settings-permissions.antigravity.snippet.json"
       ;;
     *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
   esac

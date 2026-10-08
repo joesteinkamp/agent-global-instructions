@@ -15,6 +15,10 @@
 #                                           (seed-only: an existing value is never overwritten)
 #   codex   ~/.codex/config.toml          approval/sandbox + quiet, actionable notifications
 #   cursor  ~/.cursor/cli-config.json     permissions.deny (JSON union)        — CLI agent; GUI via hook
+#   antigravity ~/.gemini/antigravity-cli/settings.json
+#                                         permissions.allow/deny (JSON union): a read-only
+#                                           command allowlist, so a headless `agy -p` reviewer
+#                                           delegate can read a repo instead of being auto-denied
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -102,7 +106,7 @@ merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label  [$4 =
   if cmp -s "$tmp" "$sf"; then
     echo "    $sf (permissions already current, no change)"
   else
-    backup_file "$sf"; mv "$tmp" "$sf"; echo "    $label deny/ask merged -> $sf"
+    backup_file "$sf"; mv "$tmp" "$sf"; echo "    $label permissions merged -> $sf"
   fi
 }
 
@@ -114,6 +118,14 @@ install_claude_settings() {
 install_cursor_settings() {
   echo "  cursor:"
   merge_perms_json "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json" cursor
+}
+
+# Headless `agy -p` cannot prompt, so every command without an allow rule is
+# auto-denied and a reviewer delegate returns nothing (observed 2026-10-05). Union
+# a read-only allowlist into the user's rules; their own entries are kept.
+install_antigravity_settings() {
+  echo "  antigravity:"
+  merge_perms_json "$HOME/.gemini/antigravity-cli/settings.json" "$DIR/settings-permissions.antigravity.snippet.json" antigravity
 }
 
 # Seed one key inside an exact TOML table without rewriting or reformatting the
@@ -302,7 +314,7 @@ for t in "${targets[@]}"; do
     claude)             if install_claude_settings; then enable_agent_teams "$HOME/.claude/settings.json"; else echo "  claude: skipped (error above)" >&2; fi;;
     codex)              install_codex_settings  || echo "  codex: skipped (error above)" >&2;;
     cursor)             install_cursor_settings || echo "  cursor: skipped (error above)" >&2;;
-    antigravity)        echo "  antigravity: uses its own permission model (~/.gemini/antigravity-cli/settings.json); not wired here — guardrails come from its hooks (install-hooks.sh antigravity)";;
+    antigravity)        install_antigravity_settings || echo "  antigravity: skipped (error above)" >&2;;
     *) echo "  unknown target: $t (use: claude codex cursor antigravity)" >&2;;
   esac
 done

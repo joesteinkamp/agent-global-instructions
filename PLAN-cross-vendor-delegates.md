@@ -1,6 +1,6 @@
 # Plan — make the cross-vendor delegates actually run
 
-**Status:** steps 1–2 done (#57). Step 3 diagnosed 2026-10-05 (host AppArmor policy), fix proposed and waiting on Joe. Steps 4–5 open. Written 2026-10-05 by Claude (Opus 5.5).
+**Status:** steps 1–2 done (#57); step 3 diagnosed, AppArmor fix waiting on Joe; step 4 wired into the installer (2026-10-08), waiting on Joe to run it; step 5 probed, fails from inside Claude, plain-terminal probe pending. Written 2026-10-05 by Claude (Opus 5.5).
 **Lives on:** branch `ai/delegate-fix`, worktree
 `../agent-global-instructions-delegate-fix`.
 **Scope:** the documented delegate invocations (`playbooks/orchestration.md`,
@@ -172,10 +172,59 @@ Antigravity's `settings.json` (`~/.gemini/antigravity-cli/settings.json` per
    documented manual step. Wiring it is the portable answer; it also changes
    the installer's contract for every machine.
 
+**Done 2026-10-08.** Docs read:
+[Antigravity permissions](https://antigravity.google/docs/permissions/).
+The grammar is `action(target)` in `allow`/`ask`/`deny` arrays, with precedence
+deny > ask > allow. `command()` matches by token prefix (`regex:` for anchored
+per-token regexes). A line with redirection, substitution or similar must match
+exactly. Headless runs honour `settings.json` permissions since agy 1.1.5 (from
+`agy changelog`); this machine has 1.2.17. Upstream issue
+[#548](https://github.com/google-antigravity/antigravity-cli/issues/548)
+reports headless ignoring `permissions.allow` on Windows. It is still open, and
+untested here.
+
+Decision taken (Joe asked for steps 4–5 to be done): **wire it**.
+`settings-permissions.antigravity.snippet.json` holds the list, and
+`install-settings.sh antigravity` unions it in through the same
+`merge_perms_json` as Cursor. `uninstall.sh antigravity` subtracts it through
+`strip_permissions_json`. A `test.sh` case checks that the user's rules and
+other settings survive, that a re-run is idempotent, that uninstall takes back
+only ours, and that nothing writing or executing rides in.
+
+The list changed from the draft above. `rg` is out (`--pre` runs a program),
+`sed -n` is out (`-i` writes), `find` was never in (`-exec`/`-delete`).
+`git blame`, `git rev-parse` and `git ls-files` were added.
+
+- **Known gap:** `git log|show|diff --output=<file>` writes a file, and the
+  token prefix covers it. A per-token `regex:` deny might close it, but its
+  matching against extra tokens isn't documented well enough to rely on
+  without a live test. Recorded rather than guessed.
+- **Not yet verified live:** applying it means running
+  `install-settings.sh antigravity`, which is Joe's to run. Then re-run the
+  step 2 smoke test with agy.
+
 ### Step 5 — Cursor `agent`
 
 Untested. Run the step 2 smoke test once and record the result in the
 playbook's host table. If it fails, add its exact error to step 2's list.
+
+**Result 2026-10-08: fails from inside Claude Code.** `agent -p --trust
+--workspace <ctx>` (no `--force`/`--yolo`) exits 1 with
+`Error: Authentication required. Please run 'agent login' first, or set
+CURSOR_API_KEY environment variable.`, while `agent status` prints
+`Logged in (unable to fetch user details)`. The credential exists, but the CLI
+can't reach Cursor's API. The likely cause is the network policy of Claude
+Code's sandbox (codex and agy reach their APIs from the same shell), but that
+is inferred, not tested. The error string is now in the playbook's failure
+list. To settle it, Joe runs the same probe in a plain terminal:
+
+```sh
+agent -p --trust "reply with the word ok" < /dev/null
+```
+
+`ok` means the sandbox is the cause: Cursor can't be a delegate from a
+sandboxed Claude session unless its API host is allowed. An auth error means
+re-run `agent login`.
 
 ### Step 6 — Ship
 

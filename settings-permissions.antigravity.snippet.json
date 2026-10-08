@@ -1,0 +1,23 @@
+{
+  "_comment": "Antigravity CLI permissions (~/.gemini/antigravity-cli/settings.json). Exists so a headless `agy -p` reviewer delegate can read a repo: headless mode cannot prompt, so any command not allowed here is auto-denied. The allow list is read-only commands only. command() matches by token prefix, so `command(git log)` allows `git log --oneline` but not `git push`; a line with redirection, substitution or similar must match exactly, so `cat x > y` is not covered. Known gap: `git log|show|diff --output=<file>` writes a file and is covered by the prefix. sed (-i), find (-exec/-delete) and rg (--pre) are left out because each has a flag that writes or runs a program. Deny beats ask beats allow.",
+  "permissions": {
+    "allow": [
+      "command(git log)",
+      "command(git show)",
+      "command(git diff)",
+      "command(git status)",
+      "command(git blame)",
+      "command(git rev-parse)",
+      "command(git ls-files)",
+      "command(ls)",
+      "command(cat)",
+      "command(head)",
+      "command(tail)",
+      "command(wc)",
+      "command(grep)"
+    ],
+    "deny": [
+      "command(sudo)"
+    ]
+  }
+}

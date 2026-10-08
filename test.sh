@@ -1417,6 +1417,28 @@ PY
   [ "$s_ok" = 1 ] && ok "install-settings wires cursor/codex permissions (idempotent)" \
                   || bad "install-settings wires cursor/codex permissions (idempotent)"
 
+  # Antigravity: headless `agy -p` auto-denies any command without an allow rule,
+  # so a reviewer delegate needs a read-only allowlist. The user's own rules and
+  # unrelated settings survive install, and uninstall takes back only ours.
+  AG="$(mktemp -d)"; mkdir -p "$AG/.gemini/antigravity-cli"
+  printf '%s\n' '{"verbosity":"medium","permissions":{"allow":["command(npm test)"],"ask":["command(*)"]}}' \
+    > "$AG/.gemini/antigravity-cli/settings.json"
+  HOME="$AG" bash "$DIR/install-settings.sh" antigravity >/dev/null 2>&1
+  HOME="$AG" bash "$DIR/install-settings.sh" antigravity >/dev/null 2>&1
+  ag_ok=1; ags="$AG/.gemini/antigravity-cli/settings.json"
+  jq -e '.permissions.allow | index("command(git log)") and index("command(npm test)")' "$ags" >/dev/null 2>&1 || ag_ok=0
+  jq -e '.permissions.ask == ["command(*)"] and .verbosity == "medium"' "$ags" >/dev/null 2>&1 || ag_ok=0
+  jq -e '[.permissions.allow[] | select(. == "command(git log)")] | length == 1' "$ags" >/dev/null 2>&1 || ag_ok=0
+  # Nothing that writes or runs a program may ride in on the reviewer allowlist.
+  jq -e '[.permissions.allow[] | select(test("^command\\((git (push|commit|reset|checkout|clean)|rm|sed|find|rg|bash|sh)\\b"))] | length == 0' \
+    "$DIR/settings-permissions.antigravity.snippet.json" >/dev/null 2>&1 || ag_ok=0
+  HOME="$AG" bash "$DIR/uninstall.sh" antigravity >/dev/null 2>&1
+  jq -e '.permissions.allow == ["command(npm test)"] and .permissions.ask == ["command(*)"] and (.permissions.deny == null)' \
+    "$ags" >/dev/null 2>&1 || ag_ok=0
+  rm -rf "$AG"
+  [ "$ag_ok" = 1 ] && ok "install-settings unions a read-only agy allowlist; uninstall removes only ours" \
+                   || bad "install-settings unions a read-only agy allowlist; uninstall removes only ours"
+
   # Codex notification routing: preserve Warp itself and all sibling hook state,
   # disable only its premature PermissionRequest notifier, and use native TUI
   # events for approvals that actually reach the user.
