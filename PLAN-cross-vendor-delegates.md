@@ -1,6 +1,6 @@
 # Plan — make the cross-vendor delegates actually run
 
-**Status:** steps 1–2 done (in-repo docs + test); steps 3–5 open and need Joe or a docs read. Written 2026-10-05 by Claude (Opus 5.5).
+**Status:** steps 1–2 done (#57). Step 3 diagnosed 2026-10-05 (host AppArmor policy), fix proposed and waiting on Joe. Steps 4–5 open. Written 2026-10-05 by Claude (Opus 5.5).
 **Lives on:** branch `ai/delegate-fix`, worktree
 `../agent-global-instructions-delegate-fix`.
 **Scope:** the documented delegate invocations (`playbooks/orchestration.md`,
@@ -117,6 +117,44 @@ unshare -Ur true && echo userns-ok || echo userns-blocked
   change: self-modification, so Joe applies it.
 
 Then re-run the smoke test from step 2.
+
+**Result, 2026-10-05: `userns-blocked`.** Joe ran the probe in a plain
+terminal: `unshare: write failed /proc/self/uid_map: Operation not permitted`.
+So the cause is **host policy, not Claude's sandbox nesting**. Ubuntu exempts
+its own `/usr/bin/bwrap` with an AppArmor profile, but codex picks up
+linuxbrew's `bwrap`, which has none.
+
+**Chosen fix:** a profile for the linuxbrew binary only. AppArmor attaches by
+the resolved path, so it targets the Cellar path, not the
+`/home/linuxbrew/.linuxbrew/bin/bwrap` symlink. Joe applies it, since it needs
+`sudo`:
+
+```sh
+sudo tee /etc/apparmor.d/bwrap-linuxbrew >/dev/null <<'EOF'
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap-linuxbrew /home/linuxbrew/.linuxbrew/Cellar/bubblewrap/*/bin/bwrap flags=(unconfined) {
+  userns,
+  include if exists <local/bwrap-linuxbrew>
+}
+EOF
+sudo apparmor_parser -r /etc/apparmor.d/bwrap-linuxbrew
+```
+
+- **Touches:** that one binary. The system-wide restriction stays on.
+- **Undo:** `sudo apparmor_parser -R /etc/apparmor.d/bwrap-linuxbrew && sudo rm /etc/apparmor.d/bwrap-linuxbrew`
+- **Check:** `bwrap --unshare-user --ro-bind / / true && echo ok`, then the
+  codex smoke test from step 2.
+- **Unverified:** that codex uses `bwrap` from `PATH` rather than a copy it
+  ships with. If the check passes but codex still prints
+  `bwrap: setting up uid map`, point the profile at codex's own `bwrap` path.
+- **Portability:** this is a per-machine fix, not an installer change. Any
+  Ubuntu 24.04+ host that gets `bwrap` from linuxbrew will hit the same wall.
+  The playbook's F2 bullet already tells a session to drop codex and hand the
+  user the host fix; a later pass could name this profile there.
+
+**Status:** fix proposed; not yet applied or verified.
 
 ### Step 4 — F3: give headless agy a read-only allowlist (needs docs, then Joe)
 
