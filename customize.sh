@@ -629,17 +629,48 @@ write_global() {
   # stale copy so nothing keeps reading the old path (old rendered instructions
   # fall back to `command -v` probing until their next re-render).
   rm -f "$HOME/.ai-logs/ai-clis"
-  # Advisory model-routing table — mirror the repo's committed MODEL-ROUTING.md
-  # to the machine-local path the instructions point at. The repo copy is the
-  # source of truth (refreshed via /update-model-routing, which re-copies here
-  # itself); like the rendered files, the machine copy is never hand-edited, so
-  # an unconditional mirror (cmp-guarded to avoid churn) is always correct.
+  # Model routing — one file, two owners. Outside the generated markers is the
+  # stable method, owned by the repo's MODEL-ROUTING.md. Inside them is this
+  # machine's data (which models this account can reach, their tiers, prices),
+  # owned by /update-model-routing and never committed. So install the repo's
+  # stable sections and keep the machine's generated block. Markers count only
+  # at the start of a line, exactly one of each, begin before end; anything
+  # else (fresh machine, a pre-marker copy, a damaged block) gets the repo's
+  # seed stub, and a non-empty file being replaced is backed up first.
   if [ -f "$DIR/MODEL-ROUTING.md" ]; then
-    if cmp -s "$DIR/MODEL-ROUTING.md" "$HOME/.ai/model-routing.md" 2>/dev/null; then
-      echo "  ok ~/.ai/model-routing.md (up to date)"
+    local mr_dst="$HOME/.ai/model-routing.md" mr_tmp mr_note
+    mr_tmp="$(mktemp)"
+    if [ -f "$mr_dst" ] && awk '
+         /^<!-- generated:begin/ { nb++; if (!b) b = NR }
+         /^<!-- generated:end/   { ne++; if (!e) e = NR }
+         END { exit !(nb == 1 && ne == 1 && b < e) }' "$mr_dst"; then
+      awk -v machine="$mr_dst" '
+        /^<!-- generated:begin/ {
+          while ((getline line < machine) > 0) {
+            if (line ~ /^<!-- generated:begin/) keep = 1
+            if (keep) print line
+            if (keep && line ~ /^<!-- generated:end/) break
+          }
+          skip = 1; next
+        }
+        skip && /^<!-- generated:end/ { skip = 0; next }
+        !skip { print }
+      ' "$DIR/MODEL-ROUTING.md" > "$mr_tmp"
+      mr_note="stable method from repo; this machine's generated data kept"
     else
-      cp "$DIR/MODEL-ROUTING.md" "$HOME/.ai/model-routing.md" \
-        && echo "  wrote ~/.ai/model-routing.md (model-routing table)"
+      cp "$DIR/MODEL-ROUTING.md" "$mr_tmp"
+      mr_note="seed stub; run /update-model-routing to generate this machine's data"
+      if [ -s "$mr_dst" ] && ! cmp -s "$mr_dst" "$mr_tmp"; then
+        cp "$mr_dst" "$HOME/.ai/model-routing.unmarked.bak.md" \
+          && mr_note="$mr_note; previous copy kept at ~/.ai/model-routing.unmarked.bak.md"
+      fi
+    fi
+    if cmp -s "$mr_tmp" "$mr_dst" 2>/dev/null; then
+      echo "  ok ~/.ai/model-routing.md (up to date)"
+      rm -f "$mr_tmp"
+    else
+      chmod 644 "$mr_tmp"; mv "$mr_tmp" "$mr_dst" \
+        && echo "  wrote ~/.ai/model-routing.md ($mr_note)"
     fi
   fi
   # On-demand playbooks — the rendered instructions keep short resident rules

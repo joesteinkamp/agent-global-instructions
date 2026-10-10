@@ -67,7 +67,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
 | `converge.sh` | Daemon for the `/worktrees` flow: folds parallel agent branches (`ai/*`) into the integration branch as they advance. |
 | `playbooks/` | On-demand contracts the rendered instructions point at instead of inlining (`orchestration.md`, `quality-workflows.md`, `web-preview.md`). `customize.sh --global` mirrors each to `~/.ai/<name>.md` when its section is on (and removes it when off), keeping the resident instruction file short — agents load the detail only when the task needs it. |
-| `MODEL-ROUTING.md` | Advisory, benchmark-derived table of which installed AI CLI is strongest per task type (hard coding, review, research, planning, UI, cheap fan-out, long-context). Mirrored to `~/.ai/model-routing.md` by `customize.sh --global` so the rendered instructions can point agents at it; refreshed on demand with `/update-model-routing`. |
+| `MODEL-ROUTING.md` | The stable routing method: model tiers (T1/T2/T3), the rules for which tier a task needs, independence by model family, and how to pass a model and effort to each CLI. `customize.sh --global` installs it to `~/.ai/model-routing.md` and keeps that machine's generated block (which models this account can reach, their tiers and prices, vendor-by-task picks). The block is written by `/update-model-routing` and never committed; the repo carries only a seed stub. |
 | `CHANGELOG.md` | Human-readable decision history of AI-made changes — each entry records what changed, the original ask, why that approach, and what was rejected. Proposed by the assistant at session end, written only after you approve. `customize.sh --global` seeds a copy into `~/.claude/` (seed-only; never overwrites). |
 | `.github/workflows/ci.yml` | CI: shellcheck every script + run `test.sh` on push / PR. |
 | `test.sh` | Smoke tests: render engine, the `load_env` parser, example reproducibility, and installer/uninstaller smoke tests. |
@@ -124,10 +124,10 @@ every option:
   (Antigravity), `claude -p` — for parallel speed and cross-vendor review
   (a model never solely checks its own work). The install records the machine's
   CLI roster at `~/.ai/clis` so sessions read it instead of re-probing, and
-  mirrors the advisory model-routing table to `~/.ai/model-routing.md` —
-  benchmark-derived per-task-type vendor rankings agents consult when picking a
-  delegate (refresh with `/update-model-routing`; other machines pick a
-  refreshed table up on their next `git pull && ./install.sh --yes`).
+  installs the model-routing method to `~/.ai/model-routing.md`, which agents
+  consult when picking a delegate's tier, model, and CLI. Each machine fills in
+  its own data (what its accounts can reach, tiers, prices) with
+  `/update-model-routing`; a re-install refreshes the method and keeps that data.
   `~/.ai/` is the machine-level governance/contract layer; operational exhaust
   (logs, hook state) stays in `~/.ai-logs/`. Delegation is coordinated through
   a shared temporary context dir `~/.ai-context/<repo>-<task-slug>/`; set
@@ -176,7 +176,7 @@ command once as `commands/<name>.md` and every tool picks it up.
 | `/grill-me` | A relentless interview to sharpen a plan or design before you build it — asked in rounds rather than one at a time, recommended answers offered, environment facts looked up rather than asked, nothing acted on until we reach a shared understanding. |
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. **Backgrounds by default**: pins a snapshot SHA, reviews it while work continues, lands findings as a notification + durable `findings.md`. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. **Synchronous by default** (it gates handoff); `--bg` defers it behind an explicit done-condition for long runs. |
-| `/update-model-routing` | Deep-research current public model benchmarks (SWE-bench Verified, Terminal-Bench, LMArena, …) and refresh `MODEL-ROUTING.md` — the advisory per-task-type vendor rankings mirrored to `~/.ai/model-routing.md`. Shows the diff for approval before anything is kept. Runs in this repo's checkout only. |
+| `/update-model-routing` | Regenerate this machine's routing data in `~/.ai/model-routing.md`: probe which models each CLI can actually reach, price them from OpenRouter, place each in a tier from web-researched benchmarks, and refresh the vendor-by-task picks. Shows the diff for approval before anything is kept. Runs anywhere; nothing it writes is committed. |
 | `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots). Writes + serves a self-contained HTML report. |
 
 **Command groups.** A command declares `group: <name>` in its frontmatter

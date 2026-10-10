@@ -12,6 +12,24 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Model routing picks a model tier, not just a vendor (2026-10-10, Claude,
+  #67).** The ask: send cheap work to cheap models across all four CLIs,
+  without a hand-maintained table that goes stale. What changed:
+  `MODEL-ROUTING.md` holds a committed stable method (T1/T2/T3, six ordered
+  task-to-tier questions, model-family independence, pool and quota rules,
+  per-CLI model/effort flags) and a marked generated block that
+  `/update-model-routing` fills per machine. That block records which models
+  the account can reach, their tiers and OpenRouter prices, and the
+  vendor-by-task picks. `customize.sh` keeps the block on reinstall. Why this
+  approach: it's all routing, so it stays in one file, and the data is
+  machine-local because reachability depends on the account (Cursor's free plan
+  lists Opus and Sol but runs only `auto`). Independence is judged by model
+  family because Opus is reachable through three CLIs. Considered and
+  rejected: a separate tier file ("it's all model routing"); hand-researched
+  prices (OpenRouter showed them wrong the same day); a CLI-by-tier grid (it
+  gave Gemini 3.7 Flash two tiers); an Artificial Analysis key (web search
+  chosen instead); and, from Gemini's rival draft, trusting model listings and
+  preferring Cursor's flat pool. Known gap: no eval anchors the new rules yet.
 - **Gave every role an unattended-run contract and fixed the refuter's
   contradiction (2026-10-10, Claude, #65).** The ask: review each role so it
   can be used reliably as an agent, including from cron jobs, with less text for

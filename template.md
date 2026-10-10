@@ -247,7 +247,7 @@ file.
 
 - **This machine may run several AI CLIs — use them as delegates** in headless one-shot mode. This is the second transport of the agent-team system above, not a separate one: same roles, same gates, chosen when another vendor's judgment is worth its cost. The roster lives at `~/.ai/clis` (bare names, one per line; exclude the tool you're running as); the advisory per-task-type vendor rankings at `~/.ai/model-routing.md`.
 - **`~/.ai/orchestration.md` is the whole contract — read it before the first team or delegation** — how to choose the shape, how to carry a role across a vendor boundary, and everything delegate-specific: invocation forms, the shared `~/.ai-context/` dir and its file ownership, routing by strength, sandboxing, worktrees for editing delegates, and failure handling.
-- **Across a vendor boundary the sole-checker rule above still binds** — and a same-model refuter checks the agent, not the model, so route review that matters through a *different* vendor's model, prompted to refute.
+- **Across a vendor boundary the sole-checker rule above still binds** — and a same-model refuter checks the agent, not the model, so route review that matters through a *different* model family, prompted to refute. Judge that by the model, not the CLI: Opus reached through another vendor's CLI is still Opus.
 <!--SECTION:local-models-->
 - **Local models are delegates too — behind `lm`.** If `~/.ai/local-models` exists, the `lm` shim runs them (`lm -p "…"`; `lm list` for health) — one-shot text-only work, routed by tier per the orchestration playbook. If the file or shim is absent, this machine has no local models: skip silently, and never install or start one to get some.
 <!--/SECTION:local-models-->
