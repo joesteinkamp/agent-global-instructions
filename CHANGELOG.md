@@ -869,6 +869,19 @@ so the log reads as the project's decision history, not just a list of diffs.
   protection; left for a separate pass against Cursor's own docs).
 
 ### Added
+- **Add `security-reviewer` and `qa-engineer` roles (2026-10-10, Claude).**
+  The ask: fill roster gaps the repo already pointed at. The "review a diff"
+  roster in the team playbook called for security and test lenses that had no
+  role, and an earlier entry left `security-reviewer` open. Why this shape:
+  `security-reviewer` is read-only, with a confidence floor like the other
+  reporting roles. It needs a traced source-to-sink path for each finding and
+  describes the type of weakness rather than an exploit. `qa-engineer` can
+  write, but only to tests: it reports product bugs instead of fixing them, and
+  a new test must fail before it passes. The role list in the instructions is
+  built from `roles/*.md`, so only the example renders changed. Rejected for
+  now: an `integrator` role, which conflicts with the "never auto-resolve merge
+  conflicts" rule until its scope is settled; and data and infra roles, to be
+  added when a task needs them.
 - **Encourage long autonomy: /loop and /goal as first-class primitives
   (2026-07-25, Claude).** Added a `long-autonomy` template section (rendered
   only under the aggressive posture) that teaches every tool its own long-run
