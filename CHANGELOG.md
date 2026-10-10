@@ -136,6 +136,32 @@ so the log reads as the project's decision history, not just a list of diffs.
   cost: grew the command 198 → 1,205 words. The script extraction planned to
   undo that was stopped by its own usage check; #56 trimmed the description
   and one injection instead.
+- **Reverted the `extras.local.md` Tailscale trim — finding 9 (2026-09-27, Joe +
+  Claude).** What changed: the bind-`0.0.0.0` and verify-200 rules are back in
+  the personal layer, reworded by Joe, and stay there; rendered globals 5,555 →
+  5,604 words. The ask: finding 9 of the 2026-09-20 instruction-bloat review
+  removed those two rules from `extras.local.md` as duplicates of the generic
+  statement in the artifacts section of `template.md` ("Start a webserver on
+  `0.0.0.0` (never `127.0.0.1`), verify it returns 200"). Joe restored them the
+  following day and confirmed they stay. Why this approach: the duplication is
+  deliberate. The template's version is a generic instruction; the personal-layer
+  version carries the *reason* — "the whole difference between a server I can
+  open and one that looks broken from every device I own" — and sits in the
+  section an agent reads when it is about to hand over a URL. A rule that exists
+  only in generic form, two hundred lines away from the moment it applies, is not
+  the same rule. This is the same class of exception already on the record for the
+  accessibility floor (2026-09-10) and `playwright-cli` residency (2026-08-17):
+  duplication kept on purpose because the second copy fires at the moment of use.
+  What this supersedes: finding 9 as shipped in the two-entries-below change.
+  What changed the call is that the removal was reverted in practice within a day
+  — the strongest evidence available that the copy was load-bearing, and the only
+  one of the seven shipped findings to be undone. It sharpens the lesson the two
+  entries below already record: textual duplication is a weak proxy for removable
+  text, and *proximity to the moment of action* is a reason to keep a copy that
+  word-counting cannot see. Considered and rejected: re-applying the trim quietly
+  once the reverted state was noticed, which would have treated a deliberate
+  human edit as drift; and leaving the reversal unrecorded, which would leave the
+  next reader of this log believing finding 9 still stands.
 - **Hoisted the confirmation gates into one canonical, ungated block
   (2026-09-26, Claude).** The ask: finding 5 of the 2026-09-20 instruction-bloat
   review, deferred when the other findings shipped (entry below) and picked up
