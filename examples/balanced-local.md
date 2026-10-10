@@ -117,7 +117,7 @@ sequential chain where each step needs the last, or edits concentrated in one
 file.
 
 - **Derive the roles from the task, don't ask me for them.** Read what the work
-  actually needs and pick the lenses that fit, drawn from: backend-engineer, frontend-engineer, harness-steward, product-designer, refuter, technical-architect, ui-designer, ux-researcher. Add a
+  actually needs and pick the lenses that fit, drawn from: backend-engineer, frontend-engineer, harness-steward, product-designer, qa-engineer, refuter, security-reviewer, technical-architect, ui-designer, ux-researcher. Add a
   role the palette doesn't have when the task calls for it. Three to five is the
   right size — three focused roles beat five scattered ones. Come to me only when
   the roster itself is the decision (it would change what we're building).
