@@ -1,92 +1,77 @@
-# Model routing — advisory reference
+# Model routing
 
-<!-- Machine copy: ~/.ai/model-routing.md (mirrored by customize.sh --global).
-     The repo copy is the source of truth; refresh it with /update-model-routing,
-     which re-researches current public benchmarks and rewrites this file. -->
+<!-- Two kinds of section. Everything OUTSIDE the generated block is the stable
+     method: hand-edited here in the repo, copied to every machine by
+     customize.sh --global. Everything INSIDE the generated block is this
+     machine's data: written by /update-model-routing into
+     ~/.ai/model-routing.md, never committed, never hand-edited. The repo copy
+     carries only a stub there, which seeds a fresh install. -->
 
-- **Last updated:** 2026-07-24
-- **Method:** deep web research over current public benchmarks and vendor model
-  cards; independent leaderboards outrank vendor-reported numbers; every claim
-  cites a source + retrieval date (all retrievals 2026-07-24).
-- **CLI → vendor:** `claude` = Anthropic Claude (flagship Fable 5; Opus 4.8,
-  Sonnet 5, Haiku 4.5) · `codex` = OpenAI (GPT-5.6 Sol/Terra/Luna; GPT-5.5) ·
-  `agy` = Google Gemini (3.1 Pro still "preview"; 3.5 Pro's July 17 target
-  missed, now rumored August) · `agent` = Cursor (Composer 2.5, Kimi-K2.5-based;
-  vendor-reported only, no independent leaderboard presence — a wildcard).
+Routing answers three questions, in this order: **which tier does the task
+need, which model family at that tier, and which CLI reaches it.** The first
+question depends only on the task. The data that answers the other two goes
+stale monthly, so it's generated per machine (below), never typed in by hand.
 
 **Advisory only.** Benchmarks measure benchmarks, not your workload. Consult,
-then choose freely — availability, cost, and your own observed results on this
-task type outrank any row below. Ties and uncertainty are stated, not hidden.
+then choose freely: availability, cost, and your own observed results on this
+task type outrank any row below, and the user's explicit choice always wins.
 
-## Hard coding & refactoring
-*Multi-file implementation, debugging, agentic terminal work.*
+## Tiers
 
-| Rank | CLI | Evidence |
-|------|-----|----------|
-| 1 (tie) | `claude` / `codex` | Independent boards split at the top: tbench.ai (native harnesses) has Claude Code + Fable 5 #1 at 83.8% vs Codex + GPT-5.5 #2 at 83.1% (Sol not yet submitted); vals.ai (neutral Terminus-2 harness) has GPT-5.6 Sol #1 at 85.77% vs Fable 5 #3 at 80.52%. A genuine tie, not a clean #1/#2. |
-| 3 | `agy` | Gemini 3.1 Pro + Gemini CLI 65.8% on TB2.1 (vals.ai); 3.5 Pro still not shipped (July 17 target missed). |
-| — | `agent` | Cursor CLI + Grok 4.5 79.3% on TB2.1 (tbench.ai, independent); Composer 2.5 vendor-reported only (TB2.0 69.3%). |
+| Tier | For | Cost of getting it wrong |
+|---|---|---|
+| **T1** | Judgment: decomposing a plan, architecture, refutation that has to count, weighing contested evidence, the review that decides "done" | The whole task heads the wrong way |
+| **T2** | Building against a clear brief: multi-file implementation, debugging with a repro, routine PR review, research that needs weighing, UI to a spec | One wasted attempt; a T1 review catches it |
+| **T3** | Mechanical work with checkable output: search, file summaries, docs lookup, extraction, renames, formatting, first-pass triage | Almost nothing; the output gets checked anyway |
 
-## Code review & refutation
-*Cross-vendor "find what's wrong" passes.*
+- **A tier belongs to the model, not the CLI.** A model has one tier in every CLI
+  that reaches it. Name doesn't decide tier, evidence does (a "Flash" can outrank a "Pro").
+- **Effort is a separate dial.** Every effort variant of a model shares its tier.
+  Set effort by how much reasoning the task needs; a T1 model on low effort often
+  beats a T2 model on max. Try that before moving up a tier.
+- **Local models** (`lm`) sit on the same scale: `strong` counts as T2, `light` as T3.
 
-| Rank | CLI | Evidence |
-|------|-----|----------|
-| — | no clear winner | No benchmark isolates review/refutation by base-model vendor. Proxy signals near-saturated: `agy` 95.45% / `codex` 95.20% GPQA Diamond (vals.ai), `claude` leads HLE no-tools (53.3%, artificialanalysis.ai). A new Martian Code Review Bench ranks review *products* (CodeRabbit, Copilot, Gemini Code Assist…), not base vendors, so it doesn't decide this row. Rule that matters: **pick the strongest vendor that didn't author the work** — independence beats rank here. |
+## Which tier a task needs
 
-## Deep research & synthesis
-*Multi-source investigation, fact-checking, long reports.*
+Ask in order and stop at the first that applies:
 
-| Rank | CLI | Evidence |
-|------|-----|----------|
-| 1 | `codex` | Leads agentic browsing: BrowseComp 90.4% (Sol) / 92.2% (Sol Ultra) vs Claude Fable 5 88.0% (steel.dev, independent). Best for hard fact-finding on the open web. |
-| 2 | `claude` | Leads knowledge-heavy synthesis: HLE 53.3% (artificialanalysis.ai) and GAIA 52.3% (benchlm.ai, ref-only). Best for weighing and writing up what was found. |
-| 3 | `agy` | BrowseComp 85.9% on one board (steel.dev) but absent from others; thin evidence. |
+1. **Will anything check the output?** No test, reviewer, or human downstream → at least **T2**. T3 is only cheap because something checks it.
+2. **Is it a judgment call?** Choosing an approach, deciding "done", refuting a claim, weighing evidence that conflicts → **T1**.
+3. **Is it expensive to undo?** Schema, auth, public API, migrations, or most of the codebase → **T1 plans it**, T2 may build it.
+4. **Is the brief complete?** If the worker would have to guess intent, have T1 finish the brief first, or send the task a tier up.
+5. **Is it mechanical, with checkable output?** → **T3**.
+6. **Otherwise** → **T2**.
 
-## Planning & architecture
-*Decomposition, novel reasoning, trade-off judgment.*
+- **Escalate one tier, once.** A worker that fails the same check twice, or reports low confidence, gets redone one tier up, never a third time at the same tier.
+- **Floors:** refutation and the review that decides "done" are always T1, from a **different model family** than the author. A lower-tier or local model may add an *extra* review lens, never the one that counts.
 
-| Rank | CLI | Evidence |
-|------|-----|----------|
-| — | no clear winner (`codex`/`claude`) | GPQA Diamond saturated and near-tied: `agy` 95.45%, `codex` 95.20%, `claude` 93.18% (vals.ai). `codex` leads ARC-AGI-2 (~85% GPT-5.5, aggregator; eval-set caveats apply — arcprize.org); no GPT-5.6 entry yet. `claude` leads HLE no-tools 53.3% vs Sol 47.2% (artificialanalysis.ai). Evidence splits by benchmark; treat `codex` and `claude` as peers, `agy` close behind. |
+## Choosing within a tier
 
-## UI / frontend design
-*Visual quality, component work, design-system fidelity.*
+- **Independence is per model family, not per CLI.** Families: Anthropic, OpenAI, Google, xAI, Cursor (Composer). Opus through `agy` refuting Opus through `claude` is a same-model check.
+- **Only route to a model marked reachable.** Model lists show models the account can't call (a free Cursor plan lists Opus but runs only `auto`). The generated table records a probe result for each model.
+- **Cost means "which pool has room."** Each CLI bills its own pool: `claude` uses the Anthropic plan, `codex` uses ChatGPT quota, `agy` uses Google AI quota (*including its Claude models*), and `agent` uses Cursor's pools. Send T2/T3 fan-out to included pools first, and save the scarcest pool for T1.
+- **Spread same-tier work across pools** rather than sending a whole wave to one benchmark leader and running it dry.
+- **On a 429 or quota error, stay at the same tier through another CLI.** Never drop a tier to get around a quota limit.
 
-| Rank | CLI | Evidence |
-|------|-----|----------|
-| 1 | `claude` | Best of the four routed vendors on both frontend boards: Fable 5 #2 WebDev Arena (Elo 1634) and #3 Design Arena Website (1332) (arena.ai + designarena.ai via benchlm.ai, independent). |
-| 2 | `codex` | GPT-5.6 Sol #3 WebDev Arena (1630) but weak on design preference (~#22 Design Arena). Strong builds, weaker aesthetics. |
-| 3 | `agy` | Gemini 3.1 Pro still off both frontend top 10s (#23 Design Arena Website) despite top-tier overall-text Elo. |
+## Calling each CLI
 
-Note: Moonshot Kimi K3 and Z.ai GLM-5.2 top both frontend boards but are not installed CLIs.
+| CLI | List models | Pick model | Pick effort | Gotcha |
+|---|---|---|---|---|
+| `claude` | none: aliases `fable` `opus` `sonnet` `haiku` follow the newest model on their own | `--model <alias\|id>` | `--effort low…max` | Subagents: the Agent tool's `model` param per spawn, or `model:` in a role file |
+| `codex` | `codex debug models` (JSON; `visibility: hide` = don't route) | `-m <slug>` | `-c model_reasoning_effort=<lvl>` | Headless form: see `~/.ai/orchestration.md` |
+| `agy` | `agy models` | `--model <slug>` | effort suffix in the slug, or `--effort` | **`-p` must come last.** It treats the next token as the prompt, so `agy -p --model …` sends "--model" as the prompt |
+| `agent` | `agent --list-models` | `--model <slug>` | in the slug (`-high`, `-xhigh`) | Free plan: named models fail with `Named models unavailable`; only `auto` runs |
 
-## Quick mechanical edits & cheap fan-out
-*High-volume, low-difficulty subtasks — optimize cost and latency, not peak IQ.*
+<!-- generated:begin — /update-model-routing rewrites everything from here down to the end marker -->
 
-| Rank | CLI | Evidence |
-|------|-----|----------|
-| 1 | `codex` / `agy` | Cheapest current-gen floors (official pricing pages, $/Mtok in/out): gpt-5.4-nano 0.20/1.25, gpt-5.4-mini 0.75/4.50; Gemini 3.1 Flash-Lite 0.25/1.50, 3.5 Flash-Lite 0.30/2.50 (2.5 Flash-Lite 0.10/0.40 cheaper still but retires 2026-10-16, per Google's deprecations page). No GPT-5.6 nano/mini exists — 5.6 is flagship-tier only. |
-| 2 | `claude` | Haiku 4.5 at 1/5 — ~4-5× the floor above. |
-| — | `agent` | Subscription credits, not per-token; Composer 2.5 pool is cheap within a paid plan. CLI default model unconfirmed from official docs. |
+## This machine
 
-Note: a CLI's *default* model is usually its flagship — pass an explicit cheap-tier model flag when fanning out.
+- **Last updated:** never. This is the repo's seed stub.
 
-Note: machines with local models registered (`~/.ai/local-models` + the `lm` shim) have a $0-marginal, data-stays-home tier for fan-out and privacy-sensitive work. Quality and speed are machine-specific — scored per machine in `~/.ai/model-routing.local.md` (written by `/update-model-routing`), never ranked here.
+Not generated on this machine yet. Run `/update-model-routing` to fill in the
+model-tier table (each reachable model with its tier, family, price, and the
+exact command string per CLI) and the vendor-by-task recommendations. Until
+then, use the rules above with each CLI's live model list, and assume nothing
+is reachable until a call succeeds.
 
-## Long-context analysis
-*Whole-repo or long-document comprehension; note usable context windows.*
-
-| Rank | CLI | Evidence |
-|------|-----|----------|
-| — | no clear winner | Splits by depth and by aggregate vs. peak. Multi-needle retrieval at true 1M depth is now a near-tie: `claude` Opus 4.6 76.0% vs `codex` GPT-5.6 Sol 73.8% (llm-stats MRCR v2); across shallower depths `codex` leads the aggregate (Sol 0.915 vs Opus 4.6 0.760). Fable 5 / Opus 4.8 still unpublished on MRCR. `agy` Gemini 3.1 Pro stays weak (0.263) — degrades hardest past ~128k. Deep narrative ≤192k: `codex` nominally leads (Fiction.liveBench ~97%) but that data is stale — no current-gen entries published. Windows: Claude ~1M, GPT-5.6 Sol ~1.05M, Gemini advertises biggest but degrades, Composer 200k. |
-
-## Benchmarks consulted
-
-- Terminal-Bench 2.1 (tbench.ai, vals.ai) · SWE-bench Verified + Pro (swebench.com;
-  aggregators) · LMArena WebDev + text (arena.ai) · Design Arena (designarena.ai)
-  · GPQA Diamond (vals.ai) · HLE (artificialanalysis.ai) · ARC-AGI-2
-  (arcprize.org, benchlm.ai) · BrowseComp (leaderboard.steel.dev) · GAIA
-  (benchlm.ai, ref-only) · MRCR v2 (llm-stats.com) · Fiction.liveBench
-  (epoch.ai) · Martian Code Review Bench (withmartian) · vendor pricing/model
-  pages (Anthropic, OpenAI, Google, Cursor). All retrieved 2026-07-24.
+<!-- generated:end -->

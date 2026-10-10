@@ -951,6 +951,50 @@ PYEOF
     || bad "INC_ORCHESTRATION=n --global removes only the orchestration playbook"
   HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
 
+  # Model routing: a re-install refreshes the repo's stable method but keeps
+  # this machine's generated block (written by /update-model-routing), and a
+  # stale stable section on the machine is overwritten, not preserved.
+  MR="$SMOKE2/.ai/model-routing.md"
+  python3 - "$MR" <<'PY'
+import sys, re
+p = sys.argv[1]; s = open(p).read()
+s = re.sub(r'(<!-- generated:begin[^\n]*\n).*?(<!-- generated:end)',
+           r'\1MACHINE-DATA-SENTINEL\n\2', s, flags=re.S)
+s = s.replace('## Tiers', '## Tiers STALE-STABLE-SENTINEL', 1)
+open(p, 'w').write(s)
+PY
+  HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+  { grep -qF 'MACHINE-DATA-SENTINEL' "$MR" \
+    && ! grep -qF 'STALE-STABLE-SENTINEL' "$MR" \
+    && ! grep -qF 'seed stub' "$MR" \
+    && diff <(sed '/^<!-- generated:begin/,$d' "$DIR/MODEL-ROUTING.md") <(sed '/^<!-- generated:begin/,$d' "$MR") >/dev/null \
+    && [ "$(grep -c '^<!-- generated:' "$MR")" = 2 ]; } \
+    && ok "re-install refreshes model-routing's stable method and keeps the machine's generated data" \
+    || bad "re-install refreshes model-routing's stable method and keeps the machine's generated data"
+
+  # A marker quoted mid-line inside the generated block (an agent writing about
+  # the format) must not end the block early.
+  python3 - "$MR" <<'PY'
+import sys
+p = sys.argv[1]; s = open(p).read()
+s = s.replace('MACHINE-DATA-SENTINEL', 'MACHINE-DATA-SENTINEL\nsee `<!-- generated:end -->` above\nAFTER-QUOTED-MARKER', 1)
+open(p, 'w').write(s)
+PY
+  HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+  grep -qF 'AFTER-QUOTED-MARKER' "$MR" && [ "$(grep -c '^<!-- generated:' "$MR")" = 2 ] \
+    && ok "model-routing splice ignores a marker quoted mid-line" \
+    || bad "model-routing splice ignores a marker quoted mid-line"
+
+  # A pre-marker copy (or a damaged block) is replaced by the seed stub, and the
+  # old content is backed up rather than silently lost.
+  printf '# old routing table\nLEGACY-ROUTING-DATA\n' > "$MR"
+  rm -f "$SMOKE2/.ai/model-routing.unmarked.bak.md"
+  HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+  { cmp -s "$DIR/MODEL-ROUTING.md" "$MR" \
+    && grep -qF 'LEGACY-ROUTING-DATA' "$SMOKE2/.ai/model-routing.unmarked.bak.md"; } \
+    && ok "a pre-marker model-routing copy is backed up, then replaced by the seed" \
+    || bad "a pre-marker model-routing copy is backed up, then replaced by the seed"
+
   # Claude pointer: hand additions below the @import survive a re-render;
   # the codex pointer stays a symlink.
   echo "- my claude-only note" >> "$SMOKE2/.claude/CLAUDE.md"
