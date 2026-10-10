@@ -82,8 +82,8 @@ done
 : "${AUTONOMY:=aggressive}"    # aggressive | balanced
 : "${PERSONA:=generic}"        # accepted for back-compat; no longer changes any default
 # The team-role palette is DERIVED from roles/*.md rather than restated here.
-# Those files are what install-roles.sh puts in ~/.claude/agents and
-# ~/.codex/agents, so they are what an agent can actually spawn by name — and a
+# Those files are what install-roles.sh renders into every tool's agents
+# directory, so they are what an agent can actually spawn by name — and a
 # second, hand-kept list drifts the moment a role is added. It already did:
 # harness-steward shipped and the palette still named six roles, in prose form
 # ("front-end engineer") that never matched the file names agents must reference

@@ -86,7 +86,8 @@ thing whether it is a subagent in this session or another vendor's CLI. That
 shared meaning is the point of keeping roles in files at all.
 
 - **In-tool:** reference the role by name and the host loads it itself, from
-  `~/.claude/agents/<role>.md` or `~/.codex/agents/<role>.toml`.
+  `~/.claude/agents/<role>.md`, `~/.codex/agents/<role>.toml`,
+  `~/.cursor/agents/<role>.md`, or `~/.gemini/config/agents/<role>.md`.
 - **Cross-vendor: the host cannot do this for you.** `codex exec` has no
   agent-selection flag, and `claude --agents` defines the roster a session may
   spawn — not the role its `-p` turn assumes. **A delegate is a generic agent
@@ -171,8 +172,8 @@ rather than assuming it is absent because you have not used it here.
 |---|---|---|---|
 | Claude Code | `/goal <condition>` — turns until an evaluator judges it met, restored on resume, works under `-p` (ungated conditions only, see above); `/goal` alone for status, `/goal clear` to end it · `/loop` for a cadence, self-paced or fixed — a bare `/loop` runs the maintenance prompt from `.claude/loop.md` in the project, else `~/.claude/loop.md` · `/schedule` for cloud routines | agent teams and subagents, roles from `~/.claude/agents/` | background shell jobs for anything slow · plan-before-execute on a broad change · session checkpoints, so a bad turn is cheap to undo · `--append-system-prompt` and `--agents` when driving it headless |
 | Codex | `/goal <objective>` — durable across turns and restarts, managed with `/goal edit|pause|resume|clear`; `codex features enable goals` if it is missing | `multi_agent` subagents, roles from `~/.codex/agents/` | `codex exec` for headless one-shots · `unified_exec` for a shell that persists across calls · hooks for guardrails |
-| Cursor (`agent`) | `/goal <objective>` where the build has it (gated rollout — check before promising it); the objective only — no status, no `clear`, Ctrl+C pauses it · `/loop [interval] <prompt>` as the bundled skill, prompt on the command line, no maintenance-prompt file | roles inline in the prompt — no reusable agent-definition format | `agent -p` for headless one-shots · `&<message>` hands the work to a Cloud Agent · scheduled and event-triggered runs via Automations, set up from the Agents Window or cursor.com/automations rather than the CLI · `agent -w` for an isolated worktree |
-| Antigravity (`agy`) | check `agy --help`; do not assume one exists | roles inline in the prompt | `agy -p` for headless one-shots, text output only |
+| Cursor (`agent`) | `/goal <objective>` where the build has it (gated rollout — check before promising it); the objective only — no status, no `clear`, Ctrl+C pauses it · `/loop [interval] <prompt>` as the bundled skill, prompt on the command line, no maintenance-prompt file | subagents, roles from `~/.cursor/agents/` (headless loading untested — inline the role for `agent -p`) | `agent -p` for headless one-shots · `&<message>` hands the work to a Cloud Agent · scheduled and event-triggered runs via Automations, set up from the Agents Window or cursor.com/automations rather than the CLI · `agent -w` for an isolated worktree |
+| Antigravity (`agy`) | check `agy --help`; do not assume one exists | subagents via `invoke_subagent`, roles from `~/.gemini/config/agents/` (project `.agents/agents/` also loads under `-p`) | `agy -p` for headless one-shots, text output only |
 
 ## Local models (behind `lm`)
 

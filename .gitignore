@@ -13,9 +13,11 @@ extras.local.md
 # every install; only commands/*.md (the canonical Claude dialect) is committed
 /commands/codex/
 /commands/cursor/
-# Generated Codex role port — render-roles.sh regenerates it on every install;
+# Generated role ports (Codex, Cursor, Antigravity) — render-roles.sh regenerates it on every install;
 # only roles/*.md (the canonical Claude dialect) is committed
 /roles/codex/
+/roles/cursor/
+/roles/antigravity/
 
 # Gemini is retired (Antigravity replaced it) — its ports must never be
 # committed; this guards against a session hand-authoring them again

@@ -16,11 +16,11 @@
 # Per-tool source + destination:
 #   claude  roles/*.md          -> ~/.claude/agents/   (project: ./.claude/agents/)
 #   codex   roles/codex/*.toml  -> ~/.codex/agents/    (project: ./.codex/agents/)
-#   cursor                      -> skipped (no reusable agent-definition format;
-#                                  its CLI takes roles inline in the prompt)
-#   antigravity                 -> skipped (same)
+#   cursor  roles/cursor/*.md   -> ~/.cursor/agents/   (project: ./.cursor/agents/)
+#   antigravity roles/antigravity/*.md -> ~/.gemini/config/agents/ (project: ./.agents/agents/)
 #
-# roles/*.md is the canonical source of truth; roles/codex/ is GENERATED from it
+# roles/*.md is the canonical source of truth; roles/{codex,cursor,antigravity}/
+# are GENERATED from it
 # by render-roles.sh (run here automatically) — never hand-edit the port.
 # Reverse with ./uninstall.sh.
 set -euo pipefail
@@ -40,7 +40,7 @@ for a in "$@"; do
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 
-# Always re-render the Codex port so it can't drift from the canonical files.
+# Always re-render the ports so they can't drift from the canonical files.
 "$DIR/render-roles.sh" >/dev/null
 
 install_dir() {  # $1 = src dir  $2 = ext  $3 = dest dir  $4 = label
@@ -70,8 +70,15 @@ for t in "${targets[@]}"; do
       if [ "$PROJECT" = 1 ]; then install_dir "$SRC/codex" toml "$DIR/.codex/agents" codex
       else install_dir "$SRC/codex" toml "$HOME/.codex/agents" codex; fi
       ;;
-    cursor|antigravity)
-      echo "  $t: skipped (no reusable agent-definition format — roles go inline in the prompt)"
+    cursor)
+      # Cursor also reads ~/.claude/agents and ~/.codex/agents, but a .cursor/
+      # definition wins and only this port carries Cursor's `readonly` flag.
+      if [ "$PROJECT" = 1 ]; then install_dir "$SRC/cursor" md "$DIR/.cursor/agents" cursor
+      else install_dir "$SRC/cursor" md "$HOME/.cursor/agents" cursor; fi
+      ;;
+    antigravity)
+      if [ "$PROJECT" = 1 ]; then install_dir "$SRC/antigravity" md "$DIR/.agents/agents" antigravity
+      else install_dir "$SRC/antigravity" md "$HOME/.gemini/config/agents" antigravity; fi
       ;;
   esac
 done

@@ -99,9 +99,8 @@ every option:
   agent-teams section makes a **team the default** for multi-dimension work and
   has the agent derive the roster from the task rather than asking, always
   including a `refuter` lens — because an agent must never be the sole checker
-  of its own work. Those roles are installed as real definitions
-  (`~/.claude/agents/<role>.md`, `~/.codex/agents/<role>.toml`) by
-  `install-roles.sh`, rendered from one canonical source in `roles/`, so a role
+  of its own work. Those roles are installed as real definitions for Claude
+  Code, Codex, Cursor and Antigravity by `install-roles.sh`, rendered from one canonical source in `roles/`, so a role
   behaves the same in every tool; the per-tool mechanics live in the on-demand
   playbook `~/.ai/agent-teams.md`. The install also sets
   `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (seed-only, never overwriting a value
@@ -350,13 +349,14 @@ and the on-demand playbooks (`orchestration.md`, `agent-teams.md`,
 at.
 
 `install-roles.sh` adds the team-role layer beside it: `roles/<role>.md` is the
-canonical definition, `render-roles.sh` renders the Codex dialect, and the two
-land in `~/.claude/agents/<role>.md` and `~/.codex/agents/<role>.toml`. Both
-formats matter — Claude Code can improvise a teammate from a prompt, but Codex
-resolves an unknown agent name to its generic built-in without erroring, so
-without the `.toml` files every Codex "role" is the same agent under a different
-label. Neither dialect pins a model, so a role runs on whatever the session is
-running. `uninstall.sh` removes them, backing up any you hand-tuned.
+canonical definition and lands in `~/.claude/agents/`; `render-roles.sh`
+renders a port for each other tool — `~/.codex/agents/<role>.toml`,
+`~/.cursor/agents/<role>.md` (with Cursor's `readonly` flag), and
+`~/.gemini/config/agents/<role>.md` (with Antigravity's own tool names). The
+ports matter — Codex resolves an unknown agent name to its generic built-in
+without erroring, so without the `.toml` files every Codex "role" is the same
+agent under a different label, and only the Cursor port carries `readonly`. No
+port pins a model, so a role runs on whatever the session is running. `uninstall.sh` removes them, backing up any you hand-tuned.
 
 `uninstall.sh` reverses the pointers: each is restored from its newest backup
 (taken when the pointer was first installed), or removed if none exists;
