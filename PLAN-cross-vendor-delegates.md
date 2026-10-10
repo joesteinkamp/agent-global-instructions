@@ -1,6 +1,6 @@
 # Plan — make the cross-vendor delegates actually run
 
-**Status: done (2026-10-10)**, except Cursor's own sandbox. All three vendors (codex, agy, Cursor) now return a verdict from a Claude Code session on this box. Written 2026-10-05 by Claude (Opus 5.5).
+**Status: done (2026-10-10).** Cursor's own sandbox is deliberately left off (see step 3's closing note). All three vendors (codex, agy, Cursor) now return a verdict from a Claude Code session on this box. Written 2026-10-05 by Claude (Opus 5.5).
 **Lives on:** branch `ai/delegate-fix`, worktree
 `../agent-global-instructions-delegate-fix`.
 **Scope:** the documented delegate invocations (`playbooks/orchestration.md`,
@@ -191,6 +191,22 @@ it doesn't use either `bwrap`. Its troubleshooting docs
 (cursor.com/docs/agent/terminal) are the next stop if enforced read-only for
 Cursor is ever wanted. Until then the non-sandbox reviewer form in the playbook
 works.
+
+**Closed 2026-10-10: Cursor's sandbox is not fixed on the host.** Cursor's
+official fix is a `cursor-sandbox-apparmor` package whose profile targets the
+desktop app (`/usr/share/cursor/...`). This box has only the standalone CLI,
+whose sandbox binary is `~/.local/share/cursor-agent/versions/*/cursorsandbox`.
+A `userns` profile on that path was drafted and **not applied**. The path is
+user-writable, so the exemption would extend to any process running as Joe,
+which is exactly what Ubuntu's restriction exists to deny, and all it would buy
+is enforced read-only for one optional vendor. The non-sandbox form stays the
+documented one, and no install ever needs a host AppArmor change.
+
+The same reasoning applies to the linuxbrew half of `/etc/apparmor.d/bwrap-codex`
+above, because `/home/linuxbrew/...` is not root-owned. Recent codex prefers
+`/usr/bin/bwrap`, which is now installed, so that profile is probably
+unnecessary. Whether codex keeps working without it is untested. The playbook
+now says to exempt only root-owned paths.
 
 ### Step 4 — F3: give headless agy a read-only allowlist (needs docs, then Joe)
 
