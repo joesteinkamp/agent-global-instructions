@@ -12,6 +12,18 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Documented the agy and Cursor reviewer forms the smoke tests proved
+  (2026-10-10, Claude, #62).** The ask: make the cross-vendor delegates
+  actually run (plan steps 4–5). What changed: the documented agy form now adds
+  the repo as a workspace and names the working directory in the prompt;
+  Cursor gets a reviewer form that makes the context dir its workspace and only
+  adds the repo, plus a corrected diagnosis (stale login) and a new failure
+  entry for its AppArmor-blocked sandbox. Why: the agy form that only added the
+  context dir ran `git log` outside the repo, and Cursor with the repo as its
+  workspace wrote stray files into the primary checkout. Considered and
+  rejected: `cd`/`git -C` in agy prompts, which its allowlist doesn't cover;
+  and Cursor's `--sandbox enabled`, which fails on this host. Known gap: on
+  hosts where Cursor's sandbox can't start, nothing enforces read-only for it.
 - **Gave headless agy a read-only allowlist (2026-10-08, Claude, #60).** The
   ask: plan steps 4–5, so cross-vendor delegates work. What changed:
   `install-settings.sh antigravity` adds a read-only command allowlist to
