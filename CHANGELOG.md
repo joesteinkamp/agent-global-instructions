@@ -12,6 +12,32 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **The review that counts falls back to the best cross-family model when no
+  T1 one is reachable (2026-10-10, Claude).** The ask: the first
+  `/update-model-routing` run on Joe's machine found that Claude Opus 5.5 is
+  the only reachable T1 model, so the floor (deciding review is T1 *and* from
+  another family) can't be met for Claude-authored work. What changed:
+  `MODEL-ROUTING.md` says to use the strongest reachable model from another
+  family at its highest effort, and to tell the user the check was below T1.
+  Why this approach: Joe chose "do the best it can". Independence is the
+  property the floor exists for, so it's what is kept. Considered and rejected:
+  a same-family T1 review (Opus reviewing Opus isn't independent); blocking
+  until a T1 is reachable (it stalls unattended runs); buying Fable credits or
+  a GPT-6 Sol plan (spending money; left to Joe).
+- **Only root-owned binaries get an AppArmor user-namespace exemption
+  (2026-10-10, Claude, #69).** The ask: make Cursor's `--sandbox enabled` work
+  on this Ubuntu box. What changed: the playbook now says to grant AppArmor
+  `userns` only to root-owned binaries (`/usr/bin/bwrap` for codex). Cursor's
+  CLI sandbox is closed as won't-fix on the host, and no install needs an
+  AppArmor change. Why this approach: the CLI's sandbox binary lives under
+  `~/.local/share`. An exemption there extends to anything running as the user,
+  which defeats the restriction, and all it buys is enforced read-only for one
+  optional delegate. The same reasoning flagged the linuxbrew half of this
+  box's codex profile. Considered and rejected: a per-binary profile for
+  `cursorsandbox` (drafted, never applied); turning off
+  `apparmor_restrict_unprivileged_userns` system-wide; Cursor's
+  `cursor-sandbox-apparmor` package, which targets the desktop app's path, not
+  the CLI's.
 - **Model routing picks a model tier, not just a vendor (2026-10-10, Claude,
   #67).** The ask: send cheap work to cheap models across all four CLIs,
   without a hand-maintained table that goes stale. What changed:
