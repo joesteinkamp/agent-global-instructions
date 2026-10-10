@@ -66,11 +66,28 @@ Derive the roster from the task rather than reaching for a fixed set:
   finding can fail in more than one way, give each checker a distinct lens
   (correctness, security, does-it-reproduce) instead of several identical ones.
 
+Which role, when — the lens each one owns, so the roster can be derived instead
+of guessed. A Claude Code lead also sees each role's `description`; a Codex lead
+may only see the name, so this table is what routes there.
+
+| Role | Spawn when the question is… | Writes? |
+| :-- | :-- | :-- |
+| `product-designer` | what should exist and why: scope, user value, the flow, what to cut | documents only |
+| `ux-researcher` | what we actually know about users versus what we're guessing | no |
+| `ui-designer` | whether the rendered result matches the design system and reads well | no |
+| `technical-architect` | what shape a cross-module change, dependency, or data flow should take | no |
+| `backend-engineer` | server, data, API, migrations, auth — correctness under failure | yes |
+| `frontend-engineer` | client code, state, routing, and the accessibility of what renders | yes |
+| `qa-engineer` | whether it actually runs: tests, reproducing a bug, every state and breakpoint | tests only |
+| `security-reviewer` | how the code can be made to misbehave: trust boundaries, injection, auth, secrets | no |
+| `refuter` | whether a finding, plan, or claim survives an attempt to break it | no |
+| `harness-steward` | the AI harness itself: instruction files, roles, hooks, installers | yes |
+
 Rosters that work:
 
 | Task | Roster |
 | :-- | :-- |
-| Review a diff or PR | one lens per dimension (correctness, security, tests) + `refuter` on what they find |
+| Review a diff or PR | `security-reviewer` + `qa-engineer` + a correctness lens, then `refuter` on what they find |
 | Bug with an unclear cause | one agent per hypothesis, told to disprove each other's, + a synthesizer |
 | Feature across layers | `frontend-engineer` + `backend-engineer` + `technical-architect`, disjoint files |
 | A design or scope call | `product-designer` + `ux-researcher` + `ui-designer`, then `refuter` |
@@ -104,12 +121,13 @@ against no brief at all.
 ## The role definitions
 
 Roles are files, not prose, so the same role behaves the same in every tool.
-Shipped by default: `technical-architect`, `backend-engineer`,
-`frontend-engineer`, `product-designer`, `ui-designer`, `ux-researcher`, and
-`refuter` — the file name is the name you spawn by. `harness-steward` ships
-alongside them but is not part of that palette: its subject is the tooling
-itself (instruction files, roles, hooks, installers), not the product, so spawn
-it by name when that is the work rather than deriving it from a product task.
+All ten in the table above ship by default, and the file name is the name you
+spawn by. `harness-steward` is in the palette like the rest, but its subject is
+the tooling itself, not the product — spawn it when that is the work, never as
+a lens on a product task.
+
+`roles/*.md` is the one source. `render-roles.sh` generates a port per tool and
+`install-roles.sh` installs all four:
 
 - **Claude Code** — `~/.claude/agents/<role>.md`: YAML frontmatter (`name`,
   `description`, `tools`, optionally `model`) with the instructions as the body.
@@ -118,7 +136,21 @@ it by name when that is the work rather than deriving it from a product task.
   `name`, `description`, and `developer_instructions`, with optional `model`,
   `model_reasoning_effort`, `sandbox_mode`, and `mcp_servers`. Project scope is
   `.codex/agents/`. Anything omitted is inherited from the parent turn.
-- **One convention on top of both** — every canonical `roles/*.md` also carries a
+- **Cursor** — `~/.cursor/agents/<role>.md`: frontmatter `name`, `description`,
+  `model`, `readonly`, with the description read to decide delegation. Cursor
+  also reads `~/.claude/agents` and `~/.codex/agents`; within one scope a
+  `.cursor/` copy wins, and only it carries `readonly`. A project-scope role
+  beats a user one, though, so a project `.claude/agents/<role>.md` (from
+  `install-roles.sh --project claude`) shadows `~/.cursor/agents/<role>.md` and
+  drops `readonly`. Project scope is `.cursor/agents/`.
+- **Antigravity** — `~/.gemini/config/agents/<role>.md`: frontmatter `name`,
+  `description`, and `tools` in its own tool names; its planner reads the
+  description to delegate through `invoke_subagent`. Project scope is
+  `.agents/agents/`, which agy's changelog says also loads under headless `-p`.
+  It has no read-only switch: a read-only role is rendered without the file-write
+  tools, but it keeps `run_command`, so its shell can still write — bounded only
+  by agy's command policy and permissions allowlist, not by the role.
+- **One convention on top of all four** — every canonical `roles/*.md` also carries a
   `reminder:` key holding the role's hard rules in one line. Neither host has a
   per-turn reminder field, so it reaches the agent the only way it can: as the
   line the body opens and closes with, and `render-roles.sh` fails the render if
@@ -130,11 +162,20 @@ it by name when that is the work rather than deriving it from a product task.
   asking, stopping at any gate rather than crossing it, and its Return opens
   with **Status** (done, partial, or blocked) so a wrapper script can grep one
   line for the outcome.
-- Neither pins a `model`, so a role runs on whatever the session is running.
-- Both are installed by `install-roles.sh` from one canonical source. **If a
-  role you need has no definition, write it in both formats** rather than
-  improvising it — in Codex especially, an unknown agent name silently falls
-  back to the built-in generic agent, so an undefined role is not a role at all.
+- None pins a `model`, so a role runs on whatever the session is running.
+- **How read-only each tool really is.** Codex enforces `sandbox_mode`. Cursor
+  has `readonly` (see the scope caveat above). Antigravity drops the file-write
+  tools but keeps a shell. **Claude Code does not enforce it for the roles that
+  carry Bash** (`refuter`, `security-reviewer`, `technical-architect`): it
+  ignores `sandbox:`, and ignores a subagent's `permissionMode` while the lead
+  runs in auto or acceptEdits mode, so only the role's own hard rules stop a
+  shell write. `ui-designer` and `ux-researcher` are read-only for real, because
+  their `tools` has no Bash, `Edit`, or `Write`, and a teammate honors `tools`.
+  Where read-only has to hold in Claude Code, give the claim to one of those.
+- **If a role you need has no definition, add it to `roles/` and re-render**
+  rather than improvising it — in Codex especially, an unknown agent name
+  silently falls back to the built-in generic agent, so an undefined role is not
+  a role at all.
 
 ## Claude Code
 
@@ -194,11 +235,14 @@ it by name when that is the work rather than deriving it from a product task.
 
 ## Other tools
 
-Cursor's `agent` and Antigravity have no reusable role-definition format. Put
-the role in the prompt itself, keep the same rosters and the same refuter rule,
-and where the tool has no parallel construct at all, run the lenses sequentially
-in one session — a review that applies three named lenses in turn still beats
-one undifferentiated pass.
+Cursor and Antigravity both load the installed roles (above) and delegate to
+them by description. agy's changelog says project agents in `.agents/agents/`
+load under headless `agy -p`; whether `agent -p` (Cursor) loads
+`~/.cursor/agents` headless is not documented and has not been tested here. For
+a headless Cursor delegate, put the role in the prompt itself (strip the
+frontmatter first, as `orchestration.md` does). Where a tool has no parallel
+construct at all, run the lenses sequentially in one session — a review that
+applies three named lenses in turn still beats one undifferentiated pass.
 
 ## Gates and reporting
 

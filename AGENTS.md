@@ -59,7 +59,7 @@ unprotected.
 | Path | Who writes it |
 |---|---|
 | `commands/codex/`, `commands/cursor/` | `render-commands.sh` on every install |
-| `roles/codex/` | `render-roles.sh` on every install |
+| `roles/codex/`, `roles/cursor/`, `roles/antigravity/` | `render-roles.sh` on every install |
 | `commands/gemini/` | nobody — Gemini is retired, Antigravity (`agy`) replaced it |
 | `my-context.env`, `extras.local.md`, `mcp-rules.local` | the person, locally |
 

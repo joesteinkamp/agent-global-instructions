@@ -216,11 +216,12 @@ file.
   each one owns — two agents editing one file lose work — and put everything they
   need in the spawn prompt: they inherit the project instructions, not this
   conversation.
-- **The roles are real files, shared by every tool.** `~/.claude/agents/<role>.md`
-  and `~/.codex/agents/<role>.toml` hold the same definitions, installed by my
-  harness. Reference a role by name so agents behave the same everywhere; if a
-  role I need has no definition yet, write one in both formats rather than
-  improvising it per session.
+- **The roles are real files, shared by every tool.** `~/.claude/agents/<role>.md`,
+  `~/.codex/agents/<role>.toml`, `~/.cursor/agents/` and
+  `~/.gemini/config/agents/` hold the same definitions, rendered and installed by
+  my harness from one source. Reference a
+  role by name so agents behave the same everywhere; if a role I need has no
+  definition yet, add it to that source rather than improvising it per session.
 - **Mechanics differ per tool — read `~/.ai/agent-teams.md`** before the first
   team of a session: what each tool's construct can and can't do (Claude Code
   teammates message each other, Codex subagents report only to you), how to spawn

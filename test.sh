@@ -551,7 +551,31 @@ sed -i '/^reminder:/d' "$RTMP/roles/refuter.md"
 bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
   && bad "render-roles fails loudly when a role has no reminder" \
   || ok "render-roles fails loudly when a role has no reminder"
+cp "$DIR/roles/refuter.md" "$RTMP/roles/refuter.md"
+
+# Ports: read-only must survive into each tool's own switch, and an unmapped
+# Antigravity tool must fail the render — its docs warn a bad name hangs agy.
+bash "$RTMP/render-roles.sh" >/dev/null 2>&1
+p_ro=""; p_agy=""
+for f in "$DIR"/roles/*.md; do
+  base="$(basename "$f" .md)"; [ "$base" = README ] && continue
+  if [ "$(role_fm "$f" sandbox)" = read-only ]; then
+    grep -qx 'readonly: true' "$RTMP/roles/cursor/$base.md" 2>/dev/null || p_ro="$p_ro $base"
+    grep -qE '^  - (write_to_file|replace_file_content|multi_replace_file_content)$' "$RTMP/roles/antigravity/$base.md" && p_agy="$p_agy $base"
+  else
+    grep -qx 'readonly: true' "$RTMP/roles/cursor/$base.md" 2>/dev/null && p_ro="$p_ro $base(writer)"
+  fi
+done
+[ -z "$p_ro" ]  && ok "Cursor port marks exactly the read-only roles readonly" \
+                || bad "Cursor readonly flag wrong for:$p_ro"
+[ -z "$p_agy" ] && ok "Antigravity port gives read-only roles no write tools" \
+                || bad "Antigravity read-only role has a write tool:$p_agy"
+sed -i 's/^tools: Read,/tools: Read, Bogus,/' "$RTMP/roles/refuter.md"
+bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
+  && bad "render-roles fails on a tool with no Antigravity mapping" \
+  || ok "render-roles fails on a tool with no Antigravity mapping"
 rm -rf "$RTMP"
+
 
 # ---- installer smoke tests — run the installers into a throwaway HOME so a
 #      regression like "backup_file returns 1 and set -e aborts before merge"
@@ -674,6 +698,7 @@ PYEOF
     && ok "uninstall removes the agent-teams flag it wrote" \
     || bad "uninstall removes the agent-teams flag it wrote"
   rm -rf "$TEAMSH"
+
 
   # install-settings merges the Claude-only permissions layer, idempotently.
   if HOME="$SMOKE" bash "$DIR/install-settings.sh" >/dev/null 2>&1 \

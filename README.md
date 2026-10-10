@@ -39,8 +39,8 @@ left in place).
 - **Agent teams** — the instructions make a **team of specialized agents the
   default** for anything with more than one dimension, with the roster derived
   from the task and a `refuter` lens on every conclusion. The roles ship as real
-  definitions in both dialects (`~/.claude/agents/*.md`, `~/.codex/agents/*.toml`)
-  from one canonical source, so a role behaves the same in every tool — and the
+  definitions in each tool's own format (`~/.claude/agents`, `~/.codex/agents`,
+  `~/.cursor/agents`, `~/.gemini/config/agents`) from one canonical source, so a role behaves the same in every tool — and the
   install turns Claude Code's team construct on, since it's off by default.
 - **Local models** — machines serving local models (Ollama, llama.cpp,
   MLX, or a remote box over your tailnet — all one OpenAI-compatible contract)

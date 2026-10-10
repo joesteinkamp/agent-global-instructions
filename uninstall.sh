@@ -304,9 +304,10 @@ if [ "$PROJECT" = 1 ]; then
                    remove_roles_dir "$DIR/.claude/agents" md;;
       codex)       echo "  Codex skills are global; --project has no effect for codex"
                    remove_roles_dir "$DIR/.codex/agents" toml "$DIR/roles/codex";;
-      cursor)      remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md;;
+      cursor)      remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md
+                   remove_roles_dir "$DIR/.cursor/agents" md "$DIR/roles/cursor";;
       gemini)      remove_generated_toml "$DIR/.gemini/commands";;
-      antigravity) echo "  antigravity installs no command files; --project has no effect for antigravity";;
+      antigravity) remove_roles_dir "$DIR/.agents/agents" md "$DIR/roles/antigravity";;
       *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
     esac
   done
@@ -336,6 +337,7 @@ for t in "${targets[@]}"; do
       ;;
     cursor)
       remove_commands_dir "$HOME/.cursor/commands" "$DIR/commands/cursor" md
+      remove_roles_dir "$HOME/.cursor/agents" md "$DIR/roles/cursor"
       remove_skill_links "$HOME/.cursor/skills"
       strip_hooks "$HOME/.cursor/hooks.json"
       cursor_hooks_cleanup "$HOME/.cursor/hooks.json"
@@ -355,6 +357,7 @@ for t in "${targets[@]}"; do
       ;;
     antigravity)
       strip_antigravity_hooks "$HOME/.gemini/antigravity-cli/hooks.json"
+      remove_roles_dir "$HOME/.gemini/config/agents" md "$DIR/roles/antigravity"
       strip_permissions_json "$HOME/.gemini/antigravity-cli/settings.json" "$DIR/settings-permissions.antigravity.snippet.json"
       ;;
     *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;

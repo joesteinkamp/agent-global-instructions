@@ -923,6 +923,26 @@ so the log reads as the project's decision history, not just a list of diffs.
   protection; left for a separate pass against Cursor's own docs).
 
 ### Added
+- **Installed the team roles for Cursor and Antigravity (2026-10-10, Claude).**
+  The ask: make sure the lead in every tool can find and use the roles, and use
+  Claude Code's per-agent fields. What changed: `render-roles.sh` now renders a
+  Cursor port (`readonly` for read-only roles) and an Antigravity port (its own
+  tool names; an unmapped tool fails the render), and
+  `install-roles.sh`/`uninstall.sh` install and remove them. The team playbook
+  gains a per-role "spawn when…" table, names `security-reviewer` and
+  `qa-engineer` in the review roster, and states how read-only each tool really
+  is. The docs that said Cursor and Antigravity have no role format, or
+  described only two formats, are corrected. Why: both tools now load agent
+  files and delegate by description, and Cursor would otherwise load our Claude
+  and Codex copies without its `readonly` flag. Considered and rejected: a
+  Claude Code read-only Bash guard wired as a frontmatter hook. A security
+  review found common bypasses and fail-open paths, and teammates don't run
+  frontmatter hooks, so it was dropped; the playbook now says Claude Code
+  doesn't enforce read-only for roles with Bash. Also rejected:
+  `isolation: worktree` for the writing roles, because teammates ignore it, it
+  conflicts with the one-dev-server rule, and it needed a global
+  `worktree.baseRef` change. Also rejected: `permissionMode: plan`, which is
+  ignored while the lead runs in auto mode.
 - **Add `security-reviewer` and `qa-engineer` roles (2026-10-10, Claude).**
   The ask: fill roster gaps the repo already pointed at. The "review a diff"
   roster in the team playbook called for security and test lenses that had no

@@ -11,7 +11,7 @@
 # Layers (each applied to whichever targets you name):
 #   - instructions (customize.sh --global): all tools, always — the portable core.
 #   - commands (install-commands.sh):       per tool (~/.claude, ~/.codex/skills, ~/.cursor).
-#   - roles (install-roles.sh):             per tool (~/.claude/agents, ~/.codex/agents) —
+#   - roles (install-roles.sh):             per tool (~/.claude, ~/.codex, ~/.cursor agents; ~/.gemini/config/agents) —
 #     the team-role definitions the instructions spawn agents by name from.
 #   - hooks (install-hooks.sh):             per tool.
 #   - memory OS registry (setup-memory-os.sh): machine-wide — where session-survey
