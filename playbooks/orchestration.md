@@ -92,7 +92,7 @@ shared meaning is the point of keeping roles in files at all.
   spawn — not the role its `-p` turn assumes. **A delegate is a generic agent
   unless you put the role in the prompt**, so pass the definition in:
 
-      role=$(sed '1{/^---$/,/^---$/d}' ~/.claude/agents/refuter.md)
+      role=$(sed '1,/^---$/d' ~/.claude/agents/refuter.md)
       timeout 900 claude -p "…" --append-system-prompt "$role" \
         < /dev/null > "$CTX/agents/refuter.log" 2>&1 &
 

@@ -124,7 +124,12 @@ it by name when that is the work rather than deriving it from a product task.
   line the body opens and closes with, and `render-roles.sh` fails the render if
   the three copies disagree. Each role also separates **Hard rules** from
   guidance, ends with a named **Return** contract, and — where it is read-only —
-  states what *not* to report and the floor a finding has to clear.
+  states what *not* to report and the floor a finding has to clear. Every role
+  also works with no lead at all — a cron job or a headless one-shot: an
+  **Unattended runs** rule has it state the reading it took and finish without
+  asking, stopping at any gate rather than crossing it, and its Return opens
+  with **Status** (done, partial, or blocked) so a wrapper script can grep one
+  line for the outcome.
 - Neither pins a `model`, so a role runs on whatever the session is running.
 - Both are installed by `install-roles.sh` from one canonical source. **If a
   role you need has no definition, write it in both formats** rather than

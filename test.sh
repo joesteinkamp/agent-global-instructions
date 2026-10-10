@@ -462,7 +462,7 @@ role_body() {
   ' "$1"
 }
 
-r_fm=""; r_name=""; r_tools=""; r_sandbox=""; r_body=""; r_rem=""; r_sect=""; r_floor=""
+r_fm=""; r_name=""; r_tools=""; r_sandbox=""; r_body=""; r_rem=""; r_sect=""; r_floor=""; r_unatt=""
 n_roles=0
 for f in "$DIR"/roles/*.md; do
   [ -e "$f" ] || continue
@@ -498,6 +498,13 @@ for f in "$DIR"/roles/*.md; do
 
   { grep -q '^## Hard rules$' "$f" && grep -q '^## Return$' "$f"; } || r_sect="$r_sect $base"
 
+  # A role spawned by cron or a headless one-shot has no lead to ask and no
+  # reader but a script: it needs the unattended rule, and its Return has to
+  # open with a Status line a wrapper can grep.
+  { grep -q '^- \*\*Unattended runs\*\*' "$f" \
+    && [ "$(awk '/^## Return$/{r=1;next} r&&/^- /{print;exit}' "$f" | cut -c1-12)" = '- **Status**' ]; } \
+    || r_unatt="$r_unatt $base"
+
   # A read-only role is a reporting role, and a reporting role with no stated
   # floor reports everything it notices.
   if [ "$sb" = "read-only" ]; then
@@ -521,6 +528,8 @@ done
                      || bad "reminder drifted from the body:$r_rem"
 [ -z "$r_sect" ]    && ok "every role states Hard rules and a Return contract" \
                      || bad "role missing Hard rules or Return:$r_sect"
+[ -z "$r_unatt" ]   && ok "every role handles unattended runs and its Return opens with Status" \
+                     || bad "role missing Unattended runs rule or a leading Status:$r_unatt"
 [ -z "$r_floor" ]   && ok "every read-only role states what not to report and a confidence floor" \
                      || bad "read-only role missing Do not report / confidence floor:$r_floor"
 

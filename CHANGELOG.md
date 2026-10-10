@@ -12,6 +12,39 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Gave every role an unattended-run contract and fixed the refuter's
+  contradiction (2026-10-10, Claude, #65).** The ask: review each role so it
+  can be used reliably as an agent, including from cron jobs, with less text for
+  every vendor's models to read. What changed:
+  - All ten roles have an **Unattended runs** hard rule. It tells them to state
+    the reading they took, finish without asking, and stop at the global gates.
+    Each Return now opens with a **Status** line (done, partial, or blocked).
+    `test.sh` enforces both.
+  - refuter: removed a stale "Default to refuted" rule that contradicted its
+    reminder and verdict bands (left over from f661852). It may now run
+    non-mutating commands, and it gains `WebSearch`.
+  - ux-researcher gains `WebSearch`. Research it finds published counts as
+    convention, not evidence about this product's users.
+  - technical-architect: "keep the existing shape" counts as a rejected
+    alternative.
+  - backend-engineer gains three rules: migration rollback, input validation,
+    and no secrets in code or logs.
+  - The original eight roles were tightened from 4,419 to 4,177 words.
+  - `playbooks/orchestration.md` now strips the whole frontmatter before a role
+    goes into another vendor's prompt. The old `sed` deleted only line 1.
+
+  Why: a role spawned with no lead had no rule for scope or gates, and returned
+  nothing a script could read. Considered and rejected:
+  - Injecting a shared preamble at render time. Roles pasted into another
+    vendor's prompt have to stand alone.
+  - Adding "installs" as a gate. It is stricter than the global gates and would
+    block any cron job that has to install dependencies to run its tests.
+
+  A refuter pass caught four regressions in the first draft, which were
+  reverted: the architect contradicting its own reminder, the refuter losing
+  "Do not soften", and evidence floors loosened in ui-designer and
+  ux-researcher. Known gap: no role has been run against a real vendor CLI, and
+  the tests pin only headlines.
 - **Documented the agy and Cursor reviewer forms the smoke tests proved
   (2026-10-10, Claude, #62).** The ask: make the cross-vendor delegates
   actually run (plan steps 4–5). What changed: the documented agy form now adds
