@@ -1,6 +1,6 @@
 # Plan — make the cross-vendor delegates actually run
 
-**Status:** steps 1–2 done (#57); step 3 (codex) diagnosed, AppArmor fix still waiting on Joe; step 4 (agy) verified working 2026-10-10; step 5 (Cursor) verified working 2026-10-10 after a re-login. Written 2026-10-05 by Claude (Opus 5.5).
+**Status: done (2026-10-10)**, except Cursor's own sandbox. All three vendors (codex, agy, Cursor) now return a verdict from a Claude Code session on this box. Written 2026-10-05 by Claude (Opus 5.5).
 **Lives on:** branch `ai/delegate-fix`, worktree
 `../agent-global-instructions-delegate-fix`.
 **Scope:** the documented delegate invocations (`playbooks/orchestration.md`,
@@ -154,7 +154,43 @@ sudo apparmor_parser -r /etc/apparmor.d/bwrap-linuxbrew
   The playbook's F2 bullet already tells a session to drop codex and hand the
   user the host fix; a later pass could name this profile there.
 
-**Status:** fix proposed; not yet applied or verified.
+**Applied and verified 2026-10-10.** The linuxbrew-only profile above was
+replaced by one that covers both copies, because it was unclear which `bwrap`
+codex runs (recent codex prefers `/usr/bin/bwrap` when present, per
+openai/codex#14963). Joe ran this over SSH, since `sudo` needs a password,
+which a `!` command can't supply:
+
+```sh
+sudo apt-get install -y bubblewrap
+sudo tee /etc/apparmor.d/bwrap-codex >/dev/null <<'EOF'
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap-system /usr/bin/bwrap flags=(unconfined) {
+  userns,
+}
+
+profile bwrap-linuxbrew /home/linuxbrew/.linuxbrew/Cellar/bubblewrap/*/bin/bwrap flags=(unconfined) {
+  userns,
+}
+EOF
+sudo apparmor_parser -r /etc/apparmor.d/bwrap-codex
+```
+
+Undo: `sudo apparmor_parser -R /etc/apparmor.d/bwrap-codex && sudo rm
+/etc/apparmor.d/bwrap-codex`.
+
+Result: both `bwrap` copies pass `--unshare-user` **from inside Claude Code's
+sandbox**, so Claude's sandbox does not block the nested namespace. The codex
+smoke test, `codex exec --skip-git-repo-check --sandbox workspace-write --cd
+<ctx>`, ran `git log -1 --oneline` in the repo with network on, wrote the right
+commit to `agents/codex.md`, and left the repo clean.
+
+**Cursor's `--sandbox enabled` still fails** with the same AppArmor message, so
+it doesn't use either `bwrap`. Its troubleshooting docs
+(cursor.com/docs/agent/terminal) are the next stop if enforced read-only for
+Cursor is ever wanted. Until then the non-sandbox reviewer form in the playbook
+works.
 
 ### Step 4 — F3: give headless agy a read-only allowlist (needs docs, then Joe)
 
