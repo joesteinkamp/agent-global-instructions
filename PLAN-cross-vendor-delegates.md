@@ -1,6 +1,6 @@
 # Plan — make the cross-vendor delegates actually run
 
-**Status:** steps 1–2 done (#57); step 3 diagnosed, AppArmor fix waiting on Joe; step 4 wired into the installer (2026-10-08), waiting on Joe to run it; step 5 probed, fails from inside Claude, plain-terminal probe pending. Written 2026-10-05 by Claude (Opus 5.5).
+**Status:** steps 1–2 done (#57); step 3 (codex) diagnosed, AppArmor fix still waiting on Joe; step 4 (agy) verified working 2026-10-10; step 5 (Cursor) verified working 2026-10-10 after a re-login. Written 2026-10-05 by Claude (Opus 5.5).
 **Lives on:** branch `ai/delegate-fix`, worktree
 `../agent-global-instructions-delegate-fix`.
 **Scope:** the documented delegate invocations (`playbooks/orchestration.md`,
@@ -203,6 +203,14 @@ The list changed from the draft above. `rg` is out (`--pre` runs a program),
   `install-settings.sh antigravity`, which is Joe's to run. Then re-run the
   step 2 smoke test with agy.
 
+**Verified 2026-10-10.** Joe ran `./install-settings.sh antigravity` on this
+box (`srv1350107`). The first smoke test got through the allowlist, but agy ran
+`git log` outside the repo (`fatal: not a git repository`). The form that works
+is `agy -p "…" --mode accept-edits --add-dir <repo> --add-dir <ctx-dir>`, with
+the working directory named in the prompt. It wrote the right commit to
+`agents/agy.md`, and the repo stayed clean. The playbook, `/verify` and
+`/improve` now document that form.
+
 ### Step 5 — Cursor `agent`
 
 Untested. Run the step 2 smoke test once and record the result in the
@@ -225,6 +233,24 @@ agent -p --trust "reply with the word ok" < /dev/null
 `ok` means the sandbox is the cause: Cursor can't be a delegate from a
 sandboxed Claude session unless its API host is allowed. An auth error means
 re-run `agent login`.
+
+**Result 2026-10-10: it was the login, not the sandbox.** Joe's own `!` run
+printed the same `Authentication required`. `NO_OPEN_BROWSER=1 agent login`,
+which prints a URL to approve from any device, fixed it.
+
+- **`--sandbox enabled` fails on this host:** `Sandbox mode is enabled but not
+  available on this system … possibly due to AppArmor configuration`. That is
+  the same root cause as codex in step 3.
+- **The repo must not be the workspace.** Run as
+  `agent -p --trust --workspace <repo>`, it did the task but also wrote
+  `tmp-cursor-smoke.txt`, a stray `agents/cursor.md` and a junk directory into
+  the primary checkout. Those were removed once their timestamps placed them
+  inside that run.
+- **Working form:** `agent -p --trust --workspace <ctx-dir> --add-dir <repo>`,
+  launched from the context dir. It wrote the right commit to
+  `agents/cursor.md`, and the repo stayed clean. Without its sandbox nothing
+  *enforces* read-only, so the playbook says to tell it to create no other
+  files and to check `git status` afterwards.
 
 ### Step 6 — Ship
 
