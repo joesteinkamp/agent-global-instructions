@@ -44,6 +44,7 @@ Ask in order and stop at the first that applies:
 
 - **Escalate one tier, once.** A worker that fails the same check twice, or reports low confidence, gets redone one tier up, never a third time at the same tier.
 - **Floors:** refutation and the review that decides "done" are always T1, from a **different model family** than the author. A lower-tier or local model may add an *extra* review lens, never the one that counts.
+- **When no cross-family T1 is reachable, do the best you can and say so.** Use the strongest reachable model from a different family, at its highest effort, as the review that counts, and tell the user in the report that it was a cross-family check below T1. Don't drop independence to keep the tier (a same-family T1 is not a substitute), and don't stall waiting for a T1.
 
 ## Choosing within a tier
 
