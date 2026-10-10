@@ -97,6 +97,27 @@ so the log reads as the project's decision history, not just a list of diffs.
   stopped by its own usage check and a cross-vendor refuter). Reopen it if
   usage rises once #55 is installed; usage so far was measured against the
   pre-#55 command.
+- **Taught `/sync` it may be standing in a worktree (2026-10-02, Claude,
+  #55).** The ask: `/sync` should know when it is in a worktree, sync back to
+  the local branch, and offer to clean up the tree and branch; then a closing
+  nudge about syncing the remote. What changed: worktree detection via git-dir
+  vs git-common-dir; a fold-back toward the primary checkout driven by `git
+  -C`; a gated teardown with a verified step order; a remote nudge offering
+  `--force-with-lease` when the rebase left the branch diverged, bundled into
+  the same single ask as the teardown question. Why this approach: the closing
+  sweep marks the current tree `CURRENT` and never reaps it, so the tree you
+  ran `/sync` from could never be cleaned up by the command itself; and
+  `/sync` fetches but never pushes, so its own rebase left the branch diverged
+  with nothing pointing at the cause. Considered and rejected: auto-merging
+  unlanded commits into the integration tree (routes unreviewed work around
+  `/ship`); having the sweep reap its own caller (removing the tree you stand
+  in kills the shell's cwd — confirmed on git 2.43, which deletes rather than
+  refuses); and pushing as part of the sync (an external send, and
+  force-pushing a branch another agent may share is what the gate exists for).
+  Not done: the new steps shipped unanchored in `evals/behaviours.md`. Known
+  cost: grew the command 198 → 1,205 words. The script extraction planned to
+  undo that was stopped by its own usage check; #56 trimmed the description
+  and one injection instead.
 - **Hoisted the confirmation gates into one canonical, ungated block
   (2026-09-26, Claude).** The ask: finding 5 of the 2026-09-20 instruction-bloat
   review, deferred when the other findings shipped (entry below) and picked up
