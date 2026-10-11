@@ -154,6 +154,7 @@ assert_has "aggressive render names the loop primitive"             '/loop [inte
 assert_has "aggressive render draws the goal-vs-loop line"          'stopping rule'
 assert_has "aggressive render keeps gates inside goal turns"        'every goal turn'
 assert_has "aggressive render offers the goal at kickoff"           'Offer the goal at kickoff, not at handoff'
+assert_has "aggressive render checks hook policy before a goal"    'Check that the goal can run before you offer it'
 AUTONOMY=balanced render
 assert_no "AUTONOMY=balanced omits the Long-running work section" 'Long-running work'
 assert_no "AUTONOMY=balanced leaves no marker leak" 'SECTION:'
@@ -1163,6 +1164,17 @@ PY
   else
     bad "autonomy-reminder emits per-platform context and stays silent for antigravity"
   fi
+
+  # A managed policy that restricts hooks makes the Claude wiring dead (and
+  # /goal refuse to start); the installer says so, and stays quiet otherwise.
+  PH="$(mktemp -d)"; PD="$(mktemp -d)"; mkdir -p "$PD/managed-settings.d"
+  ph_quiet="$(HOME="$PH" AIGI_CLAUDE_POLICY_DIR="$PD" bash "$DIR/install-hooks.sh" claude 2>&1 >/dev/null)"
+  printf '{"allowManagedHooksOnly":true}' > "$PD/managed-settings.d/40-hooks.json"
+  ph_warn="$(HOME="$PH" AIGI_CLAUDE_POLICY_DIR="$PD" bash "$DIR/install-hooks.sh" claude 2>&1 >/dev/null)"
+  { ! printf '%s' "$ph_quiet" | grep -q 'WARNING' && printf '%s' "$ph_warn" | grep -q 'allowManagedHooksOnly'; } \
+    && ok "install-hooks warns when Claude Code policy restricts hooks" \
+    || bad "install-hooks policy warning (quiet='$ph_quiet' warn='$ph_warn')"
+  rm -rf "$PH" "$PD"
 
   # Explicit flags gate the design pack and prune it when turned off. The design
   # command (/ux-audit) is skill-backed: on claude/cursor the vendored skill
