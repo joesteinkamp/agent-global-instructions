@@ -1,0 +1,66 @@
+#!/usr/bin/env perl
+# timeout — portable stand-in for GNU coreutils `timeout`, installed by
+# agent-global-instructions (customize.sh --global copies this to
+# ~/.local/bin/timeout, ONLY on a machine with no `timeout` of its own).
+#
+# Why it exists: the orchestration playbook launches every delegate as
+# `timeout 900 claude -p …`, and stock macOS ships neither `timeout` nor
+# `gtimeout`. Without this the hardened form dies with exit 127 before the
+# delegate starts, and worktree-reap skips its forge check.
+#
+# Usage:  timeout DURATION COMMAND [ARG]...
+#   DURATION is a number with an optional s|m|h|d suffix (e.g. 90, 1.5m, 2h).
+#
+# Matches GNU for the subset the harness uses: the command inherits stdin and
+# stdout/stderr, its own exit status passes through, and expiry sends TERM and
+# exits 124. Unlike GNU it then sends KILL after 10s, because a starved agent
+# CLI that ignores TERM is exactly the case this bounds. No options (-k, -s,
+# --foreground): pass one and it exits 125, like GNU on a usage error.
+use strict;
+use warnings;
+use POSIX qw(:sys_wait_h);
+
+sub usage { print STDERR "timeout: usage: timeout DURATION COMMAND [ARG]...\n"; exit 125; }
+
+my $dur = shift @ARGV;
+usage() if !defined $dur || $dur =~ /^-/ || !@ARGV;
+my %mult = ('' => 1, s => 1, m => 60, h => 3600, d => 86400);
+$dur =~ /^(\d+(?:\.\d+)?)([smhd]?)$/ or usage();
+my $secs = $1 * $mult{$2};
+
+my $pid = fork();
+die "timeout: fork failed: $!\n" unless defined $pid;
+if ($pid == 0) {
+    { no warnings 'exec'; exec { $ARGV[0] } @ARGV; }
+    print STDERR "timeout: failed to run command '$ARGV[0]': $!\n";
+    POSIX::_exit($!{ENOENT} ? 127 : 126);
+}
+
+# Forward the signals a caller uses to stop us, so the child doesn't outlive us.
+for my $sig (qw(INT TERM HUP)) {
+    $SIG{$sig} = sub { kill $sig, $pid; };
+}
+
+my $timed_out = 0;
+# Expiry: TERM now, and KILL 10s later if it is still running. The escalation
+# is armed inside the handler because perl restarts waitpid after a handler
+# runs, so the wait loop below never sees the interruption.
+$SIG{ALRM} = sub {
+    $timed_out = 1;
+    kill 'TERM', $pid;
+    $SIG{ALRM} = sub { kill 'KILL', $pid; };
+    alarm(10);
+};
+# alarm() takes whole seconds, so round a fractional duration up. A duration
+# of 0 disables the timeout, as in GNU.
+if ($secs > 0) { my $a = int($secs); $a++ if $a < $secs; alarm($a); }
+
+while (1) {
+    my $r = waitpid($pid, 0);
+    if ($r == $pid) {
+        alarm(0);
+        exit 124 if $timed_out;
+        exit($? & 127 ? 128 + ($? & 127) : $? >> 8);
+    }
+    die "timeout: waitpid failed: $!\n" unless $!{EINTR};
+}

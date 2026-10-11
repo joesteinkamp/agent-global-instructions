@@ -371,6 +371,11 @@ if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.l
   rm -f "$HOME/.local/bin/lm"
   echo "  removed $HOME/.local/bin/lm (local-model shim)"
 fi
+# Same for the portable `timeout` shim (only ever installed where none existed).
+if [ -f "$HOME/.local/bin/timeout" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/timeout" 2>/dev/null; then
+  rm -f "$HOME/.local/bin/timeout"
+  echo "  removed $HOME/.local/bin/timeout (portable timeout shim)"
+fi
 # The tool-agnostic worktree sweep CLI install-hooks.sh copied out of hooks/.
 # Content-checked against our own header, so a foreign file parked at that path
 # is never removed. (The hook wiring and the copies under each tool's hooks dir

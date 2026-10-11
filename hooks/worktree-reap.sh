@@ -279,15 +279,20 @@ forge_says_merged() {  # $1 = repo dir, $2 = branch, $3 = branch tip sha
   [ -n "$tip" ] || return 1
   [ "$FORGE_BUDGET" -gt 0 ] || return 1
   # Without a `timeout` binary a degraded network turns this into a multi-minute
-  # stall at turn end. Degrade to ancestor-only + advise instead.
-  command -v timeout >/dev/null 2>&1 || return 1
+  # stall at turn end. Degrade to ancestor-only + advise instead. macOS ships
+  # none: take coreutils' `gtimeout`, or the portable shim customize.sh puts in
+  # ~/.local/bin, which a hook's PATH may not include.
+  local to
+  to="$(command -v timeout || command -v gtimeout)" \
+    || { [ -x "$HOME/.local/bin/timeout" ] && to="$HOME/.local/bin/timeout"; } \
+    || return 1
   url="$(git -C "$repo" config --get remote.origin.url 2>/dev/null)"
   [ -n "$url" ] || return 1
   case "$url" in
     *github.com*)
       command -v gh >/dev/null 2>&1 || return 1
       FORGE_BUDGET=$((FORGE_BUDGET - 1))
-      out="$( cd "$repo" 2>/dev/null && timeout "$FORGE_TIMEOUT" gh pr list --state merged \
+      out="$( cd "$repo" 2>/dev/null && "$to" "$FORGE_TIMEOUT" gh pr list --state merged \
               --head "$b" --base "$DEFAULT_BRANCH" --limit 20 --json headRefOid \
               --jq '.[].headRefOid' 2>/dev/null )"
       printf '%s\n' "$out" | grep -qx "$tip" || return 1
@@ -297,7 +302,7 @@ forge_says_merged() {  # $1 = repo dir, $2 = branch, $3 = branch tip sha
       command -v glab >/dev/null 2>&1 || return 1
       command -v jq >/dev/null 2>&1 || return 1
       FORGE_BUDGET=$((FORGE_BUDGET - 1))
-      out="$( cd "$repo" 2>/dev/null && timeout "$FORGE_TIMEOUT" glab mr list --state merged \
+      out="$( cd "$repo" 2>/dev/null && "$to" "$FORGE_TIMEOUT" glab mr list --state merged \
               --source-branch "$b" --target-branch "$DEFAULT_BRANCH" -F json 2>/dev/null )"
       printf '%s' "$out" | jq -e --arg tip "$tip" \
         'map(select((.sha // .merge_commit_sha // "") == $tip)) | length > 0' >/dev/null 2>&1 || return 1
