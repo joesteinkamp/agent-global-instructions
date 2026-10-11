@@ -143,9 +143,11 @@ serialises two agents ending a turn in the same repo at once. A repeated
 identical advisory is suppressed.
 
 The forge lookup is capped: at most 3 per sweep, 10s each, and **only where a
-`timeout` binary exists** — without one, a degraded network would turn a Stop
-hook into a multi-minute stall, so the forge arm is skipped entirely and the
-result degrades to ancestry plus advice.
+`timeout` binary exists** (`timeout`, coreutils' `gtimeout`, or the portable
+shim `customize.sh --global` installs at `~/.local/bin/timeout` on macOS) —
+without one, a degraded network would turn a Stop hook into a multi-minute
+stall, so the forge arm is skipped entirely and the result degrades to ancestry
+plus advice.
 
 The same script is the CLI the commands call:
 

@@ -896,6 +896,26 @@ so the log reads as the project's decision history, not just a list of diffs.
   bullet convention, same meaning.
 
 ### Fixed
+- **Delegate launches and the worktree reaper work on stock macOS
+  (2026-10-11, Claude).** The ask: `/update-model-routing` probes failed on
+  Joe's Mac with `timeout: command not found`. What changed: a new
+  `portable-timeout` (perl, GNU-compatible for the subset the harness uses:
+  exit 124 on expiry, status and stdin pass through, KILL 10s after an ignored
+  TERM). `customize.sh --global` installs it at `~/.local/bin/timeout` only
+  when no `timeout` is on PATH, removes it once a real one appears, and never
+  touches a foreign file there. `worktree-reap` resolves `timeout`, `gtimeout`,
+  or the shim by path. The playbook and `/update-model-routing` say so in one
+  line each. Why this approach: macOS ships neither `timeout` nor `gtimeout`,
+  so the playbook's hardened launch form (`timeout 900 …`) exited 127 before
+  any delegate started. The reaper also silently skipped forge proof, so
+  squash-merged worktrees were never reaped. That second bug is why the
+  "squash merge whose forge head SHA matches" test always failed on macOS. A
+  shim keeps every documented command and pinned string as it was. Considered
+  and rejected: rewriting the docs to `gtimeout` (absent without Homebrew
+  coreutils, and wrong on Linux); a perl one-liner in every example (harder to
+  read, and it exits 142 rather than 124, which breaks the documented exit
+  check); having the installer `brew install coreutils` (installs software
+  without asking, and only helps where Homebrew exists).
 - **SessionEnd hooks no longer lose a 1.5-second shutdown race
   (2026-08-17, Claude Opus 5).** The ask: Joe hit a recurring machine error,
   `SessionEnd hook [env HOOK_PLATFORM=claude ".../scorecard-enqueue.sh"]

@@ -380,6 +380,33 @@ EOF
   printf '%s' "$out"
 }
 
+# The playbooks bound every delegate with `timeout N …` (GNU coreutils), which
+# stock macOS doesn't have: the hardened launch form dies with exit 127 and
+# worktree-reap skips its forge check. So install the portable stand-in at
+# ~/.local/bin/timeout, but only where no other `timeout` is on PATH — a real
+# one always wins, and once one appears our shim is removed again. Marker-
+# checked, like `lm`, so a foreign file at that path is never touched.
+install_timeout_shim() {
+  local dest="$HOME/.local/bin/timeout" other ours=""
+  [ -f "$DIR/portable-timeout" ] || return 0
+  [ -f "$dest" ] && grep -q 'agent-global-instructions' "$dest" 2>/dev/null && ours=1
+  [ -e "$dest" ] && [ -z "$ours" ] && return 0
+  other="$(type -aP timeout 2>/dev/null | grep -vxF "$dest" | head -1 || true)"
+  if [ -n "$other" ]; then
+    [ -n "$ours" ] && rm -f "$dest" && echo "  removed ~/.local/bin/timeout (shim no longer needed: $other)"
+    return 0
+  fi
+  mkdir -p "$HOME/.local/bin"
+  if cmp -s "$DIR/portable-timeout" "$dest" 2>/dev/null; then
+    echo "  ok ~/.local/bin/timeout (up to date)"
+  else
+    install -m 0755 "$DIR/portable-timeout" "$dest" \
+      && echo "  wrote ~/.local/bin/timeout (portable shim — this machine has no GNU timeout)"
+  fi
+  command -v timeout >/dev/null 2>&1 \
+    || echo "  (note: ~/.local/bin is not on PATH — add it so 'timeout' is invocable)"
+}
+
 # ---- render(): filter sections + substitute vars, print to stdout -----------
 # One awk pass. Variable values are passed through the environment (ENVIRON[],
 # which performs NO escape processing), and substituted literally — so newlines,
@@ -570,6 +597,7 @@ write_global() {
   # registry, model-routing table). Operational exhaust (logs, hook state)
   # stays in ~/.ai-logs/.
   mkdir -p "$HOME/.ai"
+  install_timeout_shim
   # Local-model layer: install the `lm` shim and record this machine's
   # local-model endpoints (Ollama / llama.cpp / MLX / a remote box — one
   # OpenAI-compatible contract) at ~/.ai/local-models. The file's ABSENCE is

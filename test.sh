@@ -1754,6 +1754,52 @@ else
   echo "  (skipped — jq not installed)"
 fi
 
+# ---- portable timeout shim: GNU-compatible subset + install-only-if-missing --
+echo ""
+echo "== portable timeout shim =="
+PT="$DIR/portable-timeout"
+"$PT" 1 sleep 5 >/dev/null 2>&1;          rc=$?
+[ "$rc" -eq 124 ] && ok "timeout shim exits 124 on expiry" || bad "timeout shim exits 124 on expiry (got $rc)"
+"$PT" 5 sh -c 'exit 7' >/dev/null 2>&1;   rc=$?
+[ "$rc" -eq 7 ] && ok "timeout shim passes the command's exit status through" \
+                || bad "timeout shim passes the command's exit status through (got $rc)"
+out="$(printf 'in' | "$PT" 5 cat 2>/dev/null)"
+[ "$out" = "in" ] && ok "timeout shim gives the command its stdin" || bad "timeout shim gives the command its stdin"
+"$PT" 5 aigi-no-such-cmd >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 127 ] && ok "timeout shim exits 127 for a missing command" || bad "timeout shim exits 127 for a missing command (got $rc)"
+"$PT" -k 5 true >/dev/null 2>&1;          rc=$?
+[ "$rc" -eq 125 ] && ok "timeout shim rejects options it doesn't implement (125)" \
+                  || bad "timeout shim rejects options it doesn't implement (got $rc)"
+# Install only where no real `timeout` is on PATH. Both directions are forced
+# with PATH, so the result is the same on Linux CI (has one) and macOS (doesn't):
+# "none" is a PATH of symlinks to everything except timeout/gtimeout, "real"
+# puts a stub `timeout` in front.
+PTH="$(mktemp -d)"; mkdir -p "$PTH/none" "$PTH/real"
+IFS=: read -r -a _pdirs <<< "$PATH"
+for _d in "${_pdirs[@]}"; do
+  for _f in "$_d"/*; do
+    _n="${_f##*/}"
+    case "$_n" in timeout|gtimeout) continue;; esac
+    [ -x "$_f" ] && [ ! -e "$PTH/none/$_n" ] && ln -s "$_f" "$PTH/none/$_n" 2>/dev/null
+  done
+done
+printf '#!/bin/sh\nexit 0\n' > "$PTH/real/timeout"; chmod +x "$PTH/real/timeout"
+pt_global() { HOME="$1" PATH="$2" AIGI_NO_USER_ENV=1 AIGI_NO_PROBE=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1; }
+pt_global "$PTH/h1" "$PTH/none"
+cmp -s "$PT" "$PTH/h1/.local/bin/timeout" \
+  && ok "--global installs the timeout shim where none exists" \
+  || bad "--global installs the timeout shim where none exists"
+pt_global "$PTH/h1" "$PTH/real:$PTH/none"
+[ ! -e "$PTH/h1/.local/bin/timeout" ] \
+  && ok "--global removes its timeout shim once a real timeout is on PATH" \
+  || bad "--global removes its timeout shim once a real timeout is on PATH"
+mkdir -p "$PTH/h3/.local/bin" && printf '#!/bin/sh\necho mine\n' > "$PTH/h3/.local/bin/timeout"
+pt_global "$PTH/h3" "$PTH/none"
+grep -q mine "$PTH/h3/.local/bin/timeout" 2>/dev/null \
+  && ok "--global never touches a foreign ~/.local/bin/timeout" \
+  || bad "--global never touches a foreign ~/.local/bin/timeout"
+rm -rf "$PTH"
+
 # ---- worktree reaper: proof-of-merge, and everything that is not proof ------
 # A hook that deletes directories earns fixtures, not assertions about prose.
 # Every refusal gets a real repo. The falsifier is tested in both directions —
@@ -1947,6 +1993,9 @@ if command -v git >/dev/null 2>&1; then
     printf 'exit 0\n'
   } > "$WR/bin/gh"
   chmod +x "$WR/bin/gh"
+  # The forge arm needs a `timeout`. Stock macOS has none, which is what the
+  # installer's portable shim is for, so the shim stands in for it here.
+  command -v timeout >/dev/null 2>&1 || ln -s "$DIR/portable-timeout" "$WR/bin/timeout"
   git -C "$WRR" remote add origin https://github.com/acme/demo.git 2>/dev/null
   wr_rep="$( cd "$WRR" && PATH="$WR/bin:$PATH" WORKTREE_REAP_MIN_AGE=0 bash "$WRS" --sweep --apply 2>/dev/null )"
   wr_ok=1

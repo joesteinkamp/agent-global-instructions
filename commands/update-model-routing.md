@@ -31,7 +31,8 @@ account only.
    `claude` has no listing, so use its four aliases.
 3. **Probe reachability, because a listing isn't proof.** For each base model in
    each CLI, make one minimal headless call (prompt `Reply with: ok`, lowest
-   effort, `timeout 90`) in the CLI's documented headless form, using the
+   effort, `timeout 90`, which is `gtimeout` or the installer's
+   `~/.local/bin/timeout` shim on macOS) in the CLI's documented headless form, using the
    flag table's gotchas. Record `yes`, or `no` with the error text quoted
    briefly. If the first named model in a CLI fails with a plan-level error
    (e.g. `Named models unavailable`), mark the CLI's other named models `no`
