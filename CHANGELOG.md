@@ -12,6 +12,21 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Fall back to `/loop` when Claude Code policy blocks `/goal` (2026-10-11,
+  Claude, #73).** The ask: Joe noticed `/goal` was never used. #71 fixed when
+  the offer is made, but on his machine any offered line would still fail.
+  What changed: agents check Claude Code's managed settings before offering
+  `/goal`. Under `allowManagedHooksOnly` or `disableAllHooks` they start a
+  self-paced `/loop` with the same done-condition instead. The orchestration
+  playbook drops headless `claude -p "/goal"` delegates under that policy,
+  `install-hooks.sh` warns that the Claude hooks it installs are ignored,
+  BEH-16 was added, and BEH-15's "never typed" claim was corrected. Why: the
+  2.1.287 binary shows `/goal` is a session-scoped Stop hook that refuses to
+  start under a hooks-restricting policy. That matches the refusal Joe got on
+  2026-10-08. Considered and rejected: dropping `/goal` for Claude Code
+  entirely, which would penalize machines without the policy; and relying on
+  the autonomy reminder to carry the fallback, since the same policy blocks
+  that hook.
 - **Offer the `/goal` line at kickoff, not at handoff (2026-10-11, Claude,
   #71).** The ask: Joe noticed `/goal` was never being used. The transcripts
   confirmed it: no `/goal` line was proposed in 58 Claude Code sessions or any
