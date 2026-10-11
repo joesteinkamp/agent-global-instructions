@@ -153,6 +153,7 @@ assert_has "aggressive render names the goal primitive"             '/goal <cond
 assert_has "aggressive render names the loop primitive"             '/loop [interval] <prompt>'
 assert_has "aggressive render draws the goal-vs-loop line"          'stopping rule'
 assert_has "aggressive render keeps gates inside goal turns"        'every goal turn'
+assert_has "aggressive render offers the goal at kickoff"           'Offer the goal at kickoff, not at handoff'
 AUTONOMY=balanced render
 assert_no "AUTONOMY=balanced omits the Long-running work section" 'Long-running work'
 assert_no "AUTONOMY=balanced leaves no marker leak" 'SECTION:'
