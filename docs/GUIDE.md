@@ -107,7 +107,10 @@ every option:
   you set), since Claude Code's team construct is off by default. The
   aggressive posture also renders a **Long-running work** section — when a task
   outlives the turn, the agent reaches for the host tool's long-run primitive
-  with an explicit done-condition instead of ending with "next steps", choosing
+  with an explicit done-condition instead of ending with "next steps" — and
+  offers the pasteable `/goal` line at kickoff, when a plan is approved or a
+  backlog handed over, since a goal offered at handoff arrives after the work
+  it was for — choosing
   by stopping rule: `/goal <condition>` for a terminal end state (Claude Code
   and Codex; Cursor is still rolling it out — it runs turns until the condition
   is judged met), `/loop` for a recurring check on a cadence (Claude Code,

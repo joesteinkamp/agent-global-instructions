@@ -159,8 +159,20 @@ at one, ask.
   durable goal, which has a loop, which can only manage headless one-shots, the
   management syntax for each, and what each offers beyond that.
 <!--/SECTION:cross-tool-orchestration-->
+- **Offer the goal at kickoff, not at handoff.** A goal only pays before the
+  work runs out: offered at the end, the work is already done or already
+  stopped, and "the turn finished it" is always true in hindsight. So when I've
+  just approved a plan, handed you a backlog of several items, or asked for
+  multi-step work with a checkable end (build to a spec, get a suite green,
+  ship a PR), put the pre-filled `/goal` line at the top of your reply — then
+  start anyway; if I paste it, the session carries on past this turn until the
+  condition holds. Likewise, when you're about to close with "want me to…?" and
+  the only thing being asked is permission to keep going on reversible work,
+  that work has outlived the turn: hand me the `/goal` line that would do it in
+  place of the yes/no. Skip it for a one-turn fix — a goal on work that's
+  finishing now is noise.
 - **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop yourself and say what cadence you picked and why; for a goal, give me the line to paste with the condition already written. If the long tail is optional, offer it in one line at handoff.
-- **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when CI is green and the PR merges") and check it each iteration. A loop is yours to end — stop it once the condition is met rather than letting it run on. A goal ends itself when its checker agrees, so the done-condition *is* the condition you handed me; report what happened either way.
+- **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when the PR is open and CI is green" — not "when it merges": merging is mine, and a goal that waits on me never ends) and check it each iteration. A loop is yours to end — stop it once the condition is met rather than letting it run on. A goal ends itself when its checker agrees, so the done-condition *is* the condition you handed me; report what happened either way.
 - **The gates hold inside every iteration and every goal turn** (see *Gates* above). Know what asking costs here, though: it ends the turn, the checker sees the condition still unmet, and another turn starts, so the goal only halts once several turns pass with no progress. Never set a goal whose only path to done runs through a gate I have to answer, and never run one headless (`claude -p "/goal …"`), where nobody is there to answer it.
 - **Leave a trail a fresh session can pick up.** Long runs survive restarts through files, not the transcript: commit WIP often and keep progress notes (`STATE.md`-style) current, so any session — or another tool — can resume where the run stopped.
 - **Nudge me when a lever I'm not using would have helped — once per handoff, in
