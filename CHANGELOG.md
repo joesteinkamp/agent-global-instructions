@@ -12,6 +12,21 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Offer the `/goal` line at kickoff, not at handoff (2026-10-11, Claude,
+  #71).** The ask: Joe noticed `/goal` was never being used. The transcripts
+  confirmed it: no `/goal` line was proposed in 58 Claude Code sessions or any
+  Codex session. What changed: Long-running work gains a kickoff trigger. A
+  pre-filled `/goal` line now comes when a plan is approved, a backlog is
+  handed over, or multi-step work has a checkable end, and in place of a
+  "want me to…?" question on reversible work. The example done-condition no
+  longer waits on the merge gate. The hook, GUIDE, BEH-15 and `test.sh` were
+  updated to match. Why this approach: the old trigger ("work outlives the
+  turn") almost never fires once "Finish the whole task" applies, and every
+  place it offered a goal came after the work was done. A goal only helps if
+  it's offered before the work starts. Considered and rejected: loosening
+  "Finish the whole task" (it would cost autonomy everywhere to fix one rule);
+  asking upfront every time whether a goal is wanted (it adds the extra
+  round-trips Joe has said he doesn't want).
 - **The review that counts falls back to the best cross-family model when no
   T1 one is reachable (2026-10-10, Claude).** The ask: the first
   `/update-model-routing` run on Joe's machine found that Claude Opus 5.5 is
