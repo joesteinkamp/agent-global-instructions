@@ -150,8 +150,11 @@ primitives instead of hand-holding a long job through repeated prompts.
   one invocation — so the objective outlives compaction, though nothing restores
   it if the process dies (restart survival is the interactive `--resume` path).
   Nobody is there to answer a prompt in that shape, so the condition must not
-  depend on a gate. For other vendors, check whether their headless mode accepts
-  a goal before depending on it.
+  depend on a gate. It also needs hooks: where Claude Code policy sets
+  `allowManagedHooksOnly` or `disableAllHooks`, `/goal` refuses to start, so
+  bound the delegate with `timeout` and a WIP-commit trail instead. For other
+  vendors, check whether their headless mode accepts a goal before depending
+  on it.
 - **Background anything that blocks.** A wave of delegates, a test suite, a
   build, a deploy watch: start it in the background and wait on it once rather
   than polling on a sleep. Poll only external state the host cannot notify you

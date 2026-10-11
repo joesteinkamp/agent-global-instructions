@@ -154,6 +154,15 @@ at one, ask.
   that work has outlived the turn: hand me the `/goal` line that would do it in
   place of the yes/no. Skip it for a one-turn fix — a goal on work that's
   finishing now is noise.
+- **Check that the goal can run before you offer it.** Claude Code's `/goal` is
+  a session Stop hook underneath, so it refuses to start when policy sets
+  `allowManagedHooksOnly` or `disableAllHooks` (look in `managed-settings.json`
+  and `managed-settings.d/` under `/Library/Application Support/ClaudeCode/` on
+  macOS, `/etc/claude-code/` on Linux). A pasted line then dies with "/goal
+  can't run while hooks are restricted". When either is set, start a
+  self-paced `/loop` carrying the same done-condition instead, say why, and end
+  it yourself once the condition holds. Codex and Cursor goals don't depend on
+  Claude Code's policy.
 - **Offer it — or start it.** If I asked for something ongoing (watch CI, babysit a migration, keep tests green, converge worktrees), start the loop yourself and say what cadence you picked and why; for a goal, give me the line to paste with the condition already written. If the long tail is optional, offer it in one line at handoff.
 - **Write the done-condition first.** A loop or goal without a testable end state runs forever or quits early. State it up front ("done when the PR is open and CI is green" — not "when it merges": merging is mine, and a goal that waits on me never ends) and check it each iteration. A loop is yours to end — stop it once the condition is met rather than letting it run on. A goal ends itself when its checker agrees, so the done-condition *is* the condition you handed me; report what happened either way.
 - **The gates hold inside every iteration and every goal turn** (see *Gates* above). Know what asking costs here, though: it ends the turn, the checker sees the condition still unmet, and another turn starts, so the goal only halts once several turns pass with no progress. Never set a goal whose only path to done runs through a gate I have to answer, and never run one headless (`claude -p "/goal …"`), where nobody is there to answer it.

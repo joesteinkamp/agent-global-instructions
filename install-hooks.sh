@@ -145,6 +145,29 @@ install_claude() {
     ]
   }')"
   echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, worktree-reap, precompact-archive, session-end$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
+  claude_hooks_restricted && echo "  claude: WARNING — managed policy sets allowManagedHooksOnly or disableAllHooks, so Claude Code ignores every hook above (guards included) and refuses /goal; agents fall back to /loop" >&2
+  return 0
+}
+
+# Claude Code ignores user hooks when policy (managed settings) sets
+# allowManagedHooksOnly or disableAllHooks — and /goal, which is a session Stop
+# hook underneath, refuses to start ("/goal can't run while hooks are
+# restricted"). The install still succeeds; this only makes the dead wiring
+# visible instead of silent. AIGI_CLAUDE_POLICY_DIR overrides the location for
+# tests.
+claude_hooks_restricted() {
+  local d="${AIGI_CLAUDE_POLICY_DIR:-}" f
+  if [ -z "$d" ]; then
+    case "$(uname -s)" in
+      Darwin) d="/Library/Application Support/ClaudeCode" ;;
+      *)      d="/etc/claude-code" ;;
+    esac
+  fi
+  for f in "$d/managed-settings.json" "$d"/managed-settings.d/*.json; do
+    [ -f "$f" ] || continue
+    jq -e '.allowManagedHooksOnly == true or .disableAllHooks == true' "$f" >/dev/null 2>&1 && return 0
+  done
+  return 1
 }
 
 install_codex() {
