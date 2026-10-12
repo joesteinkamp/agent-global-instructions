@@ -13,7 +13,7 @@ so the log reads as the project's decision history, not just a list of diffs.
 
 ### Changed
 - **Make Antigravity and Cursor delegates work headless (2026-10-12,
-  Claude).** The ask: in a cross-vendor plan wave on 2026-10-11, Antigravity
+  Claude, #74).** The ask: in a cross-vendor plan wave on 2026-10-11, Antigravity
   returned nothing three times and Cursor was never usable, and Joe wanted
   both fixed, with Antigravity able to write its own report. What changed:
   - Antigravity now launches from the repo with `--add-dir <ctx>`, in its
