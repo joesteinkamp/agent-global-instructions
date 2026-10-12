@@ -123,9 +123,15 @@ install_cursor_settings() {
 # Headless `agy -p` cannot prompt, so every command without an allow rule is
 # auto-denied and a reviewer delegate returns nothing (observed 2026-10-05). Union
 # a read-only allowlist into the user's rules; their own entries are kept.
+# The write rule needs an absolute path, so @HOME@ in the snippet is filled in
+# here (uninstall.sh does the same, so it subtracts the identical string).
 install_antigravity_settings() {
   echo "  antigravity:"
-  merge_perms_json "$HOME/.gemini/antigravity-cli/settings.json" "$DIR/settings-permissions.antigravity.snippet.json" antigravity
+  local snip; snip="$(mktemp)"; TMPFILES+=("$snip")
+  jq --arg h "$HOME" '.permissions |= with_entries(.value |= map(gsub("@HOME@"; $h)))' \
+    "$DIR/settings-permissions.antigravity.snippet.json" > "$snip" \
+    || { echo "    could not prepare the antigravity snippet" >&2; return 1; }
+  merge_perms_json "$HOME/.gemini/antigravity-cli/settings.json" "$snip" antigravity
 }
 
 # Seed one key inside an exact TOML table without rewriting or reformatting the

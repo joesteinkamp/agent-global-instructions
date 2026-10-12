@@ -61,7 +61,7 @@ Ask in order and stop at the first that applies:
 | `claude` | none: aliases `fable` `opus` `sonnet` `haiku` follow the newest model on their own | `--model <alias\|id>` | `--effort low…max` | Subagents: the Agent tool's `model` param per spawn, or `model:` in a role file |
 | `codex` | `codex debug models` (JSON; `visibility: hide` = don't route) | `-m <slug>` | `-c model_reasoning_effort=<lvl>` | Headless form: see `~/.ai/orchestration.md` |
 | `agy` | `agy models` | `--model <slug>` | effort suffix in the slug, or `--effort` | **`-p` must come last.** It treats the next token as the prompt, so `agy -p --model …` sends "--model" as the prompt |
-| `agent` | `agent --list-models` | `--model <slug>` | in the slug (`-high`, `-xhigh`) | Free plan: named models fail with `Named models unavailable`; only `auto` runs |
+| `agent` | `agent --list-models` | `--model <slug>` | in the slug (`-high`, `-xhigh`) | Free plan: named models fail with `Named models unavailable`; only `auto` runs. **Pass `--model auto` explicitly**, or a named default in `~/.cursor/cli-config.json` fails the same way |
 
 <!-- generated:begin — /update-model-routing rewrites everything from here down to the end marker -->
 

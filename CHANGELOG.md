@@ -12,6 +12,39 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Make Antigravity and Cursor delegates work headless (2026-10-12,
+  Claude, #74).** The ask: in a cross-vendor plan wave on 2026-10-11, Antigravity
+  returned nothing three times and Cursor was never usable, and Joe wanted
+  both fixed, with Antigravity able to write its own report. What changed:
+  - Antigravity now launches from the repo with `--add-dir <ctx>`, in its
+    default mode, with `--disable-slash-commands`. Every prompt opens with the
+    exact tools and commands it may use.
+  - `install-settings.sh antigravity` adds one write rule,
+    `write_file($HOME/.ai-context)`, filled in with the real `$HOME` at
+    install time and removed the same way by `uninstall.sh`.
+  - Cursor always gets `--model auto`.
+  - The playbook's smoke test must read a repo file and write the output
+    file. Delegates get one output path, never "write and also print", and
+    effort is budgeted per vendor pool.
+  - Cursor's `auto` model counts as an extra voice, never the deciding review.
+
+  Why: probes on 2026-10-12 found the real causes. Antigravity can read only
+  inside its workspace. Its default mode denies writes outside `/tmp` unless
+  an allow rule permits them. One denied call discards its whole output while
+  it still exits 0. Cursor's default model (`claude-opus-5-5` in
+  `cli-config.json`) is refused on the free plan. Each new form was verified:
+  the delegate reads the repo and writes its report, and a write into the repo
+  is denied. Considered and rejected:
+  - `--mode accept-edits`, the playbook's previous Antigravity form, which let
+    Antigravity write into the repo.
+  - `--dangerously-skip-permissions`, a full bypass.
+  - Changing Cursor's default model in `cli-config.json`, which is the user's
+    interactive setting.
+  - A `read_file` allow rule. That was the first diagnosis, and it was wrong:
+    the cause was the workspace boundary.
+
+  Still open: Cursor's free plan and Codex's quota both ran out on usage
+  limits, which no configuration fixes.
 - **Fall back to `/loop` when Claude Code policy blocks `/goal` (2026-10-11,
   Claude, #73).** The ask: Joe noticed `/goal` was never used. #71 fixed when
   the offer is made, but on his machine any offered line would still fail.
