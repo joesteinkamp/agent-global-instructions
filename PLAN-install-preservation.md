@@ -1,6 +1,6 @@
 # Plan — keep people's customizations in the files `install.sh` writes
 
-**Status: PLAN ONLY (2026-10-11).** No product code yet; Joe asked for the plan
+**Status: PLAN ONLY, revision 2 (2026-10-12): rewritten after the refuter pass in §15, which refuted revision 1.** No product code yet; Joe asked for the plan
 first. Written by Claude (Opus 5.5). Rival drafts from other vendors are diffed
 in §13.
 **Lives on:** branch `ai/claude-install-preserve`, worktree
@@ -120,6 +120,10 @@ someone's edit.
 
 ## 4. Classification: the ladder each write climbs
 
+**Rule above the ladder (R3, R11): every overwrite or delete of a file whose
+bytes differ from the new version saves a copy to `preserved/` first, whatever
+rung it matched.** A wrong "safe" verdict then costs a recovery, never data.
+
 The first rung that matches decides the outcome. Steps 1–6 are deterministic;
 step 7 is the optional AI check (D2).
 
@@ -128,15 +132,17 @@ step 7 is the optional AI check (D2).
 | 1 | **PINNED** | path is in `pins` | Don't write. Report if upstream changed. |
 | 2 | **ABSENT** | no file | Write it and record it. |
 | 3 | **CURRENT** | blob(dest) == blob(new) | No-op. Record it if no record exists (adopts pre-ledger installs). |
-| 4 | **OURS** | blob(dest) == manifest blob for this path | Safe overwrite, no prompt. Refresh `base/`. |
-| 5 | **SHIPPED** | blob(dest) ∈ every blob this source ever had in git (`git log --format= --raw --no-abbrev -- <src>`) | Safe overwrite: an older version of ours. This is what makes migration work (§10). |
-| 6 | **COVERED** | every non-blank line the user added is already present in the new content (or, for `~/AGENTS.md`, in `extras.local.md`) | Safe overwrite. The user's additions survive in the new file anyway. |
+| 4 | **OURS** | a manifest record exists AND blob(canonical part of dest) == the recorded blob | Overwrite, no prompt. Refresh `base/`. **If a record exists and this rung fails, skip straight to 8.** Someone changed the file after we wrote it, which is exactly G3, so rungs 5 and 6 never get a say (R2). |
+| 5 | **SHIPPED** *(bootstrap only: no manifest record)* | blob(dest) ∈ every blob the source ever had (`git log --all -m --format= --raw --no-abbrev -- <src>`). For `~/AGENTS.md`: blob(dest) ∈ renders of the last 30 commits touching `template.md`/`customize.sh`, re-rendered with today's personal layers (R1, R6) | Overwrite, no prompt. **Never matched against `.bak.*` files**, which hold user content (R1). |
+| 6 | **COVERED** *(bootstrap only; Markdown only)* | dest's line sequence is an **order-preserving subsequence** of the new file's, i.e. the new file is dest with insertions only. Only trailing whitespace is ignored. | Overwrite, no prompt. Never applies to scripts, TOML/JSON, or frontmatter (R3). |
 | 7 | **COVERED-AI** *(optional)* | the AI judge says the added lines' intent is already expressed in the new version (§7) | Treated as CUSTOM, with the verdict shown and a recommended action. **Never** a silent overwrite on its own. |
 | 8 | **CUSTOM** | none of the above | Resolve per §5. |
 
 "Lines the user added" is the line diff `base → dest` when a base exists, and
-the line diff `new → dest` when one doesn't (pre-ledger), in both cases ignoring
-whitespace-only changes. Lines the user *deleted* from our version are a
+the line diff `new → dest` when one doesn't (pre-ledger). Only trailing
+whitespace is ignored, because indentation carries meaning in YAML and in
+Markdown code blocks (R3). Preserved-block marker lines are never counted as
+added lines (R4). Lines the user *deleted* from our version are a
 customization too. The COVERED test can't see them, so a file with deletions is
 never COVERED. It goes to CUSTOM, and the prompt says "you removed N lines we
 ship."
@@ -155,8 +161,14 @@ unattended: back up to `preserved/`, then delete, and report it.
 
 **`~/AGENTS.md`** is a *personal* render (template + `my-context.env` +
 `extras.local.md`), so its historical blobs aren't in git either. Its steps 4–6
-are: the manifest blob (4), the stored `.bak.*` renders this installer already
-made (5′), and line coverage against the new render plus `extras.local.md` (6).
+are: the manifest blob (4); a bounded one-time re-render of recent historical
+commits with today's personal layers (5); and no rung 6, because the
+subsequence test still treats upstream additions as user deletions (R6). If
+the personal layers changed since that render, the file falls to CUSTOM. That's
+noisy but safe, given the `preserved/` rule. **Its `.bak.*` files are never
+evidence of ownership** (R1). The oldest surviving `~/AGENTS.md.bak.*` is copied
+to `orig/` once at bootstrap, as the best available pre-install original (R1
+knock-on).
 
 ## 5. Resolving a CUSTOM file
 
@@ -443,3 +455,50 @@ plus a re-run of the §12 spike on a machine a few releases behind.
 None blocking. Round 2 was answered on 2026-10-12 (D5–D8, §1). Before any code
 is written: the cross-family refuter pass on this reconciled plan (§13), and the
 §12 spike re-run on a machine a few releases behind.
+
+## 15. Refuter pass on revision 1 → revision 2
+
+**Who reviewed it:** an in-tool `refuter` (Claude, the same family as the
+author). The planned cross-family refuter (Codex) ran out of quota partway
+through (`usage limit … try again at Nov 4th, 2026`), and Antigravity was
+already dropped (§13). **So this is a same-family check: it tests the reasoning,
+not the model's blind spots.** A cross-family refuter is still owed before
+building.
+
+**Verdict on revision 1: refuted.** Two findings were reproduced mechanically
+(R3, R6). Every finding is accepted. How each one is resolved:
+
+| # | Finding (severity order) | Resolution in revision 2 |
+|---|---|---|
+| R1 | Rung 5′ matched `~/AGENTS.md.bak.*`, but those hold the *user's* content, so a restored edit was silently overwritten | 5′ deleted. `~/AGENTS.md` SHIPPED = re-render of recent commits with today's layers (§4). The oldest `.bak.*` goes to `orig/` at bootstrap |
+| R2 | SHIPPED still applied with a manifest record, so a deliberate revert to an old version was silently overwritten | Rungs 5–6 are **bootstrap-only**. With a record, any mismatch → CUSTOM (§4) |
+| R3 | COVERED was a position-blind set test that also applied to scripts. An inserted `exit 0` that disables a hook counted as "covered". Whitespace-only edits were vacuously covered | Order-preserving subsequence test, Markdown only, bootstrap only, trailing whitespace only. **Plus: every overwrite of differing bytes saves to `preserved/`, whatever the rung** (§4) |
+| R4 | Preserved block "user-owned" vs a whole-file ledger blob: editing the block → CUSTOM → replaced. Second merges and no-base merges nest markers | The ledger records the blob of the **canonical part** (file minus block) and the block separately. Rung 4 compares the canonical part only. The block is carried verbatim. A later `[a]` appends *inside* the existing block. Marker lines are never "added lines". Damaged markers → CUSTOM, never re-wrapped |
+| R5 | `--resolve --append` diffed against the wrong base, so upstream rewording was appended as "your lines" | Each `preserved/` entry stores a triple: the user's version, the base it diverged from, the new version that replaced it. `--resolve` diffs base → user |
+| R6 | `~/AGENTS.md` bootstrap came out CUSTOM one template change behind (repro: 843b2f4 vs 423c48d, 9 false "deletions") | Fixed by the historical re-render in rung 5. Rung 6 doesn't apply to `~/AGENTS.md`. Generated ports use option (a), re-rendering at historical commits; option (b) is withdrawn |
+| R7 | The `extras.local.md` routing isn't durable: a second checkout or worktree renders without it, and the result reads as OURS → silent loss. No backup of extras, no dedupe, position lost, a hand-written Codex file gets dumped wholesale | Ledger records the **checkout path + blob of `extras.local.md` and `my-context.env`** used for the render. An install whose layers differ from the recorded ones treats `~/AGENTS.md` as CUSTOM (prompt; unattended: proceed, save to `preserved/`, report "rendered without your personal layers from <path>"). `extras.local.md` is snapshotted into `install-state/` whenever it changes. Routed lines go under a dated `## Preserved from ~/AGENTS.md (<date>)` heading, deduped against existing extras. `[a]` is withdrawn when added lines exceed half the file (a wholly custom file → keep/pin/replace only) |
+| R8 | Two-phase run: no re-check at apply (TOCTOU), a partial death orphans state, no lock, exit 3 under `set -e` aborts later layers | Apply re-checks blob(dest) against what phase 1 saw; a mismatch → re-classify, never write. `last-run.json` is journaled one row per action, before the action. A `mkdir`-based lock on `install-state/` (portable, atomic) refuses a concurrent run. Layers always exit 0 on success; only `install.sh` computes exit 3, at the very end |
+| R9 | Three conflicting "unattended" definitions; `[ -r /dev/tty ]` is true even with no terminal | One helper `aigi_unattended`: `--yes`, or `AIGI_UNATTENDED=1`, or `/dev/tty` **fails to open** (an open test, not `-r`). `install.sh` decides once and exports it. **Behaviour change, flagged:** a no-TTY run without `--yes` today aborts only the global render (`customize.sh:777-779`). Under D1 it now renders. That is the literal reading of D1, and Joe should confirm it before build |
+| R10 | Inventory missed: the Antigravity `*.ag.sh` wrappers; Codex skill deletions (design-group off, retired, `~/.codex/prompts`) with no backup; timeout/`lm` removals; `lm` overwriting a foreign binary; user edits outside the `model-routing.md` markers; hook-backup rotation; Cursor `.version` | All added to §2 and routed through `preserve_write`/`preserve_delete`. `lm` gets the timeout shim's marker check (a foreign `lm` → CUSTOM, never replaced unattended). `model-routing.md` is ledgered **outside the markers only**, because `/update-model-routing` owns the inside |
+| R11 | "Already safe" rows weren't: any symlink at `~/.claude/CLAUDE.md` or a skill path is replaced; `cp` writes *through* a symlinked dest into a dotfiles target | `preserve_write` rule: a dest that is a symlink not recognized as ours → CUSTOM, never written through, never silently replaced. Its target is recorded in `preserved/`. The `CLAUDE.md` symlink removal is narrowed to links that point at `~/AGENTS.md` (the legacy layout) |
+| R12 | Unsupported verification claims: CI is ubuntu-only (no bash 3.2), a shallow checkout disables SHIPPED, "second install writes nothing" is false (`clis`, ports), `--plan` still re-renders ports and seeds `{}` | Add a `macos-latest` CI job (bash 3.2, BSD `diff`/`mktemp`). Tests build a **synthetic fixture repo** with history, so they're independent of checkout depth. Done-condition reworded: "a second `--yes` changes no **ledgered** file" (machine-data files excluded by class). `--plan` renders ports into a temp dir and seeds nothing |
+| R13 | G4 can't be closed on pre-ledger machines | Accepted as a stated limitation. At bootstrap, rules present that match our snippet are adopted as ours (so uninstall leaves nothing behind). Exact provenance only applies to rules added after the ledger exists |
+| R14 | Minor: `%2F` encoding collides; day-granular `preserved/` names collide; G2 overstated for uninstall; §9 self-contradiction; `--purge` ungated; frontmatter merge undefined without a base; AI `timeout` before the shim exists on macOS; merge-only blobs | Escape `%` → `%25` first. Use `mktemp` suffixes in `preserved/`. §9 reads: "remove when OURS; otherwise save to `preserved/`, then remove". `--purge` asks for a typed confirmation. No frontmatter merge without a base (→ CUSTOM). The AI check calls the repo's `portable-timeout` directly. `git log --all -m` is in rung 5; still to be verified with a fixture merge commit |
+
+**Still unverified** (the refuter couldn't check these either): BSD `diff` on
+current macOS lacks GNU `--*-line-format`, so the line splitter must use `awk`
+over `diff` normal output or `cmp`-free logic (a portability requirement for
+build, not a design gap); what Claude Code does when a `!` command opens
+`/dev/tty`; whether Cursor or Antigravity rewrite their own agent files (ledger
+drift).
+
+**§12 spike commands** (missing in revision 1): the classification loop used on
+2026-10-11 is reproduced here so it can be re-run on an older machine:
+
+```sh
+check(){ d=$(git hash-object --no-filters "$2") n=$(git hash-object --no-filters "$1")
+  [ "$d" = "$n" ] && { echo "CURRENT  $2"; return; }
+  git log --all -m --format= --raw --no-abbrev -- "$1" | awk '{print $3; print $4}' \
+    | grep -qx "$d" && echo "SHIPPED  $2" || echo "CUSTOM?  $2"; }
+for f in roles/*.md; do check "$f" ~/.claude/agents/"$(basename "$f")"; done   # likewise commands/, hooks/, playbooks/
+```
