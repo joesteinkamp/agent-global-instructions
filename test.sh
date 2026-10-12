@@ -2417,11 +2417,11 @@ dsaved="$(sed -n 's/^S=//p' "$LT/delcustom/out")"
   || bad "ledger: deleting an edited file saves it to preserved/ first"
 
 # Lock: a live holder refuses a second writer; a dead holder is taken over.
-lt lockdead 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "999999\nnot-a-start\n%s\n%s\n" "$(hostname)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+lt lockdead 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "999999\nnot-a-start\n%s\n%s\n" "$(pv_host)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
 grep -q 'A=created' "$LT/lockdead/out" \
   && ok "ledger: a lock left by a dead process is taken over" \
   || bad "ledger: a lock left by a dead process is taken over"
-lt locklive 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "%s\n%s\n%s\n%s\n" "$PPID" "$(pv_proc_start "$PPID")" "$(hostname)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; if pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; then echo WROTE; else echo REFUSED; fi'
+lt locklive 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "%s\n%s\n%s\n%s\n" "$PPID" "$(pv_proc_start "$PPID")" "$(pv_host)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; if pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; then echo WROTE; else echo REFUSED; fi'
 { grep -q REFUSED "$LT/locklive/out" && [ ! -e "$LT/locklive/d.md" ]; } \
   && ok "ledger: a lock held by a live process refuses a second writer" \
   || bad "ledger: a lock held by a live process refuses a second writer"
