@@ -2468,6 +2468,149 @@ else
 fi
 
 
+# ---- install ledger (lib/preserve.sh) — PLAN-install-preservation.md phase 1 --
+# The ledger exists to tell "a version this installer wrote" from "someone's
+# edit", which a plain `cmp new dest` can't. Each case runs in a subshell with
+# its own HOME, state dir, and a fixture git repo whose history holds v1 and v2
+# of one file, so SHIPPED is testable without depending on this checkout's depth.
+echo "== install ledger =="
+LT="$(mktemp -d "${TMPDIR:-/tmp}/aigi_ledger.XXXXXX")"
+FX="$LT/repo"; mkdir -p "$FX/roles"
+git -C "$FX" init -q
+printf 'v1\n' > "$FX/roles/r.md"; git -C "$FX" add -A; git -C "$FX" -c user.name=t -c user.email=t@t commit -qm v1
+printf 'v2\n' > "$FX/roles/r.md"; git -C "$FX" -c user.name=t -c user.email=t@t commit -qam v2
+# lt <case-name> <snippet>: run the snippet with the library loaded against the fixture.
+lt() {
+  local h="$LT/$1"; rm -rf "$h"; mkdir -p "$h"
+  ( export HOME="$h" AIGI_STATE_DIR="$h/state" PV_REPO="$FX"
+    # shellcheck source=lib/preserve.sh
+    . "$LEDGER_LIB"
+    eval "$2" ) >"$h/out" 2>&1
+}
+LEDGER_LIB="$DIR/lib/preserve.sh"
+st() { printf '%s' "$LT/$1/state"; }
+
+lt created 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=created' "$LT/created/out" && [ "$(cut -f2 "$(st created)/manifest.tsv")" = "$LT/created/d.md" ] \
+  && cmp -s "$FX/roles/r.md" "$(st created)/base/$(cut -f1 "$(st created)/manifest.tsv")"; } \
+  && ok "ledger: a new file is created, recorded, and its bytes kept in base/" \
+  || bad "ledger: a new file is created, recorded, and its bytes kept in base/"
+
+lt adopt 'cp "$PV_REPO/roles/r.md" "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=current' "$LT/adopt/out" && [ "$(wc -l < "$(st adopt)/manifest.tsv")" -eq 1 ]; } \
+  && ok "ledger: an identical pre-ledger file is adopted without a write" \
+  || bad "ledger: an identical pre-ledger file is adopted without a write"
+
+lt ours 'printf "old\n" > "$HOME/s"; pv_write role "$HOME/s" "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md"; echo "A=$PV_ACTION"'
+{ grep -q 'A=updated' "$LT/ours/out" && [ ! -e "$(st ours)/preserved.tsv" ] && cmp -s "$FX/roles/r.md" "$LT/ours/d.md"; } \
+  && ok "ledger: a file still holding what we wrote is updated quietly, nothing preserved" \
+  || bad "ledger: a file still holding what we wrote is updated quietly, nothing preserved"
+
+lt custom 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "my edit\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION S=$PV_SAVED"'
+csaved="$(sed -n 's/.* S=//p' "$LT/custom/out")"
+{ grep -q 'A=replaced-custom' "$LT/custom/out" && grep -q 'replaced your edited' "$LT/custom/out" \
+  && [ "$(cat "$csaved" 2>/dev/null)" = "my edit" ] && cmp -s "$FX/roles/r.md" "$LT/custom/d.md" \
+  && [ "$(wc -l < "$(st custom)/preserved.tsv")" -eq 1 ]; } \
+  && ok "ledger: an edited file is saved to preserved/ before it's replaced, and the run says so" \
+  || bad "ledger: an edited file is saved to preserved/ before it's replaced, and the run says so"
+
+# R2: with a ledger row, matching an OLD shipped version is not "safe" — the
+# user put it there after our write (a deliberate revert).
+lt revert 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "v1\n" > "$HOME/d.md"; echo "V=$(pv_classify "$HOME/d.md" roles/r.md)"'
+grep -q 'V=CUSTOM' "$LT/revert/out" \
+  && ok "ledger: a deliberate revert to an older shipped version is CUSTOM, not SHIPPED" \
+  || bad "ledger: a deliberate revert to an older shipped version is CUSTOM, not SHIPPED"
+
+lt shipped 'printf "v1\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=updated' "$LT/shipped/out" && [ ! -e "$(st shipped)/preserved.tsv" ]; } \
+  && ok "ledger: a pre-ledger file matching a shipped version is updated quietly" \
+  || bad "ledger: a pre-ledger file matching a shipped version is updated quietly"
+
+lt bootcustom 'printf "hand-made\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=replaced-custom' "$LT/bootcustom/out" && [ -s "$(st bootcustom)/preserved.tsv" ]; } \
+  && ok "ledger: a pre-ledger file in no shipped version is preserved before replacement" \
+  || bad "ledger: a pre-ledger file in no shipped version is preserved before replacement"
+
+lt generated 'printf "hand-made\n" > "$HOME/d.sh"; pv_write gen "$PV_REPO/roles/r.md" "$HOME/d.sh"; echo "A=$PV_ACTION"'
+grep -q "couldn't prove it was unedited" "$LT/generated/out" \
+  && ok "ledger: a generated file with no history is preserved and reported honestly" \
+  || bad "ledger: a generated file with no history is preserved and reported honestly"
+
+lt symlink 'printf "dotfile\n" > "$HOME/target"; ln -s "$HOME/target" "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=skipped-symlink' "$LT/symlink/out" && [ "$(cat "$LT/symlink/target")" = "dotfile" ] && [ -L "$LT/symlink/d.md" ]; } \
+  && ok "ledger: a symlinked destination is never written through" \
+  || bad "ledger: a symlinked destination is never written through"
+
+lt delours 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; pv_delete "$HOME/d.md" toggled roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=removed' "$LT/delours/out" && [ ! -e "$LT/delours/d.md" ] && [ ! -e "$(st delours)/preserved.tsv" ] \
+  && [ ! -s "$(st delours)/manifest.tsv" ]; } \
+  && ok "ledger: deleting a file we wrote removes it and its ledger row, nothing preserved" \
+  || bad "ledger: deleting a file we wrote removes it and its ledger row, nothing preserved"
+
+lt delcustom 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"; pv_delete "$HOME/d.md" toggled roles/r.md; echo "S=$PV_SAVED"'
+dsaved="$(sed -n 's/^S=//p' "$LT/delcustom/out")"
+{ [ ! -e "$LT/delcustom/d.md" ] && [ "$(cat "$dsaved" 2>/dev/null)" = "mine" ]; } \
+  && ok "ledger: deleting an edited file saves it to preserved/ first" \
+  || bad "ledger: deleting an edited file saves it to preserved/ first"
+
+# Lock: a live holder refuses a second writer; a dead holder is taken over.
+lt lockdead 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "999999\nnot-a-start\n%s\n%s\n" "$(hostname)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+grep -q 'A=created' "$LT/lockdead/out" \
+  && ok "ledger: a lock left by a dead process is taken over" \
+  || bad "ledger: a lock left by a dead process is taken over"
+lt locklive 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "%s\n%s\n%s\n%s\n" "$PPID" "$(pv_proc_start "$PPID")" "$(hostname)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; if pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; then echo WROTE; else echo REFUSED; fi'
+{ grep -q REFUSED "$LT/locklive/out" && [ ! -e "$LT/locklive/d.md" ]; } \
+  && ok "ledger: a lock held by a live process refuses a second writer" \
+  || bad "ledger: a lock held by a live process refuses a second writer"
+
+lt pathid 'id="$(pv_pathid "/a/very/deep/$(printf "x%.0s" $(seq 1 300))/file.md")"; echo "ID=$id"'
+grep -Eq '^ID=[0-9a-f]{16}$' "$LT/pathid/out" \
+  && ok "ledger: path-ids are 16 hex chars however deep the path (NAME_MAX-safe)" \
+  || bad "ledger: path-ids are 16 hex chars however deep the path (NAME_MAX-safe)"
+
+# Real writers, end to end, in a throwaway HOME. Roles used to be overwritten
+# with no backup at all (install-roles.sh); now the edit survives in preserved/.
+RH="$LT/roles-home"; mkdir -p "$RH"
+HOME="$RH" bash "$DIR/install-roles.sh" claude >/dev/null 2>&1
+printf '\nmy local rule\n' >> "$RH/.claude/agents/refuter.md"
+HOME="$RH" bash "$DIR/install-roles.sh" claude > "$LT/roles.out" 2>&1
+{ cmp -s "$DIR/roles/refuter.md" "$RH/.claude/agents/refuter.md" \
+  && grep -lq 'my local rule' "$RH/.ai/install-state/preserved/"* 2>/dev/null \
+  && grep -q 'replaced your edited' "$LT/roles.out"; } \
+  && ok "install-roles: an edited role is preserved, then reinstalled (no more silent overwrite)" \
+  || bad "install-roles: an edited role is preserved, then reinstalled (no more silent overwrite)"
+HOME="$RH" bash "$DIR/install-roles.sh" claude > "$LT/roles2.out" 2>&1
+grep -q 'roles already current' "$LT/roles2.out" \
+  && ok "install-roles: a second run changes nothing" \
+  || bad "install-roles: a second run changes nothing"
+
+# Playbooks: an edited playbook in a toggled-off section is saved, not just deleted.
+PH="$LT/pb-home"; mkdir -p "$PH"
+HOME="$PH" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+printf '\nmy playbook note\n' >> "$PH/.ai/orchestration.md"
+HOME="$PH" AIGI_NO_USER_ENV=1 INC_ORCHESTRATION=n bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+{ [ ! -e "$PH/.ai/orchestration.md" ] && grep -lq 'my playbook note' "$PH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "customize --global: an edited playbook is preserved when its section is toggled off" \
+  || bad "customize --global: an edited playbook is preserved when its section is toggled off"
+
+# lm: another tool's `lm` binary is never replaced.
+LH="$LT/lm-home"; mkdir -p "$LH/.local/bin"
+printf '#!/bin/sh\necho someone-elses-lm\n' > "$LH/.local/bin/lm"
+HOME="$LH" AIGI_NO_USER_ENV=1 INC_LOCAL_MODELS=y AIGI_NO_PROBE=1 bash "$CUSTOMIZE" --global --yes > "$LT/lm.out" 2>&1
+{ grep -q 'someone-elses-lm' "$LH/.local/bin/lm" && grep -q 'is not ours' "$LT/lm.out"; } \
+  && ok "customize --global: a foreign lm binary is left alone" \
+  || bad "customize --global: a foreign lm binary is left alone"
+# The sweep CLI (install-hooks.sh) was copied over with no backup.
+SH="$LT/sweep-home"; mkdir -p "$SH/.claude"
+HOME="$SH" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+printf '\n# my tweak\n' >> "$SH/.ai/worktree-sweep.sh"
+HOME="$SH" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+{ cmp -s "$DIR/hooks/worktree-reap.sh" "$SH/.ai/worktree-sweep.sh" && [ -x "$SH/.ai/worktree-sweep.sh" ] \
+  && grep -lq 'my tweak' "$SH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "install-hooks: an edited sweep CLI is preserved, then reinstalled executable" \
+  || bad "install-hooks: an edited sweep CLI is preserved, then reinstalled executable"
+rm -rf "$LT"
+
 echo ""
 echo "$pass passed, $fail failed"
 rm -f "$OUT" "$ERR"

@@ -28,6 +28,8 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$DIR/roles"
 [ -d "$SRC" ] || { echo "No roles/ dir at $SRC" >&2; exit 1; }
+# shellcheck source=lib/preserve.sh
+. "$DIR/lib/preserve.sh"
 
 PROJECT=0
 targets=()
@@ -43,15 +45,18 @@ done
 # Always re-render the ports so they can't drift from the canonical files.
 "$DIR/render-roles.sh" >/dev/null
 
-install_dir() {  # $1 = src dir  $2 = ext  $3 = dest dir  $4 = label
-  local src="$1" ext="$2" dest="$3" label="$4" f base n=0
+# Each role goes through the install ledger (lib/preserve.sh): a role you
+# edited is saved to ~/.ai/install-state/preserved/ before it's replaced,
+# instead of being overwritten silently as it was before.
+install_dir() {  # $1 = src dir  $2 = ext  $3 = dest dir  $4 = label  [$5 = repo-relative src dir, for history]
+  local src="$1" ext="$2" dest="$3" label="$4" rel="${5:-}" f base n=0
   mkdir -p "$dest"
   for f in "$src"/*."$ext"; do
     [ -e "$f" ] || continue
     base="$(basename "$f")"
     [ "$base" = "README.$ext" ] && continue
-    if cmp -s "$f" "$dest/$base"; then continue; fi
-    cp "$f" "$dest/$base" && n=$((n+1))
+    pv_write role "$f" "$dest/$base" "${rel:+$rel/$base}" || return 1
+    case "$PV_ACTION" in created|updated|replaced-custom) n=$((n+1));; esac
   done
   if [ "$n" -gt 0 ]; then echo "  $label: wrote $n role file(s) -> $dest"
   else echo "  $label: roles already current -> $dest"; fi
@@ -61,8 +66,8 @@ echo "== roles =="
 for t in "${targets[@]}"; do
   case "$t" in
     claude)
-      if [ "$PROJECT" = 1 ]; then install_dir "$SRC" md "$DIR/.claude/agents" claude
-      else install_dir "$SRC" md "$HOME/.claude/agents" claude; fi
+      if [ "$PROJECT" = 1 ]; then install_dir "$SRC" md "$DIR/.claude/agents" claude roles
+      else install_dir "$SRC" md "$HOME/.claude/agents" claude roles; fi
       ;;
     codex)
       # Codex reads project agents from ./.codex/agents/ and personal ones from

@@ -571,6 +571,11 @@ backup_keep5() {
 # a foreign symlink at a pointer path is replaced without backup (its target
 # file is untouched and still owns the content).
 write_global() {
+  # The install ledger (pv_write / pv_delete) tells a file this installer
+  # wrote from one someone edited, and saves the edited one before replacing
+  # it. Loaded here, not at the top: rendering (--print) needs none of it.
+  # shellcheck source=lib/preserve.sh
+  . "$DIR/lib/preserve.sh" || { echo "missing $DIR/lib/preserve.sh — refusing to install" >&2; return 1; }
   mkdir -p "$HOME/.claude" "$HOME/.codex"
   # The legacy Gemini CLI is retired (Antigravity replaced it and reads
   # AGENTS.md natively). Clean up a stale pointer this script wrote in the
@@ -630,10 +635,17 @@ write_global() {
   if [ "$INC_LOCAL_MODELS" = "y" ]; then
     if [ -f "$DIR/lm" ]; then
       mkdir -p "$HOME/.local/bin"
-      if cmp -s "$DIR/lm" "$HOME/.local/bin/lm" 2>/dev/null; then
-        echo "  ok ~/.local/bin/lm (up to date)"
-      else
-        install -m 0755 "$DIR/lm" "$HOME/.local/bin/lm" && echo "  wrote ~/.local/bin/lm (local-model shim)"
+      # Never replace a foreign `lm` — another tool's binary of the same name.
+      # Ours carries the repo name, the same marker the removal below checks.
+      if [ -e "$HOME/.local/bin/lm" ] && ! grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
+        echo "  note: ~/.local/bin/lm is not ours (no agent-global-instructions marker) — left alone"
+      elif pv_write shim "$DIR/lm" "$HOME/.local/bin/lm" lm; then
+        chmod 0755 "$HOME/.local/bin/lm" 2>/dev/null || true
+        case "$PV_ACTION" in
+          current) echo "  ok ~/.local/bin/lm (up to date)";;
+          skipped-symlink) ;;
+          *) echo "  wrote ~/.local/bin/lm (local-model shim)";;
+        esac
       fi
       command -v lm >/dev/null 2>&1 \
         || echo "  (note: ~/.local/bin is not on PATH — add it so 'lm' is invocable)"
@@ -652,7 +664,8 @@ write_global() {
     rm -f "$lmf"
     # Only remove OUR shim (marker check) — never a foreign `lm` binary.
     if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
-      rm -f "$HOME/.local/bin/lm"; echo "  removed ~/.local/bin/lm (INC_LOCAL_MODELS=n)"
+      pv_delete "$HOME/.local/bin/lm" "INC_LOCAL_MODELS=n" lm \
+        && [ "$PV_ACTION" = removed ] && echo "  removed ~/.local/bin/lm (INC_LOCAL_MODELS=n)"
     fi
   fi
   # Record which AI CLIs exist right now, so sessions read one file instead of
@@ -737,14 +750,17 @@ write_global() {
             "web-preview:$INC_ARTIFACTS"; do
     name="${pb%%:*}"; gate="${pb##*:}"
     if [ "$gate" = "y" ] && [ -f "$DIR/playbooks/$name.md" ]; then
-      if cmp -s "$DIR/playbooks/$name.md" "$HOME/.ai/$name.md" 2>/dev/null; then
-        echo "  ok ~/.ai/$name.md (up to date)"
-      else
-        cp "$DIR/playbooks/$name.md" "$HOME/.ai/$name.md" \
-          && echo "  wrote ~/.ai/$name.md (on-demand playbook)"
+      # Through the ledger: a playbook you edited is saved before it's replaced.
+      if pv_write playbook "$DIR/playbooks/$name.md" "$HOME/.ai/$name.md" "playbooks/$name.md"; then
+        case "$PV_ACTION" in
+          current) echo "  ok ~/.ai/$name.md (up to date)";;
+          skipped-symlink) ;;
+          *) echo "  wrote ~/.ai/$name.md (on-demand playbook)";;
+        esac
       fi
     else
-      rm -f "$HOME/.ai/$name.md"
+      # Section toggled off: remove it, but an edited copy is saved first.
+      pv_delete "$HOME/.ai/$name.md" "section toggled off" "playbooks/$name.md" || true
     fi
   done
   # Seed the default /loop maintenance prompt for Claude Code — bare `/loop`

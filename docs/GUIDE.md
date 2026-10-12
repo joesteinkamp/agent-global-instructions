@@ -387,6 +387,26 @@ without erroring, so without the `.toml` files every Codex "role" is the same
 agent under a different label, and only the Cursor port carries `readonly`. No
 port pins a model, so a role runs on whatever the session is running. `uninstall.sh` removes them, backing up any you hand-tuned.
 
+### When you've edited an installed file
+
+The installer keeps a ledger of what it writes, in `~/.ai/install-state/`. It
+covers roles, playbooks, `~/.ai/worktree-sweep.sh`, `lm`, and the Antigravity
+hook wrappers so far. The rest follow in later phases of
+`PLAN-install-preservation.md`. On a re-install:
+
+- **A file still holding what the installer last wrote,** or any version this
+  repo has shipped, is updated quietly.
+- **A file you edited** is copied to `~/.ai/install-state/preserved/` first,
+  then replaced. The run prints `replaced your edited <file> — your version:
+  <path>`. Saved copies are never rotated away, unlike `*.bak.*` files, and
+  `preserved.tsv` lists each one with its original path.
+- **A symlinked destination** (say, a role managed by your dotfiles) is never
+  written through, and an `lm` that isn't ours is never replaced.
+
+So nothing you edit is lost, but it doesn't stay live either: copy what you
+want back from `preserved/`. A durable way to keep an edit across installs is
+planned for the next phase.
+
 `uninstall.sh` reverses the pointers: each is restored from its newest backup
 (taken when the pointer was first installed), or removed if none exists;
 `~/AGENTS.md` itself is left in place. The `lm` shim is removed

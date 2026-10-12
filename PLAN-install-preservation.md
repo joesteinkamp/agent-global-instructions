@@ -1,6 +1,6 @@
 # Plan — keep people's customizations in the files `install.sh` writes
 
-**Status: PLAN ONLY, revision 3 (2026-10-12).** Revision 1 was refuted by a same-family refuter (§15); revision 2 was refuted by a cross-family one (Antigravity, §16). This revision resolves both. No product code yet; Joe asked for the plan
+**Status: revision 3 (2026-10-12); phase 1 BUILT (see §17), phases 2–3 not started.** Revision 1 was refuted by a same-family refuter (§15); revision 2 was refuted by a cross-family one (Antigravity, §16). This revision resolves both. No product code yet; Joe asked for the plan
 first. Written by Claude (Opus 5.5). Rival drafts from other vendors are diffed
 in §13.
 **Lives on:** branch `ai/claude-install-preserve`, worktree
@@ -548,3 +548,54 @@ appending to scripts.
 **Remaining before build:** none of the reviews so far was a T1 cross-family
 review (none is reachable from this machine). The BSD `diff` splitter and the
 cost of 30 historical re-renders are still unmeasured.
+
+## 17. Phase 1: built (2026-10-12)
+
+**Measured before building (the rung-5 falsifier from §12/§16):** re-rendering
+`~/AGENTS.md` at the last 30 commits that touched `template.md`/`customize.sh`,
+with this machine's real personal layers, took **4.3 s** on a 2-core box (0
+failures). The render at `423c48d` matched the installed `~/AGENTS.md` blob
+exactly, so the historical re-render does find a real install. Rung 5 for
+`~/AGENTS.md` is affordable as designed.
+
+**What phase 1 shipped:**
+- **`lib/preserve.sh`:**
+  - `pv_write` and `pv_delete`, plus the ledger (`manifest.tsv`, `base/`,
+    `preserved/`, `preserved.tsv`);
+  - 16-hex path-ids;
+  - a lock that holds pid + process start time + host, with dead-holder and
+    >2 h takeover by atomic rename;
+  - `PV_REPO`, the repo whose history counts as shipped (defaults to the
+    checkout).
+- **Writers routed through it** (the G1/A4 no-backup writes):
+  - role files for all four tools;
+  - the four playbooks, including deletion when a section is toggled off;
+  - `~/.ai/worktree-sweep.sh`;
+  - `~/.local/bin/lm`, now marker-checked so a foreign `lm` is never replaced;
+  - the Antigravity `*.ag.sh` wrappers.
+- **Tests and CI:**
+  - 19 new `test.sh` cases: every verdict, the R2 deliberate revert, symlinks,
+    deletes, the live and dead lock, path-id length, and the real writers end
+    to end;
+  - `lib/*.sh` added to the shellcheck glob in CI and `AGENTS.md`;
+  - a non-blocking `macos-latest` job running `test.sh` under bash 3.2.
+- **Docs:** a `docs/GUIDE.md` section on where edits go.
+
+**Deviation from revision 3, deliberate:** §4's rule "every overwrite of
+differing bytes saves to `preserved/`, whatever rung" would copy every old
+playbook and role into `preserved/` on every upgrade, forever. Phase 1 saves
+only **CUSTOM** files. OURS and SHIPPED are exact-blob proofs whose old bytes
+are recoverable from `base/` (OURS) or git history (SHIPPED), so a wrong verdict
+on them is impossible, not just recoverable. The rule stays for any future rung
+that is a judgement, not an exact match.
+
+**Not in phase 1, by design:**
+- No prompts, `[a]`/`[k]`/`[p]`, `--plan`, `--resolve`, or `last-run.json`.
+  Unattended behaviour is D1 everywhere, as decided.
+- Hook scripts, commands and Codex skills keep their existing `.bak.*`
+  backups.
+- `~/AGENTS.md` and the pointers are unchanged.
+- `uninstall.sh` doesn't read the ledger yet. Its rows for files it removes go
+  stale and harmless: the next install re-creates and re-records them.
+
+All of that is phases 2–3.
