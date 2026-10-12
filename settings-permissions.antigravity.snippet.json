@@ -1,5 +1,5 @@
 {
-  "_comment": "Antigravity CLI permissions (~/.gemini/antigravity-cli/settings.json). Exists so a headless `agy -p` reviewer delegate can read a repo: headless mode cannot prompt, so any command not allowed here is auto-denied. The allow list is read-only commands only. command() matches by token prefix, so `command(git log)` allows `git log --oneline` but not `git push`; a line with redirection, substitution or similar must match exactly, so `cat x > y` is not covered. Known gap: `git log|show|diff --output=<file>` writes a file and is covered by the prefix. sed (-i), find (-exec/-delete) and rg (--pre) are left out because each has a flag that writes or runs a program. Deny beats ask beats allow.",
+  "_comment": "Antigravity CLI permissions (~/.gemini/antigravity-cli/settings.json). Exists so a headless `agy -p` reviewer delegate can read a repo: headless mode cannot prompt, so any command not allowed here is auto-denied. The allow list is read-only commands only. command() matches by token prefix, so `command(git log)` allows `git log --oneline` but not `git push`; a line with redirection, substitution or similar must match exactly, so `cat x > y` is not covered. Known gap: `git log|show|diff --output=<file>` writes a file and is covered by the prefix. sed (-i), find (-exec/-delete) and rg (--pre) are left out because each has a flag that writes or runs a program. Deny beats ask beats allow. `write_file(@HOME@/.ai-context)` is the one write rule: a headless reviewer must write its report into the shared context dir, and default-mode agy denies writes outside /tmp unless allowed. It is a path prefix, so the repo stays unwritable (verified 2026-10-12). @HOME@ is replaced with the real $HOME at install and uninstall time, because the rule needs an absolute path.",
   "permissions": {
     "allow": [
       "command(git log)",
@@ -14,7 +14,8 @@
       "command(head)",
       "command(tail)",
       "command(wc)",
-      "command(grep)"
+      "command(grep)",
+      "write_file(@HOME@/.ai-context)"
     ],
     "deny": [
       "command(sudo)"

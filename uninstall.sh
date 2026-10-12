@@ -358,7 +358,11 @@ for t in "${targets[@]}"; do
     antigravity)
       strip_antigravity_hooks "$HOME/.gemini/antigravity-cli/hooks.json"
       remove_roles_dir "$HOME/.gemini/config/agents" md "$DIR/roles/antigravity"
-      strip_permissions_json "$HOME/.gemini/antigravity-cli/settings.json" "$DIR/settings-permissions.antigravity.snippet.json"
+      # Fill in @HOME@ exactly as install-settings.sh did, so the subtraction matches.
+      ag_snip="$(mktemp)"; TMPFILES+=("$ag_snip")
+      jq --arg h "$HOME" '.permissions |= with_entries(.value |= map(gsub("@HOME@"; $h)))' \
+        "$DIR/settings-permissions.antigravity.snippet.json" > "$ag_snip" \
+        && strip_permissions_json "$HOME/.gemini/antigravity-cli/settings.json" "$ag_snip"
       ;;
     *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
   esac

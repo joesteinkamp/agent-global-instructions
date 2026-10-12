@@ -1520,6 +1520,12 @@ PY
   jq -e '.permissions.allow | index("command(git log)") and index("command(npm test)")' "$ags" >/dev/null 2>&1 || ag_ok=0
   jq -e '.permissions.ask == ["command(*)"] and .verbosity == "medium"' "$ags" >/dev/null 2>&1 || ag_ok=0
   jq -e '[.permissions.allow[] | select(. == "command(git log)")] | length == 1' "$ags" >/dev/null 2>&1 || ag_ok=0
+  # The one write rule lands with the real $HOME (no placeholder left behind) and
+  # is the only write rule: the repo must stay unwritable to a reviewer.
+  jq -e --arg r "write_file($AG/.ai-context)" '.permissions.allow | index($r)' "$ags" >/dev/null 2>&1 || ag_ok=0
+  jq -e '[.permissions.allow[] | select(test("@HOME@"))] | length == 0' "$ags" >/dev/null 2>&1 || ag_ok=0
+  jq -e '[.permissions.allow[] | select(startswith("write_file("))] == ["write_file(@HOME@/.ai-context)"]' \
+    "$DIR/settings-permissions.antigravity.snippet.json" >/dev/null 2>&1 || ag_ok=0
   # Nothing that writes or runs a program may ride in on the reviewer allowlist.
   jq -e '[.permissions.allow[] | select(test("^command\\((git (push|commit|reset|checkout|clean)|rm|sed|find|rg|bash|sh)\\b"))] | length == 0' \
     "$DIR/settings-permissions.antigravity.snippet.json" >/dev/null 2>&1 || ag_ok=0
