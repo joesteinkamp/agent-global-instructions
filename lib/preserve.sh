@@ -63,41 +63,85 @@ pv_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # ---- lock -------------------------------------------------------------------
 
 # A process's start time, used to tell a live lock holder from a reused pid.
+# Empty where `ps -o lstart=` isn't supported (some minimal containers).
 pv_proc_start() { ps -o lstart= -p "$1" 2>/dev/null | tr -s ' '; }
 
-# Take the ledger lock once per process. A holder that is dead (or whose pid
-# was reused by another process) on this host is taken over silently — that is
-# the normal case, since install.sh runs its layers one after another and no
-# layer can rely on an EXIT trap the script already owns. A lock older than
-# two hours is stale on any host. Takeover renames the old lock first: rename
-# is atomic, so two runs racing for one stale lock can't both win.
+# Short, lower-case host name, so `macbook` and `MacBook.local` (a network
+# change, a DHCP rename) still count as the same machine.
+pv_host() { hostname 2>/dev/null | cut -d. -f1 | tr '[:upper:]' '[:lower:]'; }
+
+# Is the recorded holder still running? kill -0 decides liveness. The start
+# time only rules out a reused pid. If ps can't report start times, a live
+# pid is trusted as the holder: when in doubt, fail closed, never take over.
+pv_alive() {  # $1 = pid  $2 = recorded start time (may be empty)
+  kill -0 "$1" 2>/dev/null || return 1
+  local now; now="$(pv_proc_start "$1")"
+  [ -z "$2" ] || [ -z "$now" ] || [ "$now" = "$2" ]
+}
+
+# True when a path was last modified more than $2 minutes ago (GNU and BSD find).
+pv_older_than() { [ -n "$(find "$1" -maxdepth 0 -mmin +"$2" 2>/dev/null)" ]; }
+
+# Take the ledger lock once per process. A lock is a directory (mkdir is
+# atomic) holding an owner file: pid, start time, host, epoch seconds.
+#
+# install.sh runs its layers one after another, and no layer can rely on an
+# EXIT trap the script already owns, so a finished layer leaves its lock
+# behind. The next layer finds the holder dead and takes over. That's the
+# normal path, not an error.
+#
+# Judging a lock stale and clearing it happen under a second, short-lived
+# mutex (lock.reap). Without it, two runs could both judge one stale lock
+# dead, and the slower one would clear the lock the faster one had just
+# taken. Stale means:
+#   - the holder is dead on this host;
+#   - or the lock is on another host and over 2 hours old;
+#   - or it has no owner file and is over a minute old (killed mid-acquire).
+# A reaper that dies inside its few-millisecond window leaves lock.reap behind,
+# and it's cleared after a minute. `install.sh --unlock` clears both by hand.
 pv_lock() {
   [ -n "$PV_LOCKED" ] && return 0
   mkdir -p "$PV_STATE" || return 1
-  local l="$PV_STATE/lock" tries=0 pid start host age
-  while [ "$tries" -lt 3 ]; do
+  local l="$PV_STATE/lock" r="$PV_STATE/lock.reap" tries=0 pid start host age stale
+  while [ "$tries" -lt 10 ]; do
     tries=$((tries+1))
     if mkdir "$l" 2>/dev/null; then
-      printf '%s\n%s\n%s\n%s\n' "$$" "$(pv_proc_start $$)" "$(hostname 2>/dev/null)" "$(date +%s)" > "$l/owner"
+      # Write the owner file whole, then rename it in, so no reader ever sees half of one.
+      printf '%s\n%s\n%s\n%s\n' "$$" "$(pv_proc_start $$)" "$(pv_host)" "$(date +%s)" > "$l/.owner.$$" \
+        && mv "$l/.owner.$$" "$l/owner"
       PV_LOCKED=1
       return 0
     fi
+    if ! mkdir "$r" 2>/dev/null; then
+      pv_older_than "$r" 1 && rm -rf "$r"
+      sleep 1; continue
+    fi
     pid="$(sed -n 1p "$l/owner" 2>/dev/null)"; start="$(sed -n 2p "$l/owner" 2>/dev/null)"
     host="$(sed -n 3p "$l/owner" 2>/dev/null)"; age="$(sed -n 4p "$l/owner" 2>/dev/null)"
-    # owner not written yet: another run is mid-acquire. Give it a moment.
-    if [ -z "$pid" ]; then sleep 1; continue; fi
-    if [ "$host" = "$(hostname 2>/dev/null)" ] && [ -n "$(pv_proc_start "$pid")" ] \
-       && [ "$(pv_proc_start "$pid")" = "$start" ]; then
-      echo "  install-state is locked by a running install (pid $pid) — try again when it finishes" >&2
+    stale=""
+    if [ ! -d "$l" ]; then
+      stale=gone                                   # released while we waited
+    elif [ -z "$pid" ]; then
+      pv_older_than "$l" 1 && stale=yes            # killed mid-acquire
+    elif [ "$host" = "$(pv_host)" ]; then
+      pv_alive "$pid" "$start" || stale=yes
+    elif [ $(( $(date +%s) - ${age:-0} )) -ge 7200 ]; then
+      stale=yes
+    fi
+    if [ -z "$stale" ]; then
+      rmdir "$r" 2>/dev/null
+      if [ -z "$pid" ]; then sleep 1; continue; fi  # another run is mid-acquire
+      if [ "$host" = "$(pv_host)" ]; then
+        echo "  install-state is locked by a running install (pid $pid) — try again when it finishes" >&2
+      else
+        echo "  install-state is locked by host $host (under 2h old) — if that run is gone: ./install.sh --unlock" >&2
+      fi
       return 1
     fi
-    if [ "$host" != "$(hostname 2>/dev/null)" ] && [ $(( $(date +%s) - ${age:-0} )) -lt 7200 ]; then
-      echo "  install-state is locked by host $host (under 2h old); remove $l if that run is gone" >&2
-      return 1
-    fi
-    mv "$l" "$l.stale.$$" 2>/dev/null && rm -rf "$l.stale.$$"
+    [ "$stale" = yes ] && rm -rf "$l"
+    rmdir "$r" 2>/dev/null
   done
-  echo "  could not take the install-state lock at $l" >&2
+  echo "  could not take the install-state lock at $l — if no install is running: ./install.sh --unlock" >&2
   return 1
 }
 
@@ -132,13 +176,47 @@ pv_forget() {  # $1 = path — drop its ledger row (after a delete)
   rm -f "$PV_STATE/base/$id"
 }
 
+# Blob ids of every role port (roles/{codex,cursor,antigravity}/*) that
+# render-roles.sh produced at the last 30 commits touching the roles. Ports are
+# generated, never committed, so their history has to be re-rendered. Built
+# lazily, only when a port differs from the new one and has no ledger row
+# (that is, at bootstrap). Cached per HEAD. Prints the cache file's path.
+pv_port_blobs() {
+  local repo="${PV_REPO:-${DIR:-.}}" head cache c d f
+  head="$(git -C "$repo" rev-parse --short HEAD 2>/dev/null)" || return 1
+  cache="$PV_STATE/.shipped-ports.$head"
+  if [ ! -s "$cache" ]; then
+    mkdir -p "$PV_STATE" || return 1
+    rm -f "$PV_STATE"/.shipped-ports.* 2>/dev/null
+    : > "$cache.tmp.$$"
+    for c in $(git -C "$repo" log -n 30 --format=%h -- roles render-roles.sh 2>/dev/null); do
+      d="$(mktemp -d "${TMPDIR:-/tmp}/aigi_ports.XXXXXX")" || continue
+      if git -C "$repo" archive "$c" 2>/dev/null | tar -x -C "$d" 2>/dev/null \
+         && [ -x "$d/render-roles.sh" ] && (cd "$d" && ./render-roles.sh >/dev/null 2>&1); then
+        for f in "$d"/roles/codex/* "$d"/roles/cursor/* "$d"/roles/antigravity/*; do
+          [ -f "$f" ] && pv_blob "$f" >> "$cache.tmp.$$"
+        done
+      fi
+      rm -rf "$d"
+    done
+    sort -u "$cache.tmp.$$" > "$cache" && rm -f "$cache.tmp.$$"
+  fi
+  printf '%s\n' "$cache"
+}
+
 # True when dest's blob appears anywhere in the history of the repo file that
 # produced it. -m includes merge commits, so a blob that only ever landed via
-# a merge still counts. Empty src = a generated file with no history.
-pv_shipped() {  # $1 = dest  $2 = repo-relative source path (or empty)
+# a merge still counts. "render:roles" means a role port (see pv_port_blobs).
+# Empty src = a generated file with no history.
+pv_shipped() {  # $1 = dest  $2 = repo-relative source path, "render:roles", or empty
   [ -n "${2:-}" ] || return 1
   command -v git >/dev/null 2>&1 || return 1
-  local b; b="$(pv_blob "$1")"
+  local b cache; b="$(pv_blob "$1")"
+  if [ "$2" = "render:roles" ]; then
+    cache="$(pv_port_blobs)" || return 1
+    grep -qxF "$b" "$cache"
+    return
+  fi
   git -C "${PV_REPO:-${DIR:-.}}" log --all -m --format= --raw --no-abbrev -- "$2" 2>/dev/null \
     | awk -v b="$b" '$3 == b || $4 == b { f = 1 } END { exit !f }'
 }
@@ -155,7 +233,7 @@ pv_classify() {  # $1 = dest  $2 = repo-relative source (or empty)
   if pv_shipped "$1" "${2:-}"; then echo SHIPPED; else echo CUSTOM; fi
 }
 
-# Copy a CUSTOM file into preserved/ (never rotated) and log it.
+# Copy a file into preserved/ (never rotated) and log it.
 pv_preserve() {  # $1 = path  $2 = reason
   local id saved
   id="$(pv_pathid "$1")"
@@ -167,24 +245,41 @@ pv_preserve() {  # $1 = path  $2 = reason
   PV_SAVED="$saved"
 }
 
+# Put $1's bytes at $2 by writing a temp file in the same directory and
+# renaming it over the destination. A rename replaces the directory entry
+# itself, so it can never write through a symlink, even one that appeared
+# after our check. An existing destination keeps its permission bits.
+pv_put() {  # $1 = source file  $2 = dest
+  local tmp; tmp="$(mktemp "$(dirname "$2")/.aigi.XXXXXX")" || return 1
+  if [ -f "$2" ] && [ ! -L "$2" ]; then cp -p "$2" "$tmp" && cat "$1" > "$tmp"; else cp "$1" "$tmp"; fi \
+    && mv -f "$tmp" "$2" || { rm -f "$tmp"; return 1; }
+}
+
 # ---- the two verbs -----------------------------------------------------------
 
 # Install $2 at $3. Returns 0 when dest now holds the new content (or was
 # deliberately left alone), 1 on a real failure. Sets PV_ACTION to one of
 # created | current | updated | replaced-custom | skipped-symlink, so callers
 # can count and report. $4 = repo-relative source for the SHIPPED check
-# (omit for generated files).
+# ("render:roles" for a role port; omit for other generated files).
+#
+# What gets a copy in preserved/: CUSTOM always, and SHIPPED too. A SHIPPED
+# file is either a stale install or a deliberate revert to an old version, and
+# without a ledger row nothing can tell those apart, so it's kept. That happens
+# once per file, on the first ledger run. OURS is never copied: it's
+# byte-for-byte what base/ already holds, and copying it would save every old
+# role and playbook on every upgrade.
 pv_write() {  # $1 = class  $2 = new content file  $3 = dest  [$4 = repo-relative source]
   local class="$1" src="$2" dest="$3" rel="${4:-}" verdict
   PV_ACTION=""; PV_SAVED=""
+  pv_lock || return 1
   if [ -L "$dest" ]; then
     echo "  note: $dest is a symlink — left alone (never written through); the new version is at $src" >&2
     PV_ACTION=skipped-symlink; return 0
   fi
-  pv_lock || return 1
   mkdir -p "$(dirname "$dest")" || return 1
   if [ ! -e "$dest" ]; then
-    cp "$src" "$dest" || return 1
+    pv_put "$src" "$dest" || return 1
     pv_record "$dest" "$class" "${rel:-generated}"; PV_ACTION=created; return 0
   fi
   if cmp -s "$src" "$dest"; then
@@ -194,33 +289,38 @@ pv_write() {  # $1 = class  $2 = new content file  $3 = dest  [$4 = repo-relativ
     PV_ACTION=current; return 0
   fi
   verdict="$(pv_classify "$dest" "$rel")"
-  if [ "$verdict" = CUSTOM ]; then
-    pv_preserve "$dest" "replaced by install" || { echo "  could not preserve $dest — left unchanged" >&2; return 1; }
-    PV_ACTION=replaced-custom
-    if [ -n "$(pv_recorded "$dest")" ] || [ -n "$rel" ]; then
-      echo "  replaced your edited $dest — your version: $PV_SAVED" >&2
-    else
-      echo "  replaced $dest (couldn't prove it was unedited) — previous version: $PV_SAVED" >&2
-    fi
-  else
-    PV_ACTION=updated
-  fi
-  cp "$src" "$dest" || return 1
+  case "$verdict" in
+    CUSTOM)
+      pv_preserve "$dest" "replaced by install" || { echo "  could not preserve $dest — left unchanged" >&2; return 1; }
+      PV_ACTION=replaced-custom
+      if [ -n "$(pv_recorded "$dest")" ] || [ -n "$rel" ]; then
+        echo "  replaced your edited $dest — your version: $PV_SAVED" >&2
+      else
+        echo "  replaced $dest (couldn't prove it was unedited) — previous version: $PV_SAVED" >&2
+      fi;;
+    SHIPPED)
+      pv_preserve "$dest" "older shipped version, first ledger run" \
+        || { echo "  could not preserve $dest — left unchanged" >&2; return 1; }
+      PV_ACTION=updated;;
+    *) PV_ACTION=updated;;
+  esac
+  pv_put "$src" "$dest" || return 1
   pv_record "$dest" "$class" "${rel:-generated}"
 }
 
 # Delete dest because the installer no longer ships it (a toggle, a rename).
-# OURS/SHIPPED go quietly; CUSTOM is preserved first. A symlink is left alone.
+# OURS goes quietly; SHIPPED and CUSTOM are preserved first (as in pv_write).
+# A symlink is left alone.
 pv_delete() {  # $1 = dest  $2 = reason  [$3 = repo-relative source]
   local dest="$1" verdict
   PV_ACTION=""; PV_SAVED=""
   [ -e "$dest" ] || [ -L "$dest" ] || { PV_ACTION=absent; return 0; }
-  if [ -L "$dest" ]; then echo "  note: $dest is a symlink — not removed" >&2; PV_ACTION=skipped-symlink; return 0; fi
   pv_lock || return 1
+  if [ -L "$dest" ]; then echo "  note: $dest is a symlink — not removed" >&2; PV_ACTION=skipped-symlink; return 0; fi
   verdict="$(pv_classify "$dest" "${3:-}")"
-  if [ "$verdict" = CUSTOM ]; then
+  if [ "$verdict" != OURS ]; then
     pv_preserve "$dest" "$2" || { echo "  could not preserve $dest — not removed" >&2; return 1; }
-    echo "  removed $dest ($2) — your version: $PV_SAVED" >&2
+    [ "$verdict" = CUSTOM ] && echo "  removed $dest ($2) — your version: $PV_SAVED" >&2
   fi
   rm -f "$dest" || return 1
   pv_forget "$dest"; PV_ACTION=removed

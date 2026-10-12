@@ -581,13 +581,50 @@ exactly, so the historical re-render does find a real install. Rung 5 for
   - a non-blocking `macos-latest` job running `test.sh` under bash 3.2.
 - **Docs:** a `docs/GUIDE.md` section on where edits go.
 
-**Deviation from revision 3, deliberate:** §4's rule "every overwrite of
-differing bytes saves to `preserved/`, whatever rung" would copy every old
-playbook and role into `preserved/` on every upgrade, forever. Phase 1 saves
-only **CUSTOM** files. OURS and SHIPPED are exact-blob proofs whose old bytes
-are recoverable from `base/` (OURS) or git history (SHIPPED), so a wrong verdict
-on them is impossible, not just recoverable. The rule stays for any future rung
-that is a judgement, not an exact match.
+**Deviation from revision 3, deliberate, and narrowed after review:**
+§4's rule "every overwrite of differing bytes saves to `preserved/`" would copy
+every old playbook and role into `preserved/` on every upgrade, forever. Phase 1
+saves **CUSTOM and SHIPPED**, and skips only **OURS**:
+- OURS is byte-for-byte what `base/` already holds, so a copy adds nothing.
+- SHIPPED is a stale install or a deliberate revert, and without a ledger row
+  nothing can tell which, so it's kept. That happens once per file, on the
+  first ledger run.
+
+The first build skipped SHIPPED too, and the review below caught that as a
+lost-revert path.
+
+**Cross-family code review of phase 1** (Antigravity / Gemini 3.8 Flash, T2,
+the review that counts here; report at
+`~/.ai-context/install-preserve-20261011/agents/code-review-agy.md`).
+**Refuted, 8 findings, all accepted and fixed:**
+1. **Stale-lock takeover race:** two runs could both clear one stale lock, so
+   the slower stole the faster one's live lock. Judging and clearing now happen
+   under a `lock.reap` mutex. **Proven:** the old code overlapped holders in
+   6/20 runs of a two-writer race, the new code in 0/20, and `test.sh` runs
+   that race.
+2. **A lock killed mid-acquire wedged forever:** a lock with no owner file is
+   reclaimed after a minute. The owner file is written whole and renamed in,
+   and `install.sh --unlock` exists.
+3. **No usable `ps` made every lock look dead:** liveness is `kill -0`, with the
+   start time only ruling out pid reuse, so it fails closed.
+4. **Hostname drift locked the installer out for 2 h:** the short, lower-cased
+   host name is compared.
+5. **Bootstrap SHIPPED wasn't kept:** it is now (above).
+6. **Codex, Cursor and Antigravity ports were flagged as edits at bootstrap:**
+   ports are recognized by re-rendering at the last 30 commits touching
+   `roles/`, lazily, cached per HEAD.
+7. **The symlink check ran before the lock:** it now runs inside the lock, and
+   every write is temp + rename, which replaces a symlink and never writes
+   through it.
+8. **Tests that didn't prove their claims:** added the real two-writer race, a
+   lock with no owner, a holder with no `ps`, the revert through `pv_write`, the
+   Codex port, an edited enabled playbook, our own edited `lm`, an edited
+   Antigravity wrapper, and `--unlock`.
+
+**macOS CI:** the first `macos-latest` run (bash 3.2.57) passed all the ledger
+tests. 3 existing `render-roles` tests failed there; this PR doesn't touch
+`render-roles.sh`, so it's an existing macOS bug that nothing had exercised
+until now. It's outside phase 1 and should get its own fix.
 
 **Not in phase 1, by design:**
 - No prompts, `[a]`/`[k]`/`[p]`, `--plan`, `--resolve`, or `last-run.json`.
