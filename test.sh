@@ -2339,6 +2339,8 @@ printf 'v2\n' > "$FX/roles/r.md"; git -C "$FX" -c user.name=t -c user.email=t@t 
 # lt <case-name> <snippet>: run the snippet with the library loaded against the fixture.
 lt() {
   local h="$LT/$1"; rm -rf "$h"; mkdir -p "$h"
+  # Each case's HOME/state/repo is deliberately local to its subshell.
+  # shellcheck disable=SC2030
   ( export HOME="$h" AIGI_STATE_DIR="$h/state" PV_REPO="$FX"
     # shellcheck source=lib/preserve.sh
     . "$LEDGER_LIB"
@@ -2373,15 +2375,19 @@ csaved="$(sed -n 's/.* S=//p' "$LT/custom/out")"
 
 # R2: with a ledger row, matching an OLD shipped version is not "safe" — the
 # user put it there after our write (a deliberate revert).
-lt revert 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "v1\n" > "$HOME/d.md"; echo "V=$(pv_classify "$HOME/d.md" roles/r.md)"'
-grep -q 'V=CUSTOM' "$LT/revert/out" \
+lt revert 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "v1\n" > "$HOME/d.md"; echo "V=$(pv_classify "$HOME/d.md" roles/r.md)"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION S=$PV_SAVED"'
+rsaved="$(sed -n 's/.* S=//p' "$LT/revert/out")"
+{ grep -q 'V=CUSTOM' "$LT/revert/out" && grep -q 'A=replaced-custom' "$LT/revert/out" && [ "$(cat "$rsaved" 2>/dev/null)" = "v1" ]; } \
   && ok "ledger: a deliberate revert to an older shipped version is CUSTOM, not SHIPPED" \
   || bad "ledger: a deliberate revert to an older shipped version is CUSTOM, not SHIPPED"
 
-lt shipped 'printf "v1\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
-{ grep -q 'A=updated' "$LT/shipped/out" && [ ! -e "$(st shipped)/preserved.tsv" ]; } \
-  && ok "ledger: a pre-ledger file matching a shipped version is updated quietly" \
-  || bad "ledger: a pre-ledger file matching a shipped version is updated quietly"
+# SHIPPED could be a stale install or a deliberate revert; with no ledger row
+# nothing can tell, so it's kept once (quietly) — and the next run is OURS.
+lt shipped 'printf "v1\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"; printf "v3\n" > "$HOME/s"; pv_write role "$HOME/s" "$HOME/d.md" roles/r.md; echo "B=$PV_ACTION"'
+{ grep -q 'A=updated' "$LT/shipped/out" && grep -q 'B=updated' "$LT/shipped/out" \
+  && ! grep -q 'replaced your edited' "$LT/shipped/out" && [ "$(wc -l < "$(st shipped)/preserved.tsv")" -eq 1 ]; } \
+  && ok "ledger: a pre-ledger shipped version updates quietly, kept once, then is OURS" \
+  || bad "ledger: a pre-ledger shipped version updates quietly, kept once, then is OURS"
 
 lt bootcustom 'printf "hand-made\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
 { grep -q 'A=replaced-custom' "$LT/bootcustom/out" && [ -s "$(st bootcustom)/preserved.tsv" ]; } \
@@ -2420,10 +2426,62 @@ lt locklive 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "%s\n%s\n%s\n%s\n" "$PPID" 
   && ok "ledger: a lock held by a live process refuses a second writer" \
   || bad "ledger: a lock held by a live process refuses a second writer"
 
+# ps that can't report start times: a live holder must still refuse (fail closed).
+lt nops 'mkdir -p "$HOME/bin"; printf "#!/bin/sh\nexit 1\n" > "$HOME/bin/ps"; chmod +x "$HOME/bin/ps"; PATH="$HOME/bin:$PATH"; mkdir -p "$AIGI_STATE_DIR/lock"; printf "%s\n\n%s\n%s\n" "$PPID" "$(pv_host)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; if pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; then echo WROTE; else echo REFUSED; fi'
+grep -q REFUSED "$LT/nops/out" \
+  && ok "ledger: with no usable ps, a live holder still refuses (fails closed)" \
+  || bad "ledger: with no usable ps, a live holder still refuses (fails closed)"
+
+# Killed mid-acquire: a lock dir with no owner file, over a minute old, is reclaimed.
+lt noowner 'mkdir -p "$AIGI_STATE_DIR/lock"; touch -t 200001010000 "$AIGI_STATE_DIR/lock"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+grep -q 'A=created' "$LT/noowner/out" \
+  && ok "ledger: a lock left with no owner (killed mid-acquire) is reclaimed" \
+  || bad "ledger: a lock left with no owner (killed mid-acquire) is reclaimed"
+
+# The takeover race: two writers start against one stale lock. Each logs when
+# it holds the lock and when it lets go; held periods must never overlap.
+race_ok=1
+for i in 1 2 3 4 5; do
+  rh="$LT/race$i"; mkdir -p "$rh/state/lock"
+  printf '999999\nx\n%s\n%s\n' "$(hostname 2>/dev/null | cut -d. -f1 | tr '[:upper:]' '[:lower:]')" "$(date +%s)" > "$rh/state/lock/owner"
+  for w in a b; do
+    # shellcheck disable=SC2030,SC2031
+    ( export AIGI_STATE_DIR="$rh/state"
+      # shellcheck source=lib/preserve.sh
+      . "$LEDGER_LIB"
+      if pv_lock 2>/dev/null; then echo "in $w" >> "$rh/log"; sleep 1; echo "out $w" >> "$rh/log"; rm -rf "$rh/state/lock"; fi ) &
+  done
+  wait
+  # Valid: in X, out X, (in Y, out Y). Invalid: two "in" lines in a row.
+  awk '/^in/ { if (held) bad = 1; held = 1 } /^out/ { held = 0 } END { exit bad }' "$rh/log" 2>/dev/null || race_ok=0
+  [ "$(grep -c '^in' "$rh/log" 2>/dev/null)" -ge 1 ] || race_ok=0
+done
+[ "$race_ok" = 1 ] \
+  && ok "ledger: two writers racing for one stale lock never hold it at once (5 runs)" \
+  || bad "ledger: two writers racing for one stale lock never hold it at once (5 runs)"
+
+# A symlink that appears between the check and the write is replaced, never written through.
+lt putlink 'printf "dotfile\n" > "$HOME/target"; ln -s "$HOME/target" "$HOME/d.md"; pv_put "$PV_REPO/roles/r.md" "$HOME/d.md"; echo done'
+{ [ "$(cat "$LT/putlink/target")" = "dotfile" ] && [ ! -L "$LT/putlink/d.md" ]; } \
+  && ok "ledger: the write itself (rename) never writes through a symlink" \
+  || bad "ledger: the write itself (rename) never writes through a symlink"
+
 lt pathid 'id="$(pv_pathid "/a/very/deep/$(printf "x%.0s" $(seq 1 300))/file.md")"; echo "ID=$id"'
 grep -Eq '^ID=[0-9a-f]{16}$' "$LT/pathid/out" \
   && ok "ledger: path-ids are 16 hex chars however deep the path (NAME_MAX-safe)" \
   || bad "ledger: path-ids are 16 hex chars however deep the path (NAME_MAX-safe)"
+
+# Role ports are generated, never committed: a stale-but-pristine port is
+# recognized by re-rendering at historical commits, not flagged as an edit.
+PFX="$LT/portrepo"; mkdir -p "$PFX/roles"
+printf '#!/usr/bin/env bash\nmkdir -p roles/codex\ncp roles/r.md roles/codex/r.toml\n' > "$PFX/render-roles.sh"; chmod +x "$PFX/render-roles.sh"
+printf 'p1\n' > "$PFX/roles/r.md"; git -C "$PFX" init -q; git -C "$PFX" add -A; git -C "$PFX" -c user.name=t -c user.email=t@t commit -qm p1
+printf 'p2\n' > "$PFX/roles/r.md"; git -C "$PFX" -c user.name=t -c user.email=t@t commit -qam p2
+lt ports 'export PV_REPO="'"$PFX"'"; printf "p1\n" > "$HOME/old.toml"; printf "hand\n" > "$HOME/mine.toml"; printf "p2\n" > "$HOME/new"
+  pv_write role "$HOME/new" "$HOME/old.toml" render:roles; echo "A=$PV_ACTION"; pv_write role "$HOME/new" "$HOME/mine.toml" render:roles; echo "B=$PV_ACTION"'
+{ grep -q 'A=updated' "$LT/ports/out" && grep -q 'B=replaced-custom' "$LT/ports/out"; } \
+  && ok "ledger: a stale role port is recognized from re-rendered history; an edited one isn't" \
+  || bad "ledger: a stale role port is recognized from re-rendered history; an edited one isn't"
 
 # Real writers, end to end, in a throwaway HOME. Roles used to be overwritten
 # with no backup at all (install-roles.sh); now the edit survives in preserved/.
@@ -2457,6 +2515,50 @@ HOME="$LH" AIGI_NO_USER_ENV=1 INC_LOCAL_MODELS=y AIGI_NO_PROBE=1 bash "$CUSTOMIZ
 { grep -q 'someone-elses-lm' "$LH/.local/bin/lm" && grep -q 'is not ours' "$LT/lm.out"; } \
   && ok "customize --global: a foreign lm binary is left alone" \
   || bad "customize --global: a foreign lm binary is left alone"
+HOME="$RH" bash "$DIR/install-roles.sh" codex >/dev/null 2>&1
+printf '\n# my codex tweak\n' >> "$RH/.codex/agents/refuter.toml"
+HOME="$RH" bash "$DIR/install-roles.sh" codex > "$LT/codex.out" 2>&1
+{ cmp -s "$DIR/roles/codex/refuter.toml" "$RH/.codex/agents/refuter.toml" \
+  && grep -lq 'my codex tweak' "$RH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "install-roles: an edited Codex port is preserved, then reinstalled" \
+  || bad "install-roles: an edited Codex port is preserved, then reinstalled"
+
+# Playbook edited while its section stays on: preserved, then replaced.
+printf '\nmy web note\n' >> "$PH/.ai/web-preview.md"
+HOME="$PH" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+{ cmp -s "$DIR/playbooks/web-preview.md" "$PH/.ai/web-preview.md" \
+  && grep -lq 'my web note' "$PH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "customize --global: an edited playbook is preserved, then reinstalled" \
+  || bad "customize --global: an edited playbook is preserved, then reinstalled"
+
+# Our own lm, edited: preserved, then reinstalled executable.
+LO="$LT/lm-own"; mkdir -p "$LO"
+HOME="$LO" AIGI_NO_USER_ENV=1 INC_LOCAL_MODELS=y AIGI_NO_PROBE=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+printf '\n# my lm tweak\n' >> "$LO/.local/bin/lm"
+HOME="$LO" AIGI_NO_USER_ENV=1 INC_LOCAL_MODELS=y AIGI_NO_PROBE=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+{ cmp -s "$DIR/lm" "$LO/.local/bin/lm" && [ -x "$LO/.local/bin/lm" ] \
+  && grep -lq 'my lm tweak' "$LO/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "customize --global: our own edited lm is preserved, then reinstalled executable" \
+  || bad "customize --global: our own edited lm is preserved, then reinstalled executable"
+
+# Antigravity hook wrappers (generated by install-hooks.sh).
+AH="$LT/ag-home"; mkdir -p "$AH/.gemini/antigravity-cli"
+HOME="$AH" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+printf '\n# my wrapper tweak\n' >> "$AH/.gemini/antigravity-cli/hooks/guard-bash.ag.sh"
+HOME="$AH" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+{ ! grep -q 'my wrapper tweak' "$AH/.gemini/antigravity-cli/hooks/guard-bash.ag.sh" \
+  && [ -x "$AH/.gemini/antigravity-cli/hooks/guard-bash.ag.sh" ] \
+  && grep -lq 'my wrapper tweak' "$AH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "install-hooks: an edited Antigravity wrapper is preserved, then regenerated" \
+  || bad "install-hooks: an edited Antigravity wrapper is preserved, then regenerated"
+
+# install.sh --unlock clears a stuck lock.
+UH="$LT/unlock"; mkdir -p "$UH/.ai/install-state/lock"
+HOME="$UH" bash "$DIR/install.sh" --unlock >/dev/null 2>&1
+[ ! -e "$UH/.ai/install-state/lock" ] \
+  && ok "install.sh --unlock clears a stuck install-state lock" \
+  || bad "install.sh --unlock clears a stuck install-state lock"
+
 # The sweep CLI (install-hooks.sh) was copied over with no backup.
 SH="$LT/sweep-home"; mkdir -p "$SH/.claude"
 HOME="$SH" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1

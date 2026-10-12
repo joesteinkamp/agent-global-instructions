@@ -48,14 +48,17 @@ done
 # Each role goes through the install ledger (lib/preserve.sh): a role you
 # edited is saved to ~/.ai/install-state/preserved/ before it's replaced,
 # instead of being overwritten silently as it was before.
-install_dir() {  # $1 = src dir  $2 = ext  $3 = dest dir  $4 = label  [$5 = repo-relative src dir, for history]
+install_dir() {  # $1 = src dir  $2 = ext  $3 = dest dir  $4 = label  [$5 = repo-relative src dir, or render:roles for a port]
   local src="$1" ext="$2" dest="$3" label="$4" rel="${5:-}" f base n=0
   mkdir -p "$dest"
   for f in "$src"/*."$ext"; do
     [ -e "$f" ] || continue
     base="$(basename "$f")"
     [ "$base" = "README.$ext" ] && continue
-    pv_write role "$f" "$dest/$base" "${rel:+$rel/$base}" || return 1
+    case "$rel" in
+      render:*) pv_write role "$f" "$dest/$base" "$rel" || return 1;;
+      *)        pv_write role "$f" "$dest/$base" "${rel:+$rel/$base}" || return 1;;
+    esac
     case "$PV_ACTION" in created|updated|replaced-custom) n=$((n+1));; esac
   done
   if [ "$n" -gt 0 ]; then echo "  $label: wrote $n role file(s) -> $dest"
@@ -72,18 +75,18 @@ for t in "${targets[@]}"; do
     codex)
       # Codex reads project agents from ./.codex/agents/ and personal ones from
       # ~/.codex/agents/; unlike its skills, custom agents DO have a project scope.
-      if [ "$PROJECT" = 1 ]; then install_dir "$SRC/codex" toml "$DIR/.codex/agents" codex
-      else install_dir "$SRC/codex" toml "$HOME/.codex/agents" codex; fi
+      if [ "$PROJECT" = 1 ]; then install_dir "$SRC/codex" toml "$DIR/.codex/agents" codex render:roles
+      else install_dir "$SRC/codex" toml "$HOME/.codex/agents" codex render:roles; fi
       ;;
     cursor)
       # Cursor also reads ~/.claude/agents and ~/.codex/agents, but a .cursor/
       # definition wins and only this port carries Cursor's `readonly` flag.
-      if [ "$PROJECT" = 1 ]; then install_dir "$SRC/cursor" md "$DIR/.cursor/agents" cursor
-      else install_dir "$SRC/cursor" md "$HOME/.cursor/agents" cursor; fi
+      if [ "$PROJECT" = 1 ]; then install_dir "$SRC/cursor" md "$DIR/.cursor/agents" cursor render:roles
+      else install_dir "$SRC/cursor" md "$HOME/.cursor/agents" cursor render:roles; fi
       ;;
     antigravity)
-      if [ "$PROJECT" = 1 ]; then install_dir "$SRC/antigravity" md "$DIR/.agents/agents" antigravity
-      else install_dir "$SRC/antigravity" md "$HOME/.gemini/config/agents" antigravity; fi
+      if [ "$PROJECT" = 1 ]; then install_dir "$SRC/antigravity" md "$DIR/.agents/agents" antigravity render:roles
+      else install_dir "$SRC/antigravity" md "$HOME/.gemini/config/agents" antigravity render:roles; fi
       ;;
   esac
 done
