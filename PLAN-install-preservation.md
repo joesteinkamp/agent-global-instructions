@@ -1,6 +1,6 @@
 # Plan — keep people's customizations in the files `install.sh` writes
 
-**Status: PLAN ONLY, revision 2 (2026-10-12): rewritten after the refuter pass in §15, which refuted revision 1.** No product code yet; Joe asked for the plan
+**Status: PLAN ONLY, revision 3 (2026-10-12).** Revision 1 was refuted by a same-family refuter (§15); revision 2 was refuted by a cross-family one (Antigravity, §16). This revision resolves both. No product code yet; Joe asked for the plan
 first. Written by Claude (Opus 5.5). Rival drafts from other vendors are diffed
 in §13.
 **Lives on:** branch `ai/claude-install-preserve`, worktree
@@ -48,6 +48,10 @@ Read from the code at `423c48d`.
 | **Verbatim copy, NO backup** | `~/.ai/{orchestration,agent-teams,quality-workflows,web-preview}.md` | `customize.sh:717-721` | **Silently overwritten**, and **deleted outright** when a section is toggled off (`:723`) |
 | **Verbatim copy, NO backup** | `~/.ai/worktree-sweep.sh`, `~/.local/bin/lm`, `~/.local/bin/timeout` | `install-hooks.sh:303-305`; `customize.sh:610-613`; `install_timeout_shim` (`:400`) | **Silently overwritten** |
 | Split ownership | `~/.ai/model-routing.md` | `customize.sh:660-703` | Generated block kept by marker; a file without markers goes to one fixed `.unmarked.bak.md` (overwritten each time) |
+| **Generated, NO backup** | Antigravity `*.ag.sh` hook wrappers | `install-hooks.sh:265-269` | Overwritten every run with no `cmp`; no git history (rev 3, A4) |
+| **Deletions, NO backup** | Codex skills (design group off: `install-commands.sh:305-306`; retired with the GENERATED marker: `:317-324`); `~/.codex/prompts/*.md` with the marker (`:325-328`); the timeout shim (`customize.sh:396`); `lm` when `INC_LOCAL_MODELS=n` (`:631-632`) | various | Removed outright (rev 3, A4) |
+| **Overwrite of a foreign binary** | `~/.local/bin/lm` | `customize.sh:610-613` | No marker check, unlike the timeout shim at `:392-393` (rev 3, A4) |
+| Other unbacked writes | Cursor hooks `.version` (`install-hooks.sh:228`); hook-script backups are never rotated (`install-hooks.sh:61`) | — | Rev 3, A4 |
 | Seed-only | `~/.claude/loop.md`, `~/.claude/CHANGELOG.md`, `~/.ai/memory-os` config | `customize.sh:732-740`; `setup-memory-os.sh:36` | Never overwritten. Already safe. |
 | Machine data | `~/.ai/clis`, `~/.ai/local-models` | `customize.sh:618-656` | Regenerated each run. Correct: nobody hand-edits these. |
 | Key-merged JSON | `~/.claude/settings.json`, `~/.cursor/cli-config.json`, the Antigravity settings, hook JSON for each tool | `install-settings.sh:86-110`; `install-hooks.sh:75-93` | Union merge, so user keys survive; backed up when changed |
@@ -85,7 +89,9 @@ someone's edit.
 
 ```
 ~/.ai/install-state/
-  manifest.tsv     path <TAB> class <TAB> blob-id-we-wrote <TAB> source <TAB> repo-commit <TAB> date
+  manifest.tsv     path-id <TAB> path <TAB> class <TAB> canonical-blob <TAB> block-blob|- <TAB> kept-blob|- <TAB> kept-against|- <TAB> source <TAB> repo-commit <TAB> date
+  settings.tsv     file <TAB> jq-path <TAB> value <TAB> added|declined  — per-entry provenance for JSON/TOML (A3)
+  lock/            mkdir lock holding pid + host + start time (A1)
   base/<enc-path>  exact bytes we last wrote — the merge base, and proof of "ours"
   orig/<enc-path>  the first NON-ours content found at a path — kept forever, never rotated
   preserved/<enc-path>.<date>  every custom version we replaced — never rotated (fixes G2)
@@ -100,8 +106,9 @@ someone's edit.
 - **`base/` stores bytes, not only hashes,** so a later step can compute exactly
   which lines the user added (the input to the append-merge, §6). The cost is
   small: a few hundred KB of text.
-- **`<enc-path>`** is the `$HOME`-relative path with `/` replaced by `%2F`.
-  Collision-free and readable.
+- **`<enc-path>` is replaced by a path-id:** the first 16 hex characters of the
+  path's blob id, with the real path kept in `manifest.tsv`. Percent-encoding
+  could exceed the 255-byte `NAME_MAX` on deep paths (A8).
 - **Fallback when git or history is missing** (a tarball install, a shallow
   clone): `sha256sum`/`shasum -a 256` for identity, and step 5 (§4) is skipped,
   with a one-line note in the report. The ledger still works; only the
@@ -134,8 +141,9 @@ step 7 is the optional AI check (D2).
 | 3 | **CURRENT** | blob(dest) == blob(new) | No-op. Record it if no record exists (adopts pre-ledger installs). |
 | 4 | **OURS** | a manifest record exists AND blob(canonical part of dest) == the recorded blob | Overwrite, no prompt. Refresh `base/`. **If a record exists and this rung fails, skip straight to 8.** Someone changed the file after we wrote it, which is exactly G3, so rungs 5 and 6 never get a say (R2). |
 | 5 | **SHIPPED** *(bootstrap only: no manifest record)* | blob(dest) ∈ every blob the source ever had (`git log --all -m --format= --raw --no-abbrev -- <src>`). For `~/AGENTS.md`: blob(dest) ∈ renders of the last 30 commits touching `template.md`/`customize.sh`, re-rendered with today's personal layers (R1, R6) | Overwrite, no prompt. **Never matched against `.bak.*` files**, which hold user content (R1). |
-| 6 | **COVERED** *(bootstrap only; Markdown only)* | dest's line sequence is an **order-preserving subsequence** of the new file's, i.e. the new file is dest with insertions only. Only trailing whitespace is ignored. | Overwrite, no prompt. Never applies to scripts, TOML/JSON, or frontmatter (R3). |
+| 6 | ~~COVERED~~ **removed in rev 3 (A2)** | Without a base, "upstream added lines" and "you deleted lines" are the same diff, so no deterministic test can tell them apart | — Falls through to the AI check, then CUSTOM. Unattended, D1 still replaces it, with a `preserved/` copy. |
 | 7 | **COVERED-AI** *(optional)* | the AI judge says the added lines' intent is already expressed in the new version (§7) | Treated as CUSTOM, with the verdict shown and a recommended action. **Never** a silent overwrite on its own. |
+| 7b | **KEPT** | dest blob == the blob the user chose `[k]` for, and the new version is the one they kept it against | Don't write; re-report "you kept this". When upstream changes again, it's CUSTOM again, and unattended runs follow D1 (A5) |
 | 8 | **CUSTOM** | none of the above | Resolve per §5. |
 
 "Lines the user added" is the line diff `base → dest` when a base exists, and
@@ -239,8 +247,9 @@ interactively.
    twice. A run that finds its own markers damaged (not exactly one begin before
    one end, the same test `model-routing.md` uses at `customize.sh:671-674`)
    treats the file as CUSTOM instead of guessing.
-5. Record blob(new + block) in the manifest, so the next run sees the file as
-   OURS-with-preserved-block, not CUSTOM.
+5. Record the **canonical blob** (the file minus the block) and the **block
+   blob** in separate manifest columns (§3). Rung 4 compares the canonical part
+   only, so editing inside the block never makes the file CUSTOM (R4/A7).
 
 **Where appending is unsafe, and what happens there instead:**
 
@@ -252,6 +261,7 @@ interactively.
 | Markdown with YAML frontmatter (commands, skills) | A changed `model:`/`tools:` value can't be appended: a second frontmatter block is invalid | Body additions append as above. **Frontmatter changes** are merged key by key (the user's value wins for a key they changed; new keys from upstream are added). If that can't be done cleanly, the `[a]` option is withdrawn for that file. |
 | Shell scripts (hooks, `worktree-sweep.sh`, `lm`, `timeout`) | Code appended after `exec`/`exit` is dead, and code before it runs twice | No append. `[r]` / `[k]` / `[p]`, plus a diff. The report suggests upstreaming the change (or, for hooks, a per-user hook entry pointing at their own script). |
 | Key-merged JSON / managed TOML | Appended text is a parse error | Already field-merged today; "merge" there means the existing union. Add provenance instead (§9) to close G4. |
+| `~/.ai/model-routing.md` (split ownership) | Each install splices everything outside the generated markers from the repo copy, so an appended block is discarded (A10) | No `[a]`. Replace (with a `preserved/` copy), keep, or pin |
 | Seed-only, machine data, symlinks | — | Unchanged. They already behave correctly. |
 
 **A known risk of appending:** a preserved block can contradict the new version.
@@ -306,8 +316,10 @@ that shares a bolded rule headline with a changed line in the new version.
   agent can't answer a TTY prompt, so the non-interactive path is a primary
   path, not a fallback. `last-run.json` (`{path, class, verdict, action,
   preserved_at, ai}` per file), `--plan` for a dry run, `--resolve` with
-  explicit flags for follow-up, and stable exit codes (0 ok; 3 = ok, but custom
-  files were replaced). The rendered instructions get a short pointer telling an
+  explicit flags for follow-up, and **exit 0 on success, even when custom files
+  were replaced** (A9). Replaced files are reported in `last-run.json` and the
+  summary, not through the exit code, because `set -e` callers treat any
+  non-zero code as a failure. The rendered instructions get a short pointer telling an
   agent to read `~/.ai/install-state/last-run.json` after an install, rather
   than scraping output.
 
@@ -502,3 +514,37 @@ check(){ d=$(git hash-object --no-filters "$2") n=$(git hash-object --no-filters
     | grep -qx "$d" && echo "SHIPPED  $2" || echo "CUSTOM?  $2"; }
 for f in roles/*.md; do check "$f" ~/.claude/agents/"$(basename "$f")"; done   # likewise commands/, hooks/, playbooks/
 ```
+
+## 16. Cross-family refuter on revision 2 → revision 3
+
+**Who reviewed it:** Antigravity, Gemini 3.8 Flash, running in the newly fixed
+headless form (branch `ai/claude-delegate-fixes`). It's a **different family,
+but T2**: no non-Anthropic T1 model is reachable from this machine. Cursor was
+launched alongside it as an extra voice and hit its free-plan usage limit.
+The full report is at
+`~/.ai-context/install-preserve-20261011/agents/refuter-agy.md`.
+
+**Verdict on revision 2: refuted** (8 confirmed, 2 plausible). All ten were
+checked against the plan and accepted. Two were the author's own edit
+failures: §15 claimed §2 and §6 had been updated, and they hadn't been.
+
+| # | Finding | Resolution in revision 3 |
+|---|---|---|
+| A1 | The bare `mkdir` lock wedges every future run after a kill or OOM | The lock dir holds `pid`, `host`, and start time. A run that finds a lock whose pid is dead on the same host takes it over and says so. A lock older than 2 hours is stale on any host. `install.sh --unlock` removes it explicitly |
+| A2 | Rung 6 silently undid user deletions, and contradicted "a file with deletions is never COVERED" | **Rung 6 removed.** Without a base, an upstream addition and a user deletion are the same diff, so no deterministic test can tell them apart. Those files go to CUSTOM, where D1 still replaces them unattended, with a `preserved/` copy |
+| A3 | Rules the user deleted from JSON/TOML are re-added on every run by the union merge (`install-settings.sh:101-104`) | `settings.tsv` records each entry we added. On a later run, an entry we added that's now **absent** is marked `declined` and is never re-added. A **new** upstream entry is still added. Pre-ledger machines can't tell a deletion from never-installed, so the first run adds as today (a stated limitation, the same as R13) |
+| A4 | §15 R10 claimed §2 had been updated; it hadn't | The §2 rows are now actually added |
+| A5 | `[k]` didn't persist: the next unattended run replaced the kept file | New rung 7b, KEPT: `kept-blob` and `kept-against` columns. A kept file is skipped until upstream changes again. Then it's CUSTOM, and D1 applies unattended (the owner's rule) |
+| A6 | Routing to `extras.local.md` in a worktree that's later reaped loses the content from future renders | Route into the **primary checkout's** `extras.local.md` (the main worktree from `git worktree list`), never a linked worktree. That matches the existing rule to never install from a temporary worktree. When the rendering checkout lacks extras but `install-state/` has a snapshot, the snapshot is used as the extras input and the run says so |
+| A7 | §6 step 5 still recorded a whole-file blob, and the §3 schema had no block column | §6 step 5 and the §3 schema fixed (`canonical-blob`, `block-blob`) |
+| A8 | Percent-encoded names can exceed the 255-byte `NAME_MAX` | Path-id (a 16-hex prefix of the path's hash) instead, with the path kept in the manifest |
+| A9 | Exit 3 breaks `set -e` callers | Exit 0 on success. Replacements are reported in `last-run.json` and the summary |
+| A10 | An appended block in `model-routing.md` is discarded by the marker splice | No `[a]` for `model-routing.md` |
+
+**Survived attack** (per the refuter): blob lookup in git history on full
+checkouts, damaged-marker detection, the additive JSON union, and the ban on
+appending to scripts.
+
+**Remaining before build:** none of the reviews so far was a T1 cross-family
+review (none is reachable from this machine). The BSD `diff` splitter and the
+cost of 30 historical re-renders are still unmeasured.
