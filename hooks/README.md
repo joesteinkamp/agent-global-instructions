@@ -244,3 +244,35 @@ them yourself if they grow large.
   `..`/symlinks (via `realpath`/`readlink -m`) before matching.
 - `install-hooks.sh` is idempotent and backs up each settings file before merging.
 - Hooks are a safety net, not a sandbox — `guard-bash` only sees the shell tool.
+
+### Codex audit logging and reinstall safety
+
+Codex runs the two `log-tool.sh` handlers in the background (`async: true`) so
+observability does not hold up tool execution. Guards and edit formatting remain
+synchronous; the installer preserves third-party metrics handlers and their
+settings. Background audit records can arrive out of order: correlate before/after
+events by tool-use ID when available rather than file position, and do not treat
+the record timestamp as the exact tool execution time. Pending background hooks may be cancelled when a
+session ends. See the [Codex background-hook documentation](https://learn.chatgpt.com/docs/hooks#run-hooks-in-the-background).
+
+Install and uninstall match recognized script names, including retired names,
+as literal pathname tokens inside the target tool hooks directory. A same-named
+script in a foreign directory, a mirrored path, or a filename with an extra
+suffix is preserved. When an owned and a third-party handler share a matcher
+group, the third-party handler and group metadata survive. Groups emptied by
+removing owned handlers are dropped; pre-existing empty or null groups stay
+untouched. This prevents reinstall or uninstall from removing a separately managed
+metrics hook that shares a group with a matched handler.
+
+Ownership uses those literal pathname tokens. Wrappers containing an owned token
+are replaced too. Alternate path spellings are not migrated. Uninstall removes
+configuration entries and leaves copied hook scripts in place.
+
+Without flock, concurrent log appends are not serialized and may interleave.
+Logging is best-effort observability: ordering, persistence, and complete coverage
+are not guaranteed. The logger does not make blocking decisions.
+
+These changes remove foreground logger waiting and fix handler preservation. They
+do not identify every runtime `Hook failed` warning. Diagnose those from the
+specific failed handler's stderr/output; configured timeout limits alone are not
+evidence of a timeout.

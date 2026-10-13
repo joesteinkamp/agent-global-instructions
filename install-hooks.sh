@@ -34,6 +34,8 @@ HOOK_SCRIPTS=(guard-paths guard-bash format-edited log-tool quality-nudge worktr
 # that already has them.
 RETIRED_HOOK_SCRIPTS=(improve-nudge verify-nudge changelog-nudge scorecard scorecard-enqueue scorecard-survey)
 ALL_HOOK_SCRIPTS=("${HOOK_SCRIPTS[@]}" "${RETIRED_HOOK_SCRIPTS[@]}")
+# Pattern segment starts with / and groups name alternatives; callers add
+# the literal hooks directory and pathname token boundaries.
 HOOK_RE="/($(IFS='|'; echo "${ALL_HOOK_SCRIPTS[*]}"))\\.sh"
 
 # Clean up any temp file left behind if jq fails or we're interrupted.
@@ -74,17 +76,30 @@ copy_scripts() {  # $1 = hooks dir
 # previously-installed entries so re-runs don't duplicate.
 merge_json() {  # $1 = settings file, $2 = hooks object json
   local f="$1" add="$2" tmp
+  # Scope names to this tool directory; escape regex metacharacters literally.
+  local owned_pat
+  owned_pat="$(jq -nr --arg dir "$(dirname "$f")/hooks" --arg names "$HOOK_RE" \
+    '$dir | explode | map(. as $c | if ([92,46,94,36,124,63,42,43,40,41,91,93,123,125] | index($c)) != null then [92,$c] else [$c] end) | flatten | implode | . as $escaped | ([34,39] | implode) as $quotes | "(^|[[:space:]" + $quotes + "])" + $escaped + $names + "($|[[:space:]" + $quotes + "])"')"
   [ -f "$f" ] || echo '{}' > "$f"
   tmp="$(mktemp "$(dirname "$f")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")  # same-dir: atomic mv + valid BSD template
-  jq --argjson add "$add" --arg pat "$HOOK_RE" '
+  jq --argjson add "$add" --arg pat "$owned_pat" '
     .hooks = (.hooks // {})
-    # Drop any of our prior entries so re-runs do not duplicate. Handle BOTH
-    # shapes: Claude/Codex nest commands under .hooks[]; Cursor uses a
-    # flat { "command": ... } per entry.
-    | .hooks |= with_entries(.value |= map(select(
-        ([ .command ] + ((.hooks // []) | map(.command))
-         | map(select(. != null)) | any(test($pat))) | not
-      )))
+    # Remove only our handlers, preserving third-party commands and matcher
+    # metadata even when they share a Claude/Codex nested group with ours.
+    # Flat Cursor entries are removed individually. Drop a nested group only
+    # after its last handler is removed, so reinstall cannot erase e.g. metrics.
+    | .hooks |= with_entries(.value |= map(
+        if has("hooks") then
+          if ((.hooks // []) | any((.command // "") | test($pat))) then
+            .hooks = (.hooks | map(select(
+              ((.command // "") | test($pat)) | not
+            )))
+            | select((.hooks | length) > 0)
+          else . end
+        else
+          select(((.command // "") | test($pat)) | not)
+        end
+      ))
     | .hooks |= with_entries(select((.value | length) > 0))
     | reduce ($add | to_entries[]) as $e (.;
         .hooks[$e.key] = ((.hooks[$e.key] // []) + $e.value))
@@ -183,6 +198,8 @@ install_codex() {
   # apply_patch, with Write/Edit aliases), so path-guard + auto-format wire up
   # alongside the shell guard and logging. guard-paths/format-edited extract the
   # edited paths from the apply_patch envelope (tool_input.command).
+  # Audit logging observes events; it must not delay tools. Keep policy guards
+  # and edit formatting synchronous, and leave third-party handlers unchanged.
   merge_json "$sf" "$(jq -n \
     --arg gp "$(cmd codex "$hd" guard-paths)" \
     --arg gb "$(cmd codex "$hd" guard-bash)" \
@@ -197,12 +214,12 @@ install_codex() {
       {matcher:"startup|resume", hooks:[{type:"command",command:$lm}]}
     ] + (if $arw then [{matcher:"startup|resume", hooks:[{type:"command",command:$ar}]}] else [] end)),
     PreToolUse: [
-      {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
+      {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30,async:true}]},
       {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$gp,timeout:30}]},
       {matcher:"Bash", hooks:[{type:"command",command:$gb,timeout:30}]}
     ],
     PostToolUse: [
-      {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30}]},
+      {matcher:".*", hooks:[{type:"command",command:$lg,timeout:30,async:true}]},
       {matcher:"apply_patch|Edit|Write", hooks:[{type:"command",command:$fm,timeout:30}]}
     ],
     Stop: [

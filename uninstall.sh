@@ -32,6 +32,8 @@ HOOK_NAMES+=(improve-nudge verify-nudge changelog-nudge)
 # The session rating survey was removed on 2026-09-06; its scripts no longer
 # exist in hooks/, so name them here or an uninstall leaves them installed.
 HOOK_NAMES+=(scorecard scorecard-enqueue scorecard-survey)
+# Pattern segment starts with / and groups name alternatives; callers add
+# the literal hooks directory and pathname token boundaries.
 HOOK_RE="/($(IFS='|'; echo "${HOOK_NAMES[*]}"))\\.sh"
 
 TMPFILES=()
@@ -82,18 +84,31 @@ edit_json() {  # $1 = file, $2 = jq program, $3.. = extra jq args
   backup_file "$f"; mv "$tmp" "$f"; echo "  cleaned $f"
 }
 
-# Drop our hook entries. Handles BOTH shapes: nested .hooks[].command
-# (Claude/Codex) and flat .command (Cursor).
+# Drop only matching handlers, preserving third-party handlers and metadata in
+# shared Claude/Codex groups. Cursor flat entries are removed individually.
 strip_hooks() {  # $1 = settings file
+  # Scope names to this tool directory; escape regex metacharacters literally.
+  local owned_pat
+  owned_pat="$(jq -nr --arg dir "$(dirname "$1")/hooks" --arg names "$HOOK_RE" \
+    '$dir | explode | map(. as $c | if ([92,46,94,36,124,63,42,43,40,41,91,93,123,125] | index($c)) != null then [92,$c] else [$c] end) | flatten | implode | . as $escaped | ([34,39] | implode) as $quotes | "(^|[[:space:]" + $quotes + "])" + $escaped + $names + "($|[[:space:]" + $quotes + "])"')"
   edit_json "$1" '
     if .hooks then
-      .hooks |= with_entries(.value |= map(select(
-        ([ .command ] + ((.hooks // []) | map(.command))
-         | map(select(. != null)) | any(test($pat))) | not)))
+      .hooks |= with_entries(.value |= map(
+        if has("hooks") then
+          if ((.hooks // []) | any((.command // "") | test($pat))) then
+            .hooks = (.hooks | map(select(
+              ((.command // "") | test($pat)) | not
+            )))
+            | select((.hooks | length) > 0)
+          else . end
+        else
+          select(((.command // "") | test($pat)) | not)
+        end
+      ))
       | .hooks |= with_entries(select((.value | length) > 0))
       | if (.hooks == {}) then del(.hooks) else . end
     else . end
-  ' --arg pat "$HOOK_RE"
+  ' --arg pat "$owned_pat"
 }
 
 # Subtract the permission arrays in a JSON snippet from a settings file.

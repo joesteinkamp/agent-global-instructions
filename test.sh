@@ -544,12 +544,12 @@ cp "$DIR/render-roles.sh" "$RTMP/"
 bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
   && ok "render-roles renders the unmodified sources" \
   || bad "render-roles renders the unmodified sources"
-sed -i '0,/^\*\*Reminder:\*\*/s//**Reminder:** drifted/' "$RTMP/roles/refuter.md"
+sed -i.bak '1,/^\*\*Reminder:\*\*/s/^\*\*Reminder:\*\*/**Reminder:** drifted/' "$RTMP/roles/refuter.md"
 bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
   && bad "render-roles fails loudly when the reminder and the body drift apart" \
   || ok "render-roles fails loudly when the reminder and the body drift apart"
 cp "$DIR/roles/refuter.md" "$RTMP/roles/refuter.md"
-sed -i '/^reminder:/d' "$RTMP/roles/refuter.md"
+sed -i.bak '/^reminder:/d' "$RTMP/roles/refuter.md"
 bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
   && bad "render-roles fails loudly when a role has no reminder" \
   || ok "render-roles fails loudly when a role has no reminder"
@@ -572,7 +572,7 @@ done
                 || bad "Cursor readonly flag wrong for:$p_ro"
 [ -z "$p_agy" ] && ok "Antigravity port gives read-only roles no write tools" \
                 || bad "Antigravity read-only role has a write tool:$p_agy"
-sed -i 's/^tools: Read,/tools: Read, Bogus,/' "$RTMP/roles/refuter.md"
+sed -i.bak 's/^tools: Read,/tools: Read, Bogus,/' "$RTMP/roles/refuter.md"
 bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
   && bad "render-roles fails on a tool with no Antigravity mapping" \
   || ok "render-roles fails on a tool with no Antigravity mapping"
@@ -1345,6 +1345,127 @@ PY
     bad "install-hooks codex wires edit guards and both Stop advisories"
   fi
 
+  # Reinstall replaces only our nested handler, retaining mixed-group metadata
+  # and independently managed handlers. This models managed metrics sharing a
+  # Stop group with quality-nudge; neither foreign command is executed here.
+  jq --arg hd "$MT/.codex/hooks" '
+    .hooks.Stop[0] |= (
+      .matcher = "mixed-stop" | .custom = {owner:"managed"}
+      | .hooks += [{type:"command",command:"/tmp/managed-metrics.sh",timeout:10,async:false}]
+    )
+    | .hooks.PreToolUse += [{matcher:".*",custom:"foreign",hooks:[
+        {type:"command",command:"/tmp/user-hook.sh",timeout:7,async:true},
+        {type:"command",command:"/opt/foreign/log-tool.sh",timeout:9,async:false},
+        {type:"command",command:("/opt/mirror" + $hd + "/log-tool.sh"),timeout:9,async:false},
+        {type:"command",command:($hd + "/log-tool.sh-wrapper"),timeout:9,async:false}
+      ]},
+      {matcher:"empty-foreign",custom:"foreign",hooks:[]},
+      {matcher:"null-foreign",custom:"foreign",hooks:null}
+    ]
+  ' "$MT/.codex/hooks.json" > "$MT/codex-mixed.json"
+  mv "$MT/codex-mixed.json" "$MT/.codex/hooks.json"
+  codex_foreign_before="$(jq -c '[.hooks.PreToolUse[] | select(.custom == "foreign")]' "$MT/.codex/hooks.json")"
+  HOME="$MT" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
+  codex_mixed_count="$(jq '[.hooks[]|length]|add' "$MT/.codex/hooks.json")"
+  HOME="$MT" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
+  codex_foreign_after="$(jq -c '[.hooks.PreToolUse[] | select(.custom == "foreign")]' "$MT/.codex/hooks.json")"
+  if [ "$codex_foreign_before" = "$codex_foreign_after" ] \
+     && [ "$codex_mixed_count" = "$(jq '[.hooks[]|length]|add' "$MT/.codex/hooks.json")" ] \
+     && jq -e '
+       ([.hooks.Stop[] | select(.matcher == "mixed-stop")] == [{
+         matcher:"mixed-stop",custom:{owner:"managed"},hooks:[
+           {type:"command",command:"/tmp/managed-metrics.sh",timeout:10,async:false}
+         ]
+       }])
+       and ([.hooks.Stop[].hooks[].command | select(test("/quality-nudge\\.sh"))] | length == 1)
+       and ([.hooks.Stop[].hooks[].command | select(test("/worktree-reap\\.sh"))] | length == 1)
+     ' "$MT/.codex/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks codex preserves mixed-group foreign handlers and metadata without duplicates"
+  else
+    bad "install-hooks codex preserves mixed-group foreign handlers and metadata without duplicates"
+  fi
+  if jq -e \
+      --arg lg "env HOOK_PLATFORM=codex \"$MT/.codex/hooks/log-tool.sh\"" \
+      --arg gp "env HOOK_PLATFORM=codex \"$MT/.codex/hooks/guard-paths.sh\"" \
+      --arg gb "env HOOK_PLATFORM=codex \"$MT/.codex/hooks/guard-bash.sh\"" \
+      --arg fm "env HOOK_PLATFORM=codex \"$MT/.codex/hooks/format-edited.sh\"" '
+      [.hooks.PreToolUse[].hooks[]?,.hooks.PostToolUse[].hooks[]?]
+      | ([.[] | select(.command == $lg)] | length == 2 and all(.async == true))
+        and ([.[] | select(.command == $gp or .command == $gb or .command == $fm)]
+             | length == 3 and all((.async // false) == false))
+    ' "$MT/.codex/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks codex backgrounds both audit loggers while guards and formatter stay synchronous"
+  else
+    bad "install-hooks codex backgrounds both audit loggers while guards and formatter stay synchronous"
+  fi
+
+  # Flat Cursor entries retain the entire foreign object, including platform
+  # fields, while our owned entries remain idempotent through reinstall.
+  jq '.hooks.stop += [{command:"/tmp/user-stop.sh",loop_limit:3,custom:"keep"}]' \
+    "$MT/.cursor/hooks.json" > "$MT/cursor-foreign.json"
+  mv "$MT/cursor-foreign.json" "$MT/.cursor/hooks.json"
+  cursor_foreign_before="$(jq -c '[.hooks.stop[] | select(.custom == "keep")]' "$MT/.cursor/hooks.json")"
+  HOME="$MT" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
+  cursor_mixed_count="$(jq '[.hooks[]|length]|add' "$MT/.cursor/hooks.json")"
+  HOME="$MT" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
+  cursor_foreign_after="$(jq -c '[.hooks.stop[] | select(.custom == "keep")]' "$MT/.cursor/hooks.json")"
+  if [ "$cursor_foreign_before" = "$cursor_foreign_after" ] \
+     && [ "$cursor_mixed_count" = "$(jq '[.hooks[]|length]|add' "$MT/.cursor/hooks.json")" ] \
+     && jq -e '[.hooks.stop[].command | select(test("/(quality-nudge|worktree-reap)\\.sh"))] | length == 2' \
+          "$MT/.cursor/hooks.json" >/dev/null 2>&1; then
+    ok "install-hooks cursor preserves foreign flat entries without duplicates"
+  else
+    bad "install-hooks cursor preserves foreign flat entries without duplicates"
+  fi
+
+  # Claude uses the same nested merge contract. A separate fixture makes
+  # foreign empty/null preservation independent of the Codex fixture, and its
+  # home path exercises spaces plus regex metacharacters literally.
+  HCBASE="$(mktemp -d)"; HC="$HCBASE/"'a + ( [ { $ |'
+  mkdir -p "$HC"
+  HOME="$HC" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+  jq '
+    .hooks.Stop[0] |= (
+      .matcher = "claude-mixed" | .custom = {owner:"managed"}
+      | .hooks += [{type:"command",command:"/tmp/managed-claude-metrics.sh",timeout:9}]
+    )
+    | .hooks.Stop += [
+      {matcher:"claude-empty",custom:"foreign",hooks:[]},
+      {matcher:"claude-null",custom:"foreign",hooks:null}
+    ]
+  ' "$HC/.claude/settings.json" > "$HC/claude-mixed.json"
+  mv "$HC/claude-mixed.json" "$HC/.claude/settings.json"
+  claude_foreign_expected='[
+    {"matcher":"claude-mixed","custom":{"owner":"managed"},"hooks":[
+      {"type":"command","command":"/tmp/managed-claude-metrics.sh","timeout":9}
+    ]},
+    {"matcher":"claude-empty","custom":"foreign","hooks":[]},
+    {"matcher":"claude-null","custom":"foreign","hooks":null}
+  ]'
+  HOME="$HC" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+  claude_count="$(jq '[.hooks[]|length]|add' "$HC/.claude/settings.json")"
+  HOME="$HC" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+  hc_ok=1
+  [ "$claude_count" = "$(jq '[.hooks[]|length]|add' "$HC/.claude/settings.json")" ] || hc_ok=0
+  jq -e --argjson expected "$claude_foreign_expected" '
+    [.hooks.Stop[] | select(.matcher == "claude-mixed" or .custom == "foreign")] == $expected
+  ' "$HC/.claude/settings.json" >/dev/null 2>&1 || hc_ok=0
+  # Reseed an owned handler before uninstall so both operations face a mixed
+  # group rather than relying on where reinstall appends the owned groups.
+  jq --arg own "env HOOK_PLATFORM=claude \"$HC/.claude/hooks/quality-nudge.sh\"" '
+    .hooks.Stop |= map(if .matcher == "claude-mixed" then
+      .hooks += [{type:"command",command:$own,timeout:30}] else . end)
+  ' "$HC/.claude/settings.json" > "$HC/claude-uninstall.json"
+  mv "$HC/claude-uninstall.json" "$HC/.claude/settings.json"
+  HOME="$HC" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+  jq -e --argjson expected "$claude_foreign_expected" '
+    .hooks == {Stop:$expected}
+  ' "$HC/.claude/settings.json" >/dev/null 2>&1 || hc_ok=0
+  [ "$hc_ok" = 1 ] \
+    && ok "install/uninstall preserve Claude mixed and empty/null foreign groups in a literal metacharacter home" \
+    || bad "install/uninstall preserve Claude mixed and empty/null foreign groups in a literal metacharacter home"
+  rm -rf "$HCBASE"
+
   # Hook dialects: cursor blocks a secret read via {permission:deny}; codex
   # extracts the path from an apply_patch envelope and blocks the write (exit 2).
   cur_out="$(printf '{"file_path":".env","cwd":"/tmp"}' | HOOK_PLATFORM=cursor bash "$DIR/hooks/guard-paths.sh" 2>/dev/null)"
@@ -1644,6 +1765,16 @@ JSON
   mkdir -p "$MT/.codex/skills/myown" && echo mine > "$MT/.codex/skills/myown/SKILL.md"
   ln -s "$DIR/.agents/skills/ghost" "$MT/.claude/skills/ghost"
   ln -s "$DIR/.agents/skills/ghost" "$MT/.cursor/skills/ghost"
+  # Reseed an owned command into the managed group to reproduce uninstall's
+  # ownership boundary independently of the reinstall regression above.
+  jq --arg own "env HOOK_PLATFORM=codex \"$MT/.codex/hooks/quality-nudge.sh\"" '
+    .hooks.Stop |= map(
+      if .matcher == "mixed-stop" then
+        .hooks += [{type:"command",command:$own,timeout:30}]
+      else . end
+    )
+  ' "$MT/.codex/hooks.json" > "$MT/codex-uninstall-mixed.json"
+  mv "$MT/codex-uninstall-mixed.json" "$MT/.codex/hooks.json"
   HOME="$MT" bash "$DIR/uninstall.sh" claude codex cursor >/dev/null 2>&1
   u_ok=1
   [ -L "$MT/.codex/skills/foo" ]            || u_ok=0   # foreign link spared
@@ -1656,7 +1787,28 @@ JSON
   [ -e "$MT/.claude/skills/ux-audit" ]       && u_ok=0
   [ -e "$MT/.cursor/skills/ux-audit" ]      && u_ok=0
   [ -f "$MT/.cursor/commands/ship.md" ]     && u_ok=0
-  jq -e '(.hooks // {}) | length > 0' "$MT/.cursor/hooks.json" >/dev/null 2>&1 && u_ok=0
+  # Our fixtures intentionally contain user hooks, so uninstall must leave
+  # these intact while removing every handler in the installed hook directory.
+  [ "$cursor_foreign_before" = "$(jq -c '[.hooks.stop[] | select(.custom == "keep")]' "$MT/.cursor/hooks.json")" ] || u_ok=0
+  [ "$codex_foreign_before" = "$(jq -c '[.hooks.PreToolUse[] | select(.custom == "foreign")]' "$MT/.codex/hooks.json")" ] || u_ok=0
+  jq -e '
+    ([.hooks.Stop[] | select(.matcher == "mixed-stop")] == [{
+      matcher:"mixed-stop",custom:{owner:"managed"},hooks:[
+        {type:"command",command:"/tmp/managed-metrics.sh",timeout:10,async:false}
+      ]
+    }])
+  ' "$MT/.codex/hooks.json" >/dev/null 2>&1 || u_ok=0
+  jq -e --arg foreign "$codex_foreign_before" '
+    .hooks == {
+      PreToolUse:($foreign | fromjson),
+      Stop:[{matcher:"mixed-stop",custom:{owner:"managed"},hooks:[
+        {type:"command",command:"/tmp/managed-metrics.sh",timeout:10,async:false}
+      ]}]
+    }
+  ' "$MT/.codex/hooks.json" >/dev/null 2>&1 || u_ok=0
+  jq -e --arg foreign "$cursor_foreign_before" '
+    .hooks == {stop:($foreign | fromjson)}
+  ' "$MT/.cursor/hooks.json" >/dev/null 2>&1 || u_ok=0
   [ "$u_ok" = 1 ] && ok "uninstall reverses commands/hooks/settings for all tools" \
                   || bad "uninstall reverses commands/hooks/settings for all tools"
   rm -rf "$MT"
