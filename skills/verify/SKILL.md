@@ -1,19 +1,18 @@
 ---
-description: Product-grade evaluation of recent work — prove it runs, then grade how well it serves this session's goal, briefs held as reference (and flag docs the code has outgrown)
-argument-hint: [optional route/url, the goal, or a focus; --bg to run deferred in the background]
-allowed-tools: Bash, Read, Grep, Glob, Skill, Task
+name: verify
+description: "Product-grade evaluation of recent work — prove it runs, then grade how well it serves this session's goal, briefs held as reference (and flag docs the code has outgrown)"
 ---
 
-Changed files: !`git --no-pager diff --stat HEAD 2>/dev/null`
-Untracked: !`git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
-Recent commits: !`git --no-pager log --oneline -10 2>/dev/null`
-Project briefs: !`ls PRODUCT.md DESIGN.md DESIGN.json CODE.md AGENT.md guardrails 2>/dev/null || true`
-Prior runs: !`ls -dt verify/*/ 2>/dev/null | head -3 || true`
+Changed files: run `git --no-pager diff --stat HEAD 2>/dev/null`
+Untracked: run `git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
+Recent commits: run `git --no-pager log --oneline -10 2>/dev/null`
+Project briefs: run `ls PRODUCT.md DESIGN.md DESIGN.json CODE.md AGENT.md guardrails 2>/dev/null || true`
+Prior runs: run `ls -dt verify/*/ 2>/dev/null | head -3 || true`
 
 **Verify** grades the recent work as a **product increment** — not "does the diff compile" (that's the
 floor) and not code taste (that's `/improve`), but *how well does this actually serve the user's goal for
 this session?* Evidence is the foundation, the briefs are reference, and the honest yardstick is the goal
-this piece of work set out to hit. $ARGUMENTS
+this piece of work set out to hit. Use any focus supplied in the user request.
 
 **Synchronous by default — verify is a handoff gate, not a report.** Its whole value is blocking "done":
 work isn't verified until this pass finishes, so run it inline and don't hand off around it. The **`--bg`**

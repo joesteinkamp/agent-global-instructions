@@ -1,16 +1,15 @@
 ---
-description: Commit on a feature branch (moving off the default first if needed), push, and open the PR/MR — merging only on explicit go-ahead, then reaping the merged branch and its worktree
-argument-hint: [optional commit message / PR title]
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(glab:*)
+name: ship
+description: "Commit on a feature branch (moving off the default first if needed), push, and open the PR/MR — merging only on explicit go-ahead, then reaping the merged branch and its worktree"
 ---
 
-Current state:
-- Branch: !`git branch --show-current`
-- Status: !`git status --short`
-- Diff (staged + unstaged): !`git --no-pager diff HEAD --stat`
-- Remote: !`git remote get-url origin 2>/dev/null`
+First gather the current state:
+- Branch: run `git branch --show-current`
+- Status: run `git status --short`
+- Diff (staged + unstaged): run `git --no-pager diff HEAD --stat`
+- Remote: run `git remote get-url origin 2>/dev/null`
 
-Ship the current work in one shot. $ARGUMENTS
+Ship the current work in one shot. Use any focus supplied in the user request.
 
 First, figure out which forge this repo lives on, from the `origin` remote URL above:
 - **github.com** (or a GitHub Enterprise host) → use the `gh` CLI; the change is a **PR**.
@@ -41,7 +40,7 @@ Steps:
      (`git branch -f <default> origin/<default>`) and say so in the report.
 4. Stage everything (`git add -A`).
 5. Commit with a concise message that follows this repo's existing convention
-   (check `git log --oneline -5`). If I passed text in $ARGUMENTS, use it as the
+   (check `git log --oneline -5`). If I passed text with the request, use it as the
    message/title; otherwise generate one from the diff.
 6. Push, setting upstream if the branch has none.
 7. Open the change (reuse the existing one if there is one) with a generated

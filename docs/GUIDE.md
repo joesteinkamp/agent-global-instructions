@@ -60,8 +60,8 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `extras.local.md` | Optional, gitignored — personal Markdown sections spliced verbatim into every render at `{{EXTRAS}}`. |
 | `examples/` | Two finished sample renders + the `.env` inputs that reproduce them. |
 | `install.sh` / `uninstall.sh` | One-shot installer for every layer, and its clean reverse (configs backed up; instruction files left in place). |
-| `commands/` + `render-commands.sh` + `install-commands.sh` | Canonical commands (`commands/*.md`) → `render-commands.sh` generates per-tool ports (`commands/{codex,cursor}/`, gitignored — regenerated on every install) → `install-commands.sh` installs Claude/Cursor commands and Codex skills (`~/.codex/skills/`); skill-backed commands symlink globally for Claude, Codex, and Cursor. |
-| `.agents/skills/` (+ `.claude/skills/` + `.cursor/skills/` symlinks) + `skills-lock.json` + `skills-manifest.json` | Third-party Skills vendored via [`npx skills`](https://skills.sh), project-scoped so they ship with the repo. `.agents/skills/` is the canonical Agent-Skills-standard tree; `.claude/skills/` and `.cursor/skills/` entries are symlinks into it. Currently: `grill-me` / `grill-with-docs` plus their primitives `grilling` and `domain-modeling`, and `ux-audit` (from [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill); skill-backed — `install-commands.sh` symlinks it globally for Claude/Codex/Cursor in place of the `/ux-audit` wrapper). Re-sync with `npx skills update`; the lockfile pins each skill's upstream source + hash — **one file per skill**, which for `ux-audit` is `SKILL.md` out of a 66-file tree. `skills-manifest.json` closes that gap with a hash over each whole tree, recorded and checked by `./verify-skills.sh` (`--update` after a deliberate import, `--list` to see what is vendored); it is the harness's own file and never edits the upstream lockfile. `grill-me` is also promoted to a globally-installed command (see `commands/grill-me.md` below) so `/grill-me` works in any project, not just this repo's checkout. |
+| `skills/` + `install-skills.sh` | The workflow skills (`skills/<name>/SKILL.md`, one portable file each) → `install-skills.sh` symlinks every one into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills`, together with the vendored `ux-audit` (design group). |
+| `.agents/skills/` (+ `.claude/skills/` + `.cursor/skills/` symlinks) + `skills-lock.json` + `skills-manifest.json` | Third-party Skills vendored via [`npx skills`](https://skills.sh), project-scoped so they ship with the repo. `.agents/skills/` is the canonical Agent-Skills-standard tree; `.claude/skills/` and `.cursor/skills/` entries are symlinks into it. Currently: `grill-me` / `grill-with-docs` plus their primitives `grilling` and `domain-modeling`, and `ux-audit` (from [joesteinkamp/ux-audit-skill](https://github.com/joesteinkamp/ux-audit-skill); `install-skills.sh` symlinks it globally for Claude/Codex/Cursor). Re-sync with `npx skills update`; the lockfile pins each skill's upstream source + hash — **one file per skill**, which for `ux-audit` is `SKILL.md` out of a 66-file tree. `skills-manifest.json` closes that gap with a hash over each whole tree, recorded and checked by `./verify-skills.sh` (`--update` after a deliberate import, `--list` to see what is vendored); it is the harness's own file and never edits the upstream lockfile. A self-contained `grill-me` is also installed globally (see `skills/grill-me/` below) so `/grill-me` works in any project, not just this repo's checkout. |
 | `hooks/` + `install-hooks.sh` | Guardrail + observability hooks → merged into each tool's config (Claude / Codex / Cursor / Antigravity). |
 | `*-permissions.snippet.*` + `install-settings.sh` | Per-tool permissions: Claude & Cursor `deny` JSON; Codex `config.toml` sandbox+approval plus actionable native notifications (idempotent, backed up). |
 | `audit.sh` | Read back the tool-call audit log — timeline, stats, or live tail. |
@@ -159,19 +159,21 @@ every option:
   opt out), project-specific instructions, docs-first, correction capture,
   change log.
 
-## 2. Commands
+## 2. Skills
 
-Portable prompt shortcuts. `commands/*.md` is the **single source of truth**
-(Claude dialect). `./render-commands.sh` translates each into the other tools'
-dialects under `commands/{codex,cursor}/` — per-tool frontmatter, argument
-tokens, and shell-injection (`` !`cmd` `` → "run `cmd`" for Codex/Cursor).
-Those ports are **generated and gitignored** — `./install-commands.sh`
-re-renders on every run. `./install-commands.sh [tool ...]` installs each into
-the right place — Claude `~/.claude/commands/`, Codex skills under
-`~/.codex/skills/` (invoked `$<name>`), Cursor `~/.cursor/commands/`. Add a
-command once as `commands/<name>.md` and every tool picks it up.
+Portable workflow shortcuts, shipped as **skills only**. `skills/<name>/SKILL.md`
+is the single source of truth, written once in a dialect every tool reads, and
+`./install-skills.sh [tool ...]` symlinks each one into `~/.claude/skills`,
+`~/.codex/skills` (invoked `$<name>`), and `~/.cursor/skills`. Every tool reads
+the same file, so there are no ports to drift. Add a skill once as
+`skills/<name>/SKILL.md` and every tool picks it up.
 
-| Command | Does |
+There are no slash-command files any more: Cursor also scans `~/.claude/skills`
+and `~/.codex/skills`, so a command beside a skill shows the name twice. The
+installer removes the command files and copied Codex skills earlier versions
+left behind.
+
+| Skill | Does |
 |---------|------|
 | `/ship` | Tidy gate (format/lint/test, stop if broken) → move off the default branch if that's where the work sits (**it never pushes the default directly**) → stage → commit → push → open the PR/MR, then **merge only on your explicit go-ahead** (squash, delete branch, return to default), then reap the merged local branch and the worktree it lived in. Works with GitHub (`gh`) or GitLab (`glab`). The all-in-one. |
 | `/sync` | Fetch + rebase the current branch on the latest default branch, then sweep the worktrees whose branches that fetch just proved merged. |
@@ -180,10 +182,10 @@ command once as `commands/<name>.md` and every tool picks it up.
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. **Backgrounds by default**: pins a snapshot SHA, reviews it while work continues, lands findings as a notification + durable `findings.md`. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. **Synchronous by default** (it gates handoff); `--bg` defers it behind an explicit done-condition for long runs. |
 | `/update-model-routing` | Regenerate this machine's routing data in `~/.ai/model-routing.md`: probe which models each CLI can actually reach, price them from OpenRouter, place each in a tier from web-researched benchmarks, and refresh the vendor-by-task picks. Shows the diff for approval before anything is kept. Runs anywhere; nothing it writes is committed. |
-| `/ux-audit` | *(design group, skill-backed)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots). Writes + serves a self-contained HTML report. |
+| `/ux-audit` | *(design group)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots). Writes + serves a self-contained HTML report. |
 
-**Command groups.** A command declares `group: <name>` in its frontmatter
-(absent ⇒ `core`, always installed). The **`design`** group
+**Skill groups.** Everything in `skills/` is `core`, always installed. The
+**`design`** group
 (`/ux-audit`) installs **by default for everyone** — everyone should design
 better; `--no-design` (or `INC_DESIGN=n`) forces it off and prunes any already
 installed, so opting out self-heals. The design pack composes with the
@@ -192,7 +194,7 @@ external [project-starter-pack](https://github.com/joesteinkamp/project-starter-
 [ux-audit skill](https://github.com/joesteinkamp/ux-audit-skill) itself is
 **vendored in-repo** at `.agents/skills/ux-audit` (pinned in
 `skills-lock.json`; re-sync with `npx skills update`) and this repo is its
-installer — `install-commands.sh` symlinks it into `~/.claude/skills`,
+installer — `install-skills.sh` symlinks it into `~/.claude/skills`,
 `~/.codex/skills`, and `~/.cursor/skills`.
 
 **Improving the ux-audit skill — one-way sync.** The skill is a **separate

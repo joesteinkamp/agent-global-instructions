@@ -12,6 +12,18 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Workflows ship as skills only (2026-10-14, Claude).** The ask: `/ship`,
+  `/sync` and the rest showed twice in Cursor and the agent CLI. Cursor reads
+  `~/.claude/skills` and `~/.codex/skills` as well as its own, so it listed the
+  `~/.cursor/commands/` file beside the Codex skill port. What changed:
+  `skills/<name>/SKILL.md` is now the single source, in one dialect every tool
+  reads, and `install-skills.sh` (replacing `install-commands.sh`) symlinks it
+  into all three tools. The migration removes the legacy command files, their
+  `.bak.*` backups, and the copied Codex ports. Considered and rejected: a
+  separate Claude variant keeping `` !`cmd` `` injection and `allowed-tools` —
+  it could drift, and Cursor could pick it up and show unrun injection lines.
+  `commands/` and `render-commands.sh` are removed rather than kept for
+  compatibility.
 - **Make Antigravity and Cursor delegates work headless (2026-10-12,
   Claude, #74).** The ask: in a cross-vendor plan wave on 2026-10-11, Antigravity
   returned nothing three times and Cursor was never usable, and Joe wanted

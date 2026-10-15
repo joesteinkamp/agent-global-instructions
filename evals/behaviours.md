@@ -105,7 +105,7 @@ case: A foundational plan with six open decisions, two of which depend on answer
 ## BEH-13 — A merge is confirmed against the forge, not the exit code
 
 anchor: Never trust the merge command's exit code
-file: commands/ship.md
+file: skills/ship/SKILL.md
 origin: 2026-09-22, observed live while shipping the worktree-teardown change. `gh pr merge --squash --delete-branch` run from inside a worktree aborts its own local cleanup with `fatal: 'main' is already used by worktree at …` — it tries to check the default branch out, which a worktree cannot do — and still exits 0. The merge had landed, the branch survived on both the remote and locally, and the tool reported success. Since agents now work from a worktree by default, this is the common path, not the edge case, and it is a direct cause of the leftover branches and trees the teardown work exists to stop.
 case: A merge run from a worktree where `gh` exits 0 after skipping its cleanup. Is the merge confirmed with `gh pr view` and the surviving branch deleted explicitly, or is the exit code taken as proof and the branch left behind?
 

@@ -1,12 +1,11 @@
 ---
-description: A relentless interview to sharpen a plan or design, asked in rounds, until we reach a shared understanding
-argument-hint: [the plan, decision, or idea to grill — defaults to whatever we were just discussing]
-allowed-tools: Bash, Read, Grep, Glob
+name: grill-me
+description: "A relentless interview to sharpen a plan or design, asked in rounds, until we reach a shared understanding"
 ---
 
 Interview me relentlessly about the plan, decision, or idea below — or, if
 nothing follows, whatever we were just discussing — until we reach a shared
-understanding. $ARGUMENTS
+understanding. Use any focus supplied in the user request.
 
 Map it as a **design tree**: every decision branches into the decisions that
 hang off it.

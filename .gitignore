@@ -9,23 +9,16 @@ extras.local.md
 *.jsonl
 .ai-logs/
 
-# Generated per-tool command ports — render-commands.sh regenerates them on
-# every install; only commands/*.md (the canonical Claude dialect) is committed
-/commands/codex/
-/commands/cursor/
+# Retired command ports (skills/ replaced them) — never recreate or commit
+/commands/
 # Generated role ports (Codex, Cursor, Antigravity) — render-roles.sh regenerates it on every install;
 # only roles/*.md (the canonical Claude dialect) is committed
 /roles/codex/
 /roles/cursor/
 /roles/antigravity/
 
-# Gemini is retired (Antigravity replaced it) — its ports must never be
-# committed; this guards against a session hand-authoring them again
-/commands/gemini/
-
 # Generated review/audit/verify + design-command artifacts — local, never commit
-# (anchored to repo root: unanchored patterns would also match the generated
-# commands/codex/verify/ skill port directory)
+# (anchored to repo root: unanchored patterns would also match skills/verify/)
 /review/
 /audits/
 /verify/

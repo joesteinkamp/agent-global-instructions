@@ -222,8 +222,8 @@ them yourself if they grow large.
   **`{"allow_tool":false,"deny_reason":…}` with exit 0** (a non-zero exit is a hook
   *failure*, not a block). Because `agy` invokes each hook by absolute path, the
   installer drops tiny `*.ag.sh` wrappers that set `HOOK_PLATFORM=antigravity`.
-  The commands/permissions layers don't apply (Antigravity has its own
-  slash-command and `permissions.allow/deny` models), so `install-commands.sh`/
+  The skills/permissions layers don't apply (Antigravity has its own
+  slash-command and `permissions.allow/deny` models), so `install-skills.sh`/
   `install-settings.sh` skip it with a note. **Note:** the schema and the hook
   scripts' output are verified, but live deny-firing must be confirmed in an
   interactive `agy` session — headless `agy -p` (print mode) does not invoke the
