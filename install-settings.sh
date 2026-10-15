@@ -13,6 +13,8 @@
 #                                         + env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1, which turns on
 #                                           the agent-team construct the instructions default to
 #                                           (seed-only: an existing value is never overwritten)
+#                                         + advisorModel=opus, so a lead below T1 can consult Opus
+#                                           at judgment points (seed-only, same rule)
 #   codex   ~/.codex/config.toml          approval/sandbox + quiet, actionable notifications
 #   cursor  ~/.cursor/cli-config.json     permissions.deny (JSON union)        — CLI agent; GUI via hook
 #   antigravity ~/.gemini/antigravity-cli/settings.json
@@ -78,6 +80,25 @@ enable_agent_teams() {  # $1 = claude settings.json
     || { echo "    agent-teams merge failed for $sf (left unchanged)" >&2; return 1; }
   backup_file "$sf"; mv "$tmp" "$sf"
   echo "    agent teams enabled (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1) -> $sf"
+  return 0
+}
+
+# Seed Claude Code's advisor so a lead below T1 can consult Opus at judgment
+# points (MODEL-ROUTING.md, "When the lead is below the tier"). Seed-only, like
+# agent teams: an existing advisorModel, "off" included, is the user's choice.
+seed_advisor_model() {  # $1 = claude settings.json
+  local sf="$1" cur tmp
+  [ -f "$sf" ] || echo '{}' > "$sf"
+  cur="$(jq -r '.advisorModel // empty' "$sf" 2>/dev/null)" || return 1
+  if [ -n "$cur" ]; then
+    echo "    advisor left at your setting (advisorModel=$cur)"
+    return 0
+  fi
+  tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")
+  jq '.advisorModel = "opus"' "$sf" > "$tmp" \
+    || { echo "    advisor merge failed for $sf (left unchanged)" >&2; return 1; }
+  backup_file "$sf"; mv "$tmp" "$sf"
+  echo "    advisor enabled (advisorModel=opus) -> $sf"
   return 0
 }
 
@@ -317,7 +338,7 @@ targets=("$@"); [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigra
 # `set -e` (the merge_* helpers return 1 on bad jq / missing snippet).
 for t in "${targets[@]}"; do
   case "$t" in
-    claude)             if install_claude_settings; then enable_agent_teams "$HOME/.claude/settings.json"; else echo "  claude: skipped (error above)" >&2; fi;;
+    claude)             if install_claude_settings; then enable_agent_teams "$HOME/.claude/settings.json"; seed_advisor_model "$HOME/.claude/settings.json"; else echo "  claude: skipped (error above)" >&2; fi;;
     codex)              install_codex_settings  || echo "  codex: skipped (error above)" >&2;;
     cursor)             install_cursor_settings || echo "  cursor: skipped (error above)" >&2;;
     antigravity)        install_antigravity_settings || echo "  antigravity: skipped (error above)" >&2;;
