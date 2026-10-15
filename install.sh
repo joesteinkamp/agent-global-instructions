@@ -2,15 +2,15 @@
 # One-shot installer — render the instructions and install every layer in one
 # go. Wraps the focused scripts so you don't have to remember the sequence.
 #
-#   ./install.sh                 # all tools: instructions + commands + roles + hooks + settings
+#   ./install.sh                 # all tools: instructions + skills + roles + hooks + settings
 #   ./install.sh --yes           # same, but don't prompt to confirm the global render
 #   ./install.sh claude          # just Claude Code
-#   ./install.sh codex cursor    # instructions + commands + roles + hooks + settings for those
+#   ./install.sh codex cursor    # instructions + skills + roles + hooks + settings for those
 #   ./install.sh --design        # force the design command group on (auto: on unless INC_DESIGN=n)
 #
 # Layers (each applied to whichever targets you name):
 #   - instructions (customize.sh --global): all tools, always — the portable core.
-#   - commands (install-commands.sh):       per tool (~/.claude, ~/.codex/skills, ~/.cursor).
+#   - skills (install-skills.sh):           symlinked into ~/.claude/skills, ~/.codex/skills, ~/.cursor/skills.
 #   - roles (install-roles.sh):             per tool (~/.claude, ~/.codex, ~/.cursor agents; ~/.gemini/config/agents) —
 #     the team-role definitions the instructions spawn agents by name from.
 #   - hooks (install-hooks.sh):             per tool.
@@ -25,7 +25,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Split args into flags and tool targets.
 yes_flag=""
-design_flag=()   # forwarded to install-commands.sh: --design | --no-design
+design_flag=()   # forwarded to install-skills.sh: --design | --no-design
 targets=()
 for a in "$@"; do
   case "$a" in
@@ -42,8 +42,8 @@ echo "== instructions =="
 # Portable core — renders every tool's instruction file from template.md.
 if [ -n "$yes_flag" ]; then "$DIR/customize.sh" --global --yes; else "$DIR/customize.sh" --global; fi
 
-echo "== commands =="
-"$DIR/install-commands.sh" ${design_flag[@]+"${design_flag[@]}"} "${targets[@]}"
+echo "== skills =="
+"$DIR/install-skills.sh" ${design_flag[@]+"${design_flag[@]}"} "${targets[@]}"
 
 echo "== roles (reusable agent/teammate definitions) =="
 "$DIR/install-roles.sh" "${targets[@]}"

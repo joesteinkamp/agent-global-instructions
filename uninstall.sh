@@ -37,13 +37,6 @@ HOOK_RE="/($(IFS='|'; echo "${HOOK_NAMES[*]}"))\\.sh"
 TMPFILES=()
 trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
 
-# The per-tool ports are generated, not committed — regenerate them first so
-# remove_commands_dir / remove_codex_skills know which basenames are ours even
-# on a fresh clone. Best-effort: retired-name pruning still runs if this fails.
-# Side effect: leaves the (gitignored) commands/{codex,cursor}/ ports in
-# the working tree, same as any install run.
-[ -x "$DIR/render-commands.sh" ] && { "$DIR/render-commands.sh" >/dev/null 2>&1 || true; }
-
 backup_file() {  # $1 = file to back up, keep 5 newest
   cp "$1" "$(mktemp "$1.bak.XXXXXX")"
   local n=0 b
@@ -162,8 +155,6 @@ strip_codex_notification_defaults() {  # $1 = config.toml
   backup_file "$f"; mv "$tmp" "$f"; echo "  cleaned $f (removed codex notification defaults)"
 }
 
-# Remove the command files WE installed for a tool (by basename, from our source),
-# plus retired names — never touching the user's own commands.
 # Remove the team-role definitions we installed (~/.claude/agents/<role>.md,
 # ~/.codex/agents/<role>.toml). Basenames come from the canonical roles/*.md, so
 # this works whether or not the generated Codex port is present locally. A dest
@@ -189,29 +180,30 @@ remove_roles_dir() {  # $1 = dest dir  $2 = ext  [$3 = rendered src dir, for the
   return 0
 }
 
-remove_commands_dir() {  # $1 = dest dir  $2 = src dir  $3 = ext
-  local dest="$1" src="$2" ext="$3" f base n=0 old
+# Legacy cleanup: remove the command files earlier versions installed under a
+# skill's name (and their backups), plus retired names — never touching the
+# user's own commands.
+remove_commands_dir() {  # $1 = dest dir
+  local dest="$1" d f n=0 old
   [ -d "$dest" ] || return 0
-  if [ -d "$src" ]; then
-    for f in "$src"/*."$ext"; do
-      [ -e "$f" ] || continue
-      base="$(basename "$f")"
-      [ "$base" = "README.$ext" ] && continue
-      [ -f "$dest/$base" ] && { rm -f "$dest/$base"; n=$((n+1)); }
+  for d in "$DIR/skills"/*/ "$DIR/.agents/skills/ux-audit/"; do
+    [ -d "$d" ] || continue
+    for f in "$dest/$(basename "$d").md" "$dest/$(basename "$d").md".bak.*; do
+      [ -f "$f" ] && { rm -f "$f"; n=$((n+1)); }
     done
-  fi
-  local retired="validate handoff flow tidy critique audit"   # space-separated; keep in sync with install-commands.sh RETIRED
+  done
+  local retired="validate handoff flow tidy critique audit"   # space-separated; keep in sync with install-skills.sh RETIRED
   for old in $retired; do
     # Backed up first: a retired name is generic enough (e.g. "audit") that the
     # file could be the user's own, not our stale install.
-    [ -f "$dest/$old.$ext" ] && { backup_file "$dest/$old.$ext"; rm -f "$dest/$old.$ext"; n=$((n+1)); }
+    [ -f "$dest/$old.md" ] && { backup_file "$dest/$old.md"; rm -f "$dest/$old.md"; n=$((n+1)); }
   done
   [ "$n" -gt 0 ] && echo "  removed $n command file(s) from $dest"
   return 0
 }
 
 # Legacy-cleanup helper: remove every file under $1 that carries our GENERATED
-# marker, without diffing against a source dir (render-commands.sh no longer
+# marker, without diffing against a source dir (the render no longer
 # generates a gemini port, so there is nothing current to compare against).
 remove_generated_toml() {  # $1 = dest dir
   local dest="$1" f n=0
@@ -224,30 +216,31 @@ remove_generated_toml() {  # $1 = dest dir
   return 0
 }
 
-remove_codex_skills() {  # $1 = destination skills dir  $2 = generated source dir
-  local dest="$1" src="$2" source skill target n=0
+# Legacy cleanup: Codex skills earlier versions COPIED in carry the render
+# marker; a user's own skill never does.
+remove_codex_skills() {  # $1 = destination skills dir
+  local dest="$1" d n=0
   [ -d "$dest" ] || return 0
-  for source in "$src"/*/SKILL.md; do
-    [ -f "$source" ] || continue
-    skill="$(basename "$(dirname "$source")")"
-    target="$dest/$skill/SKILL.md"
-    [ -L "$dest/$skill" ] && continue   # symlinked real skill — remove_skill_links owns it
-    [ -f "$target" ] && { rm -f "$target"; rmdir "$dest/$skill" 2>/dev/null || true; n=$((n+1)); }
+  for d in "$dest"/*/; do
+    d="${d%/}"
+    [ -L "$d" ] && continue   # symlinked skill — remove_skill_links owns it
+    grep -q '^<!-- GENERATED from commands/' "$d/SKILL.md" 2>/dev/null || continue
+    rm -rf "$d"; n=$((n+1))
   done
-  [ "$n" -gt 0 ] && echo "  removed $n Codex skill(s) from $dest"
+  [ "$n" -gt 0 ] && echo "  removed $n copied Codex skill(s) from $dest"
   return 0
 }
 
-# Is $1 a symlink install-commands.sh created — one resolving into THIS repo's
-# .agents/skills tree? Prefix match, so it also covers dangling links whose
-# vendored skill was since renamed/dropped. Keep in sync with
-# install-commands.sh's copy.
+# Is $1 a symlink install-skills.sh created — one resolving into THIS repo's
+# skills/ or .agents/skills/ tree? Prefix match, so it also covers dangling
+# links whose skill was since renamed/dropped. Keep in sync with
+# install-skills.sh's copy.
 is_our_skill_link() {  # $1 = path
   [ -L "$1" ] || return 1
-  case "$(readlink "$1")" in "$DIR/.agents/skills/"*) return 0;; *) return 1;; esac
+  case "$(readlink "$1")" in "$DIR/skills/"*|"$DIR/.agents/skills/"*) return 0;; *) return 1;; esac
 }
 
-# Remove the skill-backed symlinks install-commands.sh created (including
+# Remove the skill symlinks install-skills.sh created (including
 # dangling ones); a user's own skill (real dir, or a symlink to somewhere
 # else) is never touched.
 remove_skill_links() {  # $1 = destination skills dir
@@ -294,17 +287,17 @@ for a in "$@"; do
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
 
-# --project: mirror `install-commands.sh --project` — strip ONLY the in-repo
-# command files; global hooks/permissions aren't installed per-project, so leave
+# --project: strip ONLY in-repo command files an older `install-commands.sh
+# --project` wrote; global hooks/permissions aren't installed per-project, so leave
 # them alone.
 if [ "$PROJECT" = 1 ]; then
   for t in "${targets[@]}"; do
     case "$t" in
-      claude)      remove_commands_dir "$DIR/.claude/commands"  "$DIR/commands"        md
+      claude)      remove_commands_dir "$DIR/.claude/commands"
                    remove_roles_dir "$DIR/.claude/agents" md;;
       codex)       echo "  Codex skills are global; --project has no effect for codex"
                    remove_roles_dir "$DIR/.codex/agents" toml "$DIR/roles/codex";;
-      cursor)      remove_commands_dir "$DIR/.cursor/commands"  "$DIR/commands/cursor" md
+      cursor)      remove_commands_dir "$DIR/.cursor/commands"
                    remove_roles_dir "$DIR/.cursor/agents" md "$DIR/roles/cursor";;
       gemini)      remove_generated_toml "$DIR/.gemini/commands";;
       antigravity) remove_roles_dir "$DIR/.agents/agents" md "$DIR/roles/antigravity";;
@@ -318,7 +311,7 @@ fi
 for t in "${targets[@]}"; do
   case "$t" in
     claude)
-      remove_commands_dir "$HOME/.claude/commands" "$DIR/commands" md
+      remove_commands_dir "$HOME/.claude/commands"
       remove_roles_dir "$HOME/.claude/agents" md
       remove_skill_links "$HOME/.claude/skills"
       strip_hooks "$HOME/.claude/settings.json"
@@ -327,7 +320,7 @@ for t in "${targets[@]}"; do
       restore_global_pointer "$HOME/.claude/CLAUDE.md"
       ;;
     codex)
-      remove_codex_skills "$HOME/.codex/skills" "$DIR/commands/codex"
+      remove_codex_skills "$HOME/.codex/skills"
       remove_roles_dir "$HOME/.codex/agents" toml "$DIR/roles/codex"
       remove_skill_links "$HOME/.codex/skills"
       strip_hooks "$HOME/.codex/hooks.json"
@@ -336,7 +329,7 @@ for t in "${targets[@]}"; do
       restore_global_pointer "$HOME/.codex/AGENTS.md"
       ;;
     cursor)
-      remove_commands_dir "$HOME/.cursor/commands" "$DIR/commands/cursor" md
+      remove_commands_dir "$HOME/.cursor/commands"
       remove_roles_dir "$HOME/.cursor/agents" md "$DIR/roles/cursor"
       remove_skill_links "$HOME/.cursor/skills"
       strip_hooks "$HOME/.cursor/hooks.json"

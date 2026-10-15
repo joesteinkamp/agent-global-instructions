@@ -1,17 +1,16 @@
 ---
-description: Set up parallel-agent git worktrees, converge them into one live dev tree, and tear each one down once its branch is merged
-argument-hint: [agent names, e.g. "claude codex antigravity"]
-allowed-tools: Bash(git:*), Bash(./converge.sh:*), Bash(~/.ai/worktree-sweep.sh:*)
+name: worktrees
+description: "Set up parallel-agent git worktrees, converge them into one live dev tree, and tear each one down once its branch is merged"
 ---
 
-Current state:
-- Repo root: !`git rev-parse --show-toplevel 2>/dev/null`
-- Current branch: !`git branch --show-current`
-- Existing worktrees: !`git worktree list`
+First gather the current state:
+- Repo root: run `git rev-parse --show-toplevel 2>/dev/null`
+- Current branch: run `git branch --show-current`
+- Existing worktrees: run `git worktree list`
 
 Set up isolated worktrees so several AI agents can work this repo in parallel,
 then converge their branches into a single **integration** tree that one dev
-server watches — so I see everyone's changes near-live. $ARGUMENTS are the agent
+server watches — so I see everyone's changes near-live. Any names passed with the request are the agent
 names (default: `claude codex antigravity`).
 
 Steps:

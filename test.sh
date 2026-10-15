@@ -59,7 +59,7 @@ assert_has "default render points at the web-preview playbook" '~/.ai/web-previe
 # Every documented codex delegate runs with a context dir as its workspace, which
 # is never a git repo, so without --skip-git-repo-check codex refuses before
 # doing anything ("Not inside a trusted directory"). Observed 2026-10-05.
-codex_untrusted="$(grep -rnE 'codex exec[^`]*--cd' "$DIR/playbooks" "$DIR"/commands/*.md 2>/dev/null \
+codex_untrusted="$(grep -rnE 'codex exec[^`]*--cd' "$DIR/playbooks" "$DIR"/skills/*/SKILL.md 2>/dev/null \
   | grep -v -- '--skip-git-repo-check')"
 [ -z "$codex_untrusted" ] \
   && ok "every documented codex exec --cd delegate passes --skip-git-repo-check" \
@@ -605,11 +605,11 @@ if command -v jq >/dev/null 2>&1; then
   { [ -n "$se_total" ] && [ "$se_total" -gt 0 ] && [ "$se_total" = "$se_timed" ]; } \
     && ok "claude SessionEnd hooks declare a timeout (no 1.5s shutdown race)" \
     || bad "claude SessionEnd hooks declare a timeout (total=$se_total timed=$se_timed)"
-  if HOME="$SMOKE" bash "$DIR/install-commands.sh" >/dev/null 2>&1 \
-     && [ -f "$SMOKE/.claude/commands/ship.md" ]; then
-    ok "install-commands installs command files"
+  if HOME="$SMOKE" bash "$DIR/install-skills.sh" >/dev/null 2>&1 \
+     && [ -L "$SMOKE/.claude/skills/ship" ]; then
+    ok "install-skills links the skills"
   else
-    bad "install-commands installs command files"
+    bad "install-skills links the skills"
   fi
 
   # ---- team roles: one canonical definition per role, rendered to both tools.
@@ -662,12 +662,12 @@ PYEOF
 
   # A renamed command (validate -> improve) is pruned on reinstall so an old
   # machine doesn't keep /validate alongside /improve.
-  printf 'stale\n' > "$SMOKE/.claude/commands/validate.md"
-  HOME="$SMOKE" bash "$DIR/install-commands.sh" >/dev/null 2>&1
+  mkdir -p "$SMOKE/.claude/commands"; printf 'stale\n' > "$SMOKE/.claude/commands/validate.md"
+  HOME="$SMOKE" bash "$DIR/install-skills.sh" >/dev/null 2>&1
   [ ! -e "$SMOKE/.claude/commands/validate.md" ] \
-    && [ -f "$SMOKE/.claude/commands/improve.md" ] \
-    && ok "install-commands prunes retired command names" \
-    || bad "install-commands prunes retired command names"
+    && [ -L "$SMOKE/.claude/skills/improve" ] \
+    && ok "install-skills prunes retired command names" \
+    || bad "install-skills prunes retired command names"
 
   # The permissions snippet is valid JSON with deny rules.
   if jq -e '.permissions.deny | length > 0' "$DIR/settings-permissions.snippet.json" >/dev/null 2>&1; then
@@ -932,23 +932,22 @@ PYEOF
   HOME="$SMOKE" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
   if ! jq -e '(.hooks // {}) | (has("SessionStart") or has("PreCompact") or has("SessionEnd"))' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
      && ! jq -e '(.permissions // {}) | has("deny")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
-     && [ ! -f "$SMOKE/.claude/commands/ship.md" ]; then
-    ok "uninstall strips hooks, permissions, and command files"
+     && [ ! -e "$SMOKE/.claude/skills/ship" ]; then
+    ok "uninstall strips hooks, permissions, and skill links"
   else
-    bad "uninstall strips hooks, permissions, and command files"
+    bad "uninstall strips hooks, permissions, and skill links"
   fi
   rm -rf "$SMOKE"
 
   # install.sh orchestrates every layer into a throwaway HOME — and forwards
-  # --no-design to install-commands.sh (the empty-array idiom on bash 3.2), so
-  # core commands land while the design group stays out.
+  # --no-design to install-skills.sh (the empty-array idiom on bash 3.2), so
+  # core skills land while the design group stays out.
   SMOKE2="$(mktemp -d)"
   # Pre-seed a legacy roster so the install proves it migrates it to ~/.ai/.
   mkdir -p "$SMOKE2/.ai-logs"; echo "stale" > "$SMOKE2/.ai-logs/ai-clis"
   if HOME="$SMOKE2" bash "$DIR/install.sh" --yes --no-design claude >/dev/null 2>&1 </dev/null \
      && jq -e '.permissions.deny and .hooks.SessionStart' "$SMOKE2/.claude/settings.json" >/dev/null 2>&1 \
-     && [ -f "$SMOKE2/.claude/commands/ship.md" ] \
-     && [ ! -f "$SMOKE2/.claude/commands/ux-audit.md" ] \
+     && [ -L "$SMOKE2/.claude/skills/ship" ] \
      && [ ! -e "$SMOKE2/.claude/skills/ux-audit" ] \
      && [ -f "$SMOKE2/AGENTS.md" ] \
      && [ ! -L "$SMOKE2/.claude/CLAUDE.md" ] && grep -qF '@~/AGENTS.md' "$SMOKE2/.claude/CLAUDE.md" \
@@ -1073,50 +1072,76 @@ PY
     chmod 755 "$SMK3"; rm -rf "$SMK3"
   fi
 
-  # ---- render-commands: ports are generated from the canonical commands ----
-  bash "$DIR/render-commands.sh" >/dev/null 2>&1 \
-    && ok "render-commands.sh runs" || bad "render-commands.sh runs"
-  # Idempotent: a second render produces byte-identical output (snapshot model).
-  RC1="$(mktemp -d)"; cp -r "$DIR/commands/codex" "$RC1/c" 2>/dev/null
-  bash "$DIR/render-commands.sh" >/dev/null 2>&1
-  diff -rq "$DIR/commands/codex" "$RC1/c" >/dev/null 2>&1 \
-    && ok "render-commands is idempotent" || bad "render-commands is idempotent"
-  rm -rf "$RC1"
-  # Faithful dialect transforms — ship-specific positives plus invariants across
-  # ALL ports (so a regression on sync/verify/... is caught, not just ship).
-  ft=1
-  grep -q '^name: "ship"'  "$DIR/commands/codex/ship/SKILL.md" || ft=0 # Codex skill metadata
-  grep -q 'run `git branch' "$DIR/commands/codex/ship/SKILL.md" || ft=0 # !`cmd` -> run `cmd`
-  head -1 "$DIR/commands/cursor/ship.md" | grep -q '^<!--'    || ft=0   # cursor: no frontmatter
-  for cf in "$DIR"/commands/codex/*/SKILL.md; do
-    grep -q '^allowed-tools' "$cf" && ft=0                              # allowed-tools dropped everywhere
-    grep -qF '!`' "$cf" && ft=0                                          # no leftover !`cmd` injection
-    grep -q '^<!-- GENERATED' "$cf" || ft=0                               # marker is in the skill body
+  # ---- skills: one portable SKILL.md per workflow, read by every tool ----
+  # The same file serves Claude Code, Codex and Cursor, so it must carry no
+  # Claude-only dialect: an unrun !`cmd` or a literal $ARGUMENTS reaches the
+  # other two tools as raw text.
+  sk_ok=1; sk_bad=""; sk_n=0
+  for sf in "$DIR"/skills/*/SKILL.md; do
+    sn="$(basename "$(dirname "$sf")")"; sk_n=$((sk_n+1))
+    sed -n 2p "$sf" | grep -qx "name: $sn"     || { sk_ok=0; sk_bad="$sk_bad $sn:name"; }
+    grep -q '^description: ' "$sf"             || { sk_ok=0; sk_bad="$sk_bad $sn:description"; }
+    grep -qF '!`' "$sf"                         && { sk_ok=0; sk_bad="$sk_bad $sn:injection"; }
+    grep -qF '$ARGUMENTS' "$sf"                 && { sk_ok=0; sk_bad="$sk_bad $sn:ARGUMENTS"; }
+    grep -q '^allowed-tools' "$sf"              && { sk_ok=0; sk_bad="$sk_bad $sn:allowed-tools"; }
   done
-  # The cursor argument note appears IFF the canonical command uses $ARGUMENTS.
-  for md in "$DIR"/commands/*.md; do
-    b="$(basename "$md")"; [ "$b" = "README.md" ] && continue
-    if grep -q '\$ARGUMENTS' "$md"; then
-      grep -q 'no argument placeholder' "$DIR/commands/cursor/$b" || ft=0
-    else
-      grep -q 'no argument placeholder' "$DIR/commands/cursor/$b" && ft=0
-    fi
-  done
-  [ "$ft" = 1 ] && ok "render-commands applies the per-tool dialect transforms (all ports)" \
-                || bad "render-commands applies the per-tool dialect transforms (all ports)"
+  { [ "$sk_ok" = 1 ] && [ "$sk_n" -gt 0 ]; } \
+    && ok "every skill is portable: name matches dir, description, no Claude-only dialect ($sk_n)" \
+    || bad "skill format:$sk_bad"
+  [ ! -e "$DIR/commands" ] && [ ! -e "$DIR/render-commands.sh" ] \
+    && ok "no command sources remain (skills are the only workflow surface)" \
+    || bad "no command sources remain (commands/ or render-commands.sh is back)"
 
-  # ---- multi-tool: codex / cursor command ports, hooks, settings ----
-  # Every canonical command has a port in each tool dir (a missing port = a
-  # command silently absent in that tool).
+  # Every skill reaches every skill-capable tool, as a link to this checkout,
+  # and the install is idempotent.
+  SK="$(mktemp -d)"
+  HOME="$SK" "$DIR/install-skills.sh" --no-design claude codex cursor >/dev/null 2>&1
+  HOME="$SK" "$DIR/install-skills.sh" --no-design claude codex cursor >/dev/null 2>&1
   miss=""
-  for c in "$DIR"/commands/*.md; do
-    [ "$(basename "$c")" = "README.md" ] && continue
-    cn="$(basename "$c" .md)"
-    [ -f "$DIR/commands/codex/$cn/SKILL.md" ] || miss="$miss codex/$cn"
-    [ -f "$DIR/commands/cursor/$cn.md" ]   || miss="$miss cursor/$cn"
+  for sf in "$DIR"/skills/*/SKILL.md; do
+    sn="$(basename "$(dirname "$sf")")"
+    for t in claude codex cursor; do
+      { [ -L "$SK/.$t/skills/$sn" ] && [ "$(readlink "$SK/.$t/skills/$sn")" = "$DIR/skills/$sn" ]; } \
+        || miss="$miss $t/$sn"
+    done
   done
-  [ -z "$miss" ] && ok "every canonical command has a codex/cursor port" \
-                 || bad "missing command ports:$miss"
+  [ -z "$miss" ] && ok "every skill is linked into claude, codex and cursor" \
+                 || bad "missing skill links:$miss"
+  { [ ! -e "$SK/.claude/commands" ] && [ ! -e "$SK/.cursor/commands" ]; } \
+    && ok "install-skills writes no command files" \
+    || bad "install-skills writes no command files"
+  rm -rf "$SK"
+
+  # Migration: what earlier versions installed is cleared so no tool lists a
+  # name twice — command files and their backups, copied Codex ports — while
+  # the user's own command and a hand-made Codex skill survive.
+  SK="$(mktemp -d)"
+  mkdir -p "$SK/.claude/commands" "$SK/.cursor/commands" "$SK/.codex/skills/ship" "$SK/.codex/skills/tidy" "$SK/.codex/skills/mine"
+  for d in claude cursor; do
+    echo old > "$SK/.$d/commands/ship.md"; echo old > "$SK/.$d/commands/ship.md.bak.Ab12Cd"
+    echo old > "$SK/.$d/commands/ux-audit.md"; echo mine > "$SK/.$d/commands/mycustom.md"
+  done
+  printf -- '---\nname: "ship"\n---\n\n<!-- GENERATED from commands/ship.md by render-commands.sh — do not edit. -->\n' > "$SK/.codex/skills/ship/SKILL.md"
+  echo old > "$SK/.codex/skills/ship/SKILL.md.bak.Ab12Cd"
+  printf -- '<!-- GENERATED from commands/tidy.md by render-commands.sh -->\n' > "$SK/.codex/skills/tidy/SKILL.md"
+  echo MINE > "$SK/.codex/skills/mine/SKILL.md"
+  HOME="$SK" "$DIR/install-skills.sh" --design claude codex cursor >/dev/null 2>&1
+  mg_ok=1
+  for d in claude cursor; do
+    [ -e "$SK/.$d/commands/ship.md" ]          && mg_ok=0
+    [ -e "$SK/.$d/commands/ship.md.bak.Ab12Cd" ] && mg_ok=0
+    [ -e "$SK/.$d/commands/ux-audit.md" ]      && mg_ok=0
+    [ -f "$SK/.$d/commands/mycustom.md" ]      || mg_ok=0
+  done
+  [ -L "$SK/.codex/skills/ship" ]              || mg_ok=0
+  [ -e "$SK/.codex/skills/tidy" ]              && mg_ok=0
+  grep -q MINE "$SK/.codex/skills/mine/SKILL.md" 2>/dev/null || mg_ok=0
+  [ "$mg_ok" = 1 ] \
+    && ok "migration clears legacy commands, backups and copied Codex ports; user files survive" \
+    || bad "migration of legacy command installs"
+  rm -rf "$SK"
+
+  # ---- multi-tool: hooks, settings ----
 
   # ---- command groups: the design group is INC_DESIGN-gated at install time ----
   # Design is on by default for everyone; an explicit INC_DESIGN=n opts out.
@@ -1176,69 +1201,32 @@ PY
     || bad "install-hooks policy warning (quiet='$ph_quiet' warn='$ph_warn')"
   rm -rf "$PH" "$PD"
 
-  # Explicit flags gate the design pack and prune it when turned off. The design
-  # command (/ux-audit) is skill-backed: on claude/cursor the vendored skill
-  # symlinks in and the wrapper command must NOT install (no duplicate menu entry).
+  # Explicit flags gate the design skill and prune it when turned off.
   count_design() {  # $1 = HOME root -> 1 if the claude design skill link is present
     [ -L "$1/.claude/skills/ux-audit" ] && printf 1 || printf 0
   }
-  GT="$(mktemp -d)"; GC="$GT/.claude/commands"; GS="$GT/.claude/skills"; CC="$GT/.cursor/commands"; CS="$GT/.cursor/skills"
-  HOME="$GT" "$DIR/install-commands.sh" --no-design claude cursor >/dev/null 2>&1
-  core_ok=1; [ -f "$GC/ship.md" ] || core_ok=0
-  off_ok=1; if [ -e "$GS/ux-audit" ] || [ -f "$GC/ux-audit.md" ] || [ -e "$CS/ux-audit" ] || [ -f "$CC/ux-audit.md" ]; then off_ok=0; fi
-  HOME="$GT" "$DIR/install-commands.sh" --design claude cursor >/dev/null 2>&1
+  GT="$(mktemp -d)"; GS="$GT/.claude/skills"; CS="$GT/.cursor/skills"
+  HOME="$GT" "$DIR/install-skills.sh" --no-design claude cursor >/dev/null 2>&1
+  core_ok=1; [ -L "$GS/ship" ] || core_ok=0
+  off_ok=1; if [ -e "$GS/ux-audit" ] || [ -e "$CS/ux-audit" ]; then off_ok=0; fi
+  HOME="$GT" "$DIR/install-skills.sh" --design claude cursor >/dev/null 2>&1
   on_ok=1
-  [ -L "$GS/ux-audit" ] || on_ok=0
-  [ -f "$GS/ux-audit/SKILL.md" ] || on_ok=0   # the link resolves to the vendored skill
-  [ -f "$GC/ux-audit.md" ] && on_ok=0         # no duplicate wrapper beside the skill
-  [ -L "$CS/ux-audit" ] || on_ok=0
-  [ -f "$CS/ux-audit/SKILL.md" ] || on_ok=0
-  [ -f "$CC/ux-audit.md" ] && on_ok=0         # cursor gets the skill, not the wrapper
-  HOME="$GT" "$DIR/install-commands.sh" --no-design claude cursor >/dev/null 2>&1
-  pr_ok=1; if [ -e "$GS/ux-audit" ] || [ -e "$CS/ux-audit" ] || [ -f "$CC/ux-audit.md" ]; then pr_ok=0; fi
+  [ -L "$GS/ux-audit" ] && [ -f "$GS/ux-audit/SKILL.md" ] || on_ok=0
+  [ -L "$CS/ux-audit" ] && [ -f "$CS/ux-audit/SKILL.md" ] || on_ok=0
+  HOME="$GT" "$DIR/install-skills.sh" --no-design claude cursor >/dev/null 2>&1
+  pr_ok=1; if [ -e "$GS/ux-audit" ] || [ -e "$CS/ux-audit" ]; then pr_ok=0; fi
+  [ -L "$GS/ship" ] || pr_ok=0
   { [ "$core_ok" = 1 ] && [ "$off_ok" = 1 ] && [ "$on_ok" = 1 ] && [ "$pr_ok" = 1 ]; } \
-    && ok "design group: skill symlink on claude/cursor, --no-design prunes both" \
+    && ok "design group: skill link on claude/cursor, --no-design prunes it, core stays" \
     || bad "design group gating (core=$core_ok off=$off_ok on=$on_ok pruned=$pr_ok)"
   rm -rf "$GT"
 
-  # Prune-safety invariants (the destructive branch of install_dir): a user's
-  # OWN command in the destination is never a prune candidate, and a hand-edited
-  # design command is backed up (*.bak.*) before removal — counts alone don't
-  # lock these in, so a prune-branch refactor could regress them silently.
-  GT="$(mktemp -d)"; CC="$GT/.cursor/commands"
-  HOME="$GT" "$DIR/install-commands.sh" --design cursor >/dev/null 2>&1
-  echo "my own command" > "$CC/mycustom.md"
-  echo "hand-edited" >> "$CC/ux-audit.md"
-  HOME="$GT" "$DIR/install-commands.sh" --no-design cursor >/dev/null 2>&1
-  # shellcheck disable=SC2012  # counting mktemp-named backups; no exotic filenames
-  bak_n=$(ls -1 "$CC"/ux-audit.md.bak.* 2>/dev/null | wc -l | tr -d ' ')
-  { [ -f "$CC/mycustom.md" ] && [ ! -f "$CC/ux-audit.md" ] && [ "$bak_n" = 1 ] \
-    && grep -q "hand-edited" "$CC"/ux-audit.md.bak.*; } \
-    && ok "prune safety: user's own command survives, edited design command backed up" \
-    || bad "prune safety (mycustom=$([ -f "$CC/mycustom.md" ] && echo kept || echo LOST) ux-audit-baks=$bak_n)"
-  rm -rf "$GT"
-
-  # Skill-backed migration safety: a pre-existing (hand-edited) wrapper command
-  # on claude is backed up — never silently lost — when the vendored skill takes
-  # over its name, and the skill symlink lands in its place.
-  GT="$(mktemp -d)"; GC="$GT/.claude/commands"; GS="$GT/.claude/skills"
-  mkdir -p "$GC"
-  { cat "$DIR/commands/ux-audit.md"; echo "hand-edited"; } > "$GC/ux-audit.md"
-  HOME="$GT" "$DIR/install-commands.sh" --design claude >/dev/null 2>&1
-  # shellcheck disable=SC2012  # counting mktemp-named backups; no exotic filenames
-  mig_bak=$(ls -1 "$GC"/ux-audit.md.bak.* 2>/dev/null | wc -l | tr -d ' ')
-  { [ ! -f "$GC/ux-audit.md" ] && [ "$mig_bak" = 1 ] && [ -L "$GS/ux-audit" ]; } \
-    && ok "skill-backed migration: edited claude wrapper backed up, skill link installed" \
-    || bad "skill-backed migration (wrapper=$([ -f "$GC/ux-audit.md" ] && echo present || echo gone) baks=$mig_bak link=$([ -L "$GS/ux-audit" ] && echo yes || echo no))"
-  rm -rf "$GT"
-
   # The auto path end-to-end (the real-world default): no explicit flag — the
-  # INC_DESIGN default resolves through customize.sh --design-group, exercising
-  # the install-commands→customize seam integrated.
+  # INC_DESIGN default resolves through customize.sh --design-group.
   GT="$(mktemp -d)"
-  HOME="$GT" AIGI_NO_USER_ENV=1 "$DIR/install-commands.sh" claude >/dev/null 2>&1
+  HOME="$GT" AIGI_NO_USER_ENV=1 "$DIR/install-skills.sh" claude >/dev/null 2>&1
   auto_def=$(count_design "$GT")
-  HOME="$GT" AIGI_NO_USER_ENV=1 INC_DESIGN=n "$DIR/install-commands.sh" claude >/dev/null 2>&1
+  HOME="$GT" AIGI_NO_USER_ENV=1 INC_DESIGN=n "$DIR/install-skills.sh" claude >/dev/null 2>&1
   auto_off=$(count_design "$GT")
   { [ "$auto_def" = 1 ] && [ "$auto_off" = 0 ]; } \
     && ok "design group auto path (default installs 1, INC_DESIGN=n prunes)" \
@@ -1246,64 +1234,40 @@ PY
   rm -rf "$GT"
 
   # A resolver ERROR is not "off": when customize.sh fails on the auto path, an
-  # already-installed design pack must be left in place (warn, don't prune) —
-  # a transient failure must never silently delete the designer's commands.
+  # already-installed design skill must be left in place (warn, don't prune).
   GT="$(mktemp -d)"
-  cp -R "$DIR/commands" "$GT/commands"
+  cp -R "$DIR/skills" "$GT/skills"
   mkdir -p "$GT/.agents" && cp -R "$DIR/.agents/skills" "$GT/.agents/skills"
-  cp "$DIR/install-commands.sh" "$GT/"
+  cp "$DIR/install-skills.sh" "$GT/"
   printf '#!/bin/sh\nexit 1\n' > "$GT/customize.sh"; chmod +x "$GT/customize.sh"
-  HOME="$GT/home" "$GT/install-commands.sh" --design claude >/dev/null 2>&1
-  HOME="$GT/home" "$GT/install-commands.sh" claude >/dev/null 2>&1   # auto + broken resolver
+  HOME="$GT/home" "$GT/install-skills.sh" --design claude >/dev/null 2>&1
+  HOME="$GT/home" "$GT/install-skills.sh" claude >/dev/null 2>&1   # auto + broken resolver
   fail_kept=$(count_design "$GT/home")
   [ "$fail_kept" = 1 ] \
     && ok "design group survives a resolver failure (no silent prune on customize.sh error)" \
     || bad "resolver failure pruned the design skill link (kept=$fail_kept of 1)"
   rm -rf "$GT"
 
-  # Flipping skill-backed OFF must never clobber the vendored source: with the
-  # symlink still in place from the previous install, the codex wrapper install
-  # once wrote THROUGH it into .agents/skills/<name>/SKILL.md. The guard removes
-  # our link first and installs the wrapper fresh; the vendored file stays pristine.
-  GT="$(mktemp -d)"
-  cp -R "$DIR/commands" "$GT/commands"
-  mkdir -p "$GT/.agents" && cp -R "$DIR/.agents/skills" "$GT/.agents/skills"
-  cp "$DIR/install-commands.sh" "$GT/"
-  HOME="$GT/home" "$GT/install-commands.sh" --design claude codex >/dev/null 2>&1
-  grep -v '^skill-backed: true$' "$GT/commands/ux-audit.md" > "$GT/commands/ux-audit.md.tmp" \
-    && mv "$GT/commands/ux-audit.md.tmp" "$GT/commands/ux-audit.md"
-  HOME="$GT/home" "$GT/install-commands.sh" --design claude codex >/dev/null 2>&1
-  flip_ok=1
-  cmp -s "$GT/.agents/skills/ux-audit/SKILL.md" "$DIR/.agents/skills/ux-audit/SKILL.md" || flip_ok=0
-  [ -L "$GT/home/.codex/skills/ux-audit" ]           && flip_ok=0   # link gone
-  [ -f "$GT/home/.codex/skills/ux-audit/SKILL.md" ]  || flip_ok=0   # wrapper installed fresh
-  [ -f "$GT/home/.claude/commands/ux-audit.md" ]     || flip_ok=0   # claude wrapper back
-  [ -e "$GT/home/.claude/skills/ux-audit" ]          && flip_ok=0   # claude link cleaned up
-  [ "$flip_ok" = 1 ] \
-    && ok "skill-backed flip-off installs wrappers without clobbering the vendored skill" \
-    || bad "skill-backed flip-off (vendored-intact=$(cmp -s "$GT/.agents/skills/ux-audit/SKILL.md" "$DIR/.agents/skills/ux-audit/SKILL.md" && echo yes || echo NO))"
-  rm -rf "$GT"
-
-  # Data-safety branches of the skill-backed install — each is a silent-data-loss
-  # regression if a refactor drops the guard: (a) a user's own REAL skill dir at
-  # the skill-backed name is never clobbered; (b) a dangling link WE own (skill
-  # renamed/dropped upstream) is pruned while a foreign dangling link is kept;
-  # (c) codex install neither replaces nor writes through a foreign skill symlink.
+  # Data safety — each is a silent-data-loss regression if a refactor drops the
+  # guard: (a) a user's own REAL skill dir at one of our names is never
+  # clobbered; (b) a dangling link WE own is pruned while a foreign dangling link
+  # is kept; (c) a foreign symlink at one of our names is neither replaced nor
+  # written through.
   GT="$(mktemp -d)"; GS="$GT/.claude/skills"; DS="$GT/.codex/skills"
   mkdir -p "$GS/ux-audit" "$DS"
   echo "MINE" > "$GS/ux-audit/SKILL.md"
-  ln -s "$DIR/.agents/skills/oldskill-gone" "$GS/oldskill-gone"   # dangling, ours
+  ln -s "$DIR/skills/oldskill-gone" "$GS/oldskill-gone"           # dangling, ours
   ln -s /somewhere/else "$GS/foreign"                             # dangling, foreign
-  ln -s /nonexistent/elsewhere "$DS/ship"                         # foreign, collides with a port name
-  HOME="$GT" "$DIR/install-commands.sh" --design claude codex >/dev/null 2>&1
+  ln -s /nonexistent/elsewhere "$DS/ship"                         # foreign, collides with a skill name
+  HOME="$GT" "$DIR/install-skills.sh" --design claude codex >/dev/null 2>&1
   ds_ok=1
   { [ ! -L "$GS/ux-audit" ] && grep -q MINE "$GS/ux-audit/SKILL.md"; } || ds_ok=0
   [ -L "$GS/oldskill-gone" ] && ds_ok=0
   [ -L "$GS/foreign" ] || ds_ok=0
   { [ -L "$DS/ship" ] && [ "$(readlink "$DS/ship")" = /nonexistent/elsewhere ]; } || ds_ok=0
   [ "$ds_ok" = 1 ] \
-    && ok "skill-backed data safety: user dirs/foreign links untouched, our dangling links pruned" \
-    || bad "skill-backed data safety (user-dir=$([ -d "$GS/ux-audit" ] && [ ! -L "$GS/ux-audit" ] && echo kept || echo LOST) ours-dangling=$([ -L "$GS/oldskill-gone" ] && echo LEFT || echo pruned) foreign=$([ -L "$GS/foreign" ] && echo kept || echo LOST))"
+    && ok "skill data safety: user dirs/foreign links untouched, our dangling links pruned" \
+    || bad "skill data safety (user-dir=$([ -d "$GS/ux-audit" ] && [ ! -L "$GS/ux-audit" ] && echo kept || echo LOST) ours-dangling=$([ -L "$GS/oldskill-gone" ] && echo LEFT || echo pruned) foreign=$([ -L "$GS/foreign" ] && echo kept || echo LOST))"
   rm -rf "$GT"
 
   # Retired names (renamed/removed commands, e.g. the /audit -> /ux-audit rename)
@@ -1313,7 +1277,7 @@ PY
   mkdir -p "$GC"
   echo "the user's own audit notes" > "$GC/audit.md"
   echo "stale critique" > "$GC/critique.md"
-  HOME="$GT" "$DIR/install-commands.sh" --no-design claude >/dev/null 2>&1
+  HOME="$GT" "$DIR/install-skills.sh" --no-design claude >/dev/null 2>&1
   ret_ok=1
   if [ -f "$GC/audit.md" ] || [ -f "$GC/critique.md" ]; then ret_ok=0; fi
   grep -q "the user's own audit notes" "$GC"/audit.md.bak.* 2>/dev/null || ret_ok=0
@@ -1321,7 +1285,6 @@ PY
     && ok "retired /audit + /critique prune with a backup of the prior copy" \
     || bad "retired prune (audit=$([ -f "$GC/audit.md" ] && echo present || echo gone) backup=$(grep -q "the user's own audit notes" "$GC"/audit.md.bak.* 2>/dev/null && echo yes || echo MISSING))"
   rm -rf "$GT"
-
   # Codex permissions TOML snippet parses.
   if command -v python3 >/dev/null 2>&1; then
     if python3 -c "import tomllib; tomllib.load(open('$DIR/codex-permissions.snippet.toml','rb'))" 2>/dev/null; then
@@ -1349,13 +1312,13 @@ PY
                     || bad ".claude/.cursor skills symlinks into .agents/skills (canonical tree)"
 
   MT="$(mktemp -d)"
-  HOME="$MT" bash "$DIR/install-commands.sh" claude codex cursor >/dev/null 2>&1
-  if [ -f "$MT/.codex/skills/ship/SKILL.md" ] && [ -f "$MT/.cursor/commands/ship.md" ] \
+  HOME="$MT" bash "$DIR/install-skills.sh" claude codex cursor >/dev/null 2>&1
+  if [ -L "$MT/.codex/skills/ship" ] && [ -L "$MT/.cursor/skills/ship" ] \
      && [ -L "$MT/.codex/skills/ux-audit" ] && [ -f "$MT/.codex/skills/ux-audit/SKILL.md" ] \
      && [ -L "$MT/.cursor/skills/ux-audit" ] && [ -f "$MT/.cursor/skills/ux-audit/SKILL.md" ]; then
-    ok "install-commands installs codex/cursor ports (+ skill-backed symlinks)"
+    ok "install-skills links codex/cursor skills (+ the design skill)"
   else
-    bad "install-commands installs codex/cursor ports (+ skill-backed symlinks)"
+    bad "install-skills links codex/cursor skills (+ the design skill)"
   fi
 
   # Cursor hooks: top-level version:1, flat entries, idempotent through merge.
@@ -1689,7 +1652,7 @@ JSON
   [ -L "$MT/.cursor/skills/ghost" ]         && u_ok=0   # dangling link of ours removed
   [ -f "$MT/.codex/skills/ship/SKILL.md" ]   && u_ok=0
   [ -d "$MT/.codex/skills/ship" ]            && u_ok=0   # no orphaned empty skill dir
-  [ -e "$MT/.codex/skills/ux-audit" ]        && u_ok=0   # skill-backed symlink removed
+  [ -e "$MT/.codex/skills/ux-audit" ]        && u_ok=0   # design skill link removed
   [ -e "$MT/.claude/skills/ux-audit" ]       && u_ok=0
   [ -e "$MT/.cursor/skills/ux-audit" ]      && u_ok=0
   [ -f "$MT/.cursor/commands/ship.md" ]     && u_ok=0
@@ -1699,7 +1662,7 @@ JSON
   rm -rf "$MT"
 
   # Legacy gemini cleanup: `uninstall.sh gemini` strips whatever a
-  # pre-retirement install left behind, without needing render-commands.sh's
+  # pre-retirement install left behind, without needing the retired renderer's
   # (now-removed) gemini port as a comparison source.
   GL="$(mktemp -d)"
   mkdir -p "$GL/.gemini/commands" "$GL/.gemini/policies" "$GL/.gemini/hooks"

@@ -1,12 +1,12 @@
 ---
-description: Update the default branch, rebase onto it, and sweep merged worktrees — worktree-aware, with gated teardown
-allowed-tools: Bash(git:*), Bash(cd:*), Bash(~/.ai/worktree-sweep.sh:*)
+name: sync
+description: "Update the default branch, rebase onto it, and sweep merged worktrees — worktree-aware, with gated teardown"
 ---
 
-Current state:
-- Branch: !`git branch --show-current`
-- Status: !`git status --short`
-- This tree: !`git rev-parse --show-toplevel`
+First gather the current state:
+- Branch: run `git branch --show-current`
+- Status: run `git status --short`
+- This tree: run `git rev-parse --show-toplevel`
 
 Bring my branch up to date with the latest default branch.
 

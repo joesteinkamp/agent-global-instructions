@@ -58,18 +58,22 @@ unprotected.
 
 | Path | Who writes it |
 |---|---|
-| `commands/codex/`, `commands/cursor/` | `render-commands.sh` on every install |
 | `roles/codex/`, `roles/cursor/`, `roles/antigravity/` | `render-roles.sh` on every install |
-| `commands/gemini/` | nobody — Gemini is retired, Antigravity (`agy`) replaced it |
 | `my-context.env`, `extras.local.md`, `mcp-rules.local` | the person, locally |
 
-Only `commands/*.md` and `roles/*.md` (the canonical Claude dialect) are
-committed; the ports are regenerated.
+Only `roles/*.md` (the canonical Claude dialect) is committed; the ports are
+regenerated.
 
 ## Skills
 
+The workflow shortcuts (`/ship`, `/sync`, `/verify`, …) are **skills only** —
+`skills/<name>/SKILL.md` is the one source, written in a portable dialect every
+tool reads (no `` !`cmd` `` injection, no `$ARGUMENTS`). There are no slash
+commands any more: Cursor scans `~/.claude/skills` and `~/.codex/skills` as
+well as its own, so a command beside a skill is a duplicate menu entry.
+
 Vendored skill trees under `.agents/skills/` come from their own upstream repos
 — improve them there and pull the update, never edit the vendored copy.
-`install-commands.sh` installs skills by **symlink into the checkout it runs
+`install-skills.sh` installs skills by **symlink into the checkout it runs
 from**, so a skill bump is only really installed once it lands on `main`; never
 install from a temporary worktree.

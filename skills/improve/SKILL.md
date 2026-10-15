@@ -1,18 +1,17 @@
 ---
-description: Run a multi-role review team in the background against a pinned snapshot of recent changes to find improvement opportunities
-argument-hint: [optional focus, e.g. "perf" or a path]
-allowed-tools: Bash(git:*), Bash(command:*), Bash(codex:*), Bash(agy:*), Bash(claude:*), Bash(agent:*), Bash(cursor-agent:*), Bash(lm:*), Task, Read, Grep, Glob
+name: improve
+description: "Run a multi-role review team in the background against a pinned snapshot of recent changes to find improvement opportunities"
 ---
 
-Changed files: !`git --no-pager diff --stat HEAD 2>/dev/null`
-Untracked: !`git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
-Recent commits: !`git --no-pager log --oneline -5 2>/dev/null`
-Project briefs: !`ls PRODUCT.md DESIGN.md DESIGN.json CODE.md WRITING.md guardrails 2>/dev/null || true`
-Guardrail registry: !`test -f guardrails/registry.json && echo "guardrails/registry.json — cite bans by ID" || echo "none — use the panel's own rubric"`
-Other AI CLIs installed: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
-Local models registered: !`cat "$HOME/.ai/local-models" 2>/dev/null || true`
+Changed files: run `git --no-pager diff --stat HEAD 2>/dev/null`
+Untracked: run `git --no-pager status --porcelain 2>/dev/null | grep '^??' || true`
+Recent commits: run `git --no-pager log --oneline -5 2>/dev/null`
+Project briefs: run `ls PRODUCT.md DESIGN.md DESIGN.json CODE.md WRITING.md guardrails 2>/dev/null || true`
+Guardrail registry: run `test -f guardrails/registry.json && echo "guardrails/registry.json — cite bans by ID" || echo "none — use the panel's own rubric"`
+Other AI CLIs installed: run `cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
+Local models registered: run `cat "$HOME/.ai/local-models" 2>/dev/null || true`
 
-Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). $ARGUMENTS
+Run a **multi-role improvement review** on the recent changes (working tree vs HEAD, plus the last few commits if the tree is clean). Use any focus supplied in the user request.
 
 **Background by default.** This review is advisory and read-only — it must not block the session while
 the panel runs. Invocation still requires my explicit ask (backgrounding changes *how it runs*, never

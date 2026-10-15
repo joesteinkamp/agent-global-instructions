@@ -1,15 +1,14 @@
 ---
-description: Regenerate this machine's model-routing data — probe which models each CLI can actually reach, price them, research their tier, and refresh the vendor-by-task table — showing the diff for approval before anything is kept
-argument-hint: [optional focus, e.g. "tiers only" or "coding categories only"]
-allowed-tools: Bash(cat:*), Bash(cp:*), Bash(mv:*), Bash(rm:*), Bash(diff:*), Bash(date:*), Bash(ls:*), Bash(head:*), Bash(sed:*), Bash(grep:*), Bash(curl:*), Bash(jq:*), Bash(python3:*), Bash(timeout:*), Bash(codex:*), Bash(agy:*), Bash(agent:*), Bash(claude:*), Bash(lm:*), Read, Edit, Write, Grep, Glob, WebSearch, WebFetch, Task
+name: update-model-routing
+description: "Regenerate this machine's model-routing data — probe which models each CLI can actually reach, price them, research their tier, and refresh the vendor-by-task table — showing the diff for approval before anything is kept"
 ---
 
-Today: !`date +%Y-%m-%d`
-Machine copy header: !`sed -n '/generated:begin/,/^## [A-Z]/p' "$HOME/.ai/model-routing.md" 2>/dev/null | head -12 || echo "MISSING"`
-Installed CLIs: !`cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
-Local models: !`cat "$HOME/.ai/local-models" 2>/dev/null || echo "none registered"`
+Today: run `date +%Y-%m-%d`
+Machine copy header: run `sed -n '/generated:begin/,/^## [A-Z]/p' "$HOME/.ai/model-routing.md" 2>/dev/null | head -12 || echo "MISSING"`
+Installed CLIs: run `cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
+Local models: run `cat "$HOME/.ai/local-models" 2>/dev/null || echo "none registered"`
 
-Regenerate **this machine's** routing data in `~/.ai/model-routing.md`. $ARGUMENTS
+Regenerate **this machine's** routing data in `~/.ai/model-routing.md`. Use any focus supplied in the user request.
 
 The file has two kinds of section. Everything **outside** the
 `<!-- generated:begin … -->` / `<!-- generated:end -->` markers is the stable
