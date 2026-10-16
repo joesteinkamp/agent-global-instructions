@@ -53,7 +53,10 @@ account only.
    independent exists. Place it in T1/T2/T3 by the stable section's
    definitions. Every placement cites a source and the retrieval date. **One
    model, one tier**: if the evidence splits, say so in the row and pick the
-   lower tier rather than giving the same model two tiers. Fan the research out
+   lower tier rather than giving the same model two tiers. **Pins win:** if the
+   snapshot's generated block has a `Pinned tiers:` line, carry it forward
+   verbatim and give each pinned model its pinned tier, with the evidence and
+   `pinned by user` in the row. Fan the research out
    by model family to parallel subagents, **unnamed**, since this step waits on
    what they return and a named subagent becomes a teammate (which reports
    idle, not output) wherever agent teams are enabled.

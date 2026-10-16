@@ -701,6 +701,23 @@ PYEOF
     || bad "uninstall removes the agent-teams flag it wrote"
   rm -rf "$TEAMSH"
 
+  # Advisor: seeded to opus so a sub-T1 lead can escalate; same seed-only rules.
+  ADVH="$(mktemp -d)"
+  HOME="$ADVH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  [ "$(jq -r '.advisorModel' "$ADVH/.claude/settings.json" 2>/dev/null)" = "opus" ] \
+    && ok "install-settings seeds the advisor model" || bad "install-settings seeds the advisor model"
+  HOME="$ADVH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+  [ -z "$(jq -r '.advisorModel // empty' "$ADVH/.claude/settings.json" 2>/dev/null)" ] \
+    && ok "uninstall removes the advisor model it wrote" \
+    || bad "uninstall removes the advisor model it wrote"
+  echo '{"advisorModel":"fable"}' > "$ADVH/.claude/settings.json"
+  HOME="$ADVH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  HOME="$ADVH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+  [ "$(jq -r '.advisorModel' "$ADVH/.claude/settings.json" 2>/dev/null)" = "fable" ] \
+    && ok "install and uninstall keep an advisor model the user set" \
+    || bad "install and uninstall keep an advisor model the user set"
+  rm -rf "$ADVH"
+
 
   # install-settings merges the Claude-only permissions layer, idempotently.
   if HOME="$SMOKE" bash "$DIR/install-settings.sh" >/dev/null 2>&1 \

@@ -132,6 +132,22 @@ disable_agent_teams() {  # $1 = claude settings.json
   return 0
 }
 
+# Reverse seed_advisor_model. Only removes the value WE write ("opus").
+unseed_advisor_model() {  # $1 = claude settings.json
+  local sf="$1" cur tmp
+  [ -f "$sf" ] || return 0
+  cur="$(jq -r '.advisorModel // empty' "$sf" 2>/dev/null)" || return 0
+  [ "$cur" = "opus" ] || return 0
+  tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"
+  if jq 'del(.advisorModel)' "$sf" > "$tmp" 2>/dev/null; then
+    backup_file "$sf"; mv "$tmp" "$sf"
+    echo "  removed advisorModel from $sf"
+  else
+    rm -f "$tmp"
+  fi
+  return 0
+}
+
 strip_permissions_json() {  # $1 = settings file  $2 = snippet file
   [ -f "$2" ] || return 0
   local perms; perms="$(jq '.permissions' "$2")"
@@ -332,6 +348,7 @@ for t in "${targets[@]}"; do
       strip_hooks "$HOME/.claude/settings.json"
       strip_permissions_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
       disable_agent_teams "$HOME/.claude/settings.json"
+      unseed_advisor_model "$HOME/.claude/settings.json"
       restore_global_pointer "$HOME/.claude/CLAUDE.md"
       ;;
     codex)

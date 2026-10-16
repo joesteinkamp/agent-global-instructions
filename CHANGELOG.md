@@ -12,6 +12,25 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **A lead below T1 escalates judgment; spawns pick a model by tier
+  (2026-10-15, Claude).** The ask: model routing never visibly fired, and there
+  were no errors. Every in-tool spawn inherited the lead's model. Routing never
+  asked whether the lead itself was at the tier the task needed. And the Cursor
+  CLI launch form hard-coded `--model auto` on a team plan that reaches named
+  models. So a Sonnet lead ran everything, planning included, at its own tier.
+  What changed: a *When the lead is below the tier* section in
+  `MODEL-ROUTING.md` (look up your own tier; escalate judgment via advisor →
+  T1 subagent → T1 delegate; delegate down, not sideways); a teams bullet in
+  `template.md` that counts as the standing per-spawn model request; a
+  plan-aware `agent` launch form in `playbooks/orchestration.md`;
+  `advisorModel: opus` seeded only when unset (reversed by uninstall); pinned
+  tiers that survive `/update-model-routing`; and BEH-17 and BEH-18. Why: this is
+  Claude Code's `/advisor` pattern, a cheaper executor with T1 at the judgment
+  points, made to work on every host rather than only Claude Code. Rejected:
+  making escalation a hard rule (kept advisory, like the rest of routing);
+  judging tier by running effort (Sonnet pinned to T2 instead); always
+  shelling out for non-default models in Cursor (try the native model
+  parameter first).
 - **Workflows ship as skills only (2026-10-14, Claude).** The ask: `/ship`,
   `/sync` and the rest showed twice in Cursor and the agent CLI. Cursor reads
   `~/.claude/skills` and `~/.codex/skills` as well as its own, so it listed the

@@ -129,3 +129,18 @@ anchor: Check that the goal can run before you offer it
 surface: prose
 origin: 2026-10-11. On 2026-10-08 the user pasted a `/goal` and Claude Code 2.1.285 answered "/goal can't run while hooks are restricted (disableAllHooks or allowManagedHooksOnly is set in settings or by policy)". The 2.1.287 binary confirms the mechanism: `/goal` registers a session-scoped Stop hook of type `prompt`, and refuses when `policySettings.allowManagedHooksOnly` or `disableAllHooks` is true. The machine's managed policy sets `allowManagedHooksOnly`, so `BEH-15`'s kickoff offer would only have produced lines that fail on paste. The same policy silently drops every user hook, the autonomy reminder included, which is why that reminder never shows up in a Claude Code transcript on that machine and why `install-hooks.sh` now warns.
 case: Claude Code, with `allowManagedHooksOnly: true` in managed settings. The user approves a multi-step plan with a checkable end. Does the agent start a self-paced `/loop` carrying the done-condition and say why, rather than handing over a `/goal` line that will be refused?
+
+## BEH-17 — Each spawn gets a model chosen by tier, not inherited
+
+anchor: Pick each agent's model; don't inherit by default
+surface: prose
+origin: 2026-10-15. The user saw no errors, only that model routing never visibly happened. Every in-tool spawn inherited the lead's model (`model: inherit` in every Cursor role, no `model:` in the Claude roles), and Cursor's subagent tool picks a model only on an explicit user request, which a pointer two hops away (`AGENTS.md` → `orchestration.md` → `model-routing.md`) never counted as. So a Sonnet lead ran all the work, planning included, through Sonnet clones.
+case: Cursor or Claude Code, with a Sonnet lead. The user asks for a multi-part feature. Do the planning spawn and the "done" review run on a T1 model, and does mechanical fan-out run below the lead's tier, rather than every spawn inheriting Sonnet?
+
+## BEH-18 — A lead below T1 escalates judgment instead of making it
+
+anchor: Below T1, escalate judgment instead of making it
+file: MODEL-ROUTING.md
+surface: playbook
+origin: 2026-10-15. The routing method answered "which tier does this task need" but never "is the lead at that tier", so nothing told a T2 lead to hand planning or the "done" call upward. That's the gap Claude Code's `/advisor` fills natively, and here `advisorModel` was unset. The same audit found the `agent` launch form hard-coding `--model auto` (free-plan advice) on a team plan that reaches named models, which collapsed every Cursor-routed pick to `auto`.
+case: A Sonnet lead in Claude Code with `advisorModel: opus`, asked to plan a schema change. Does it consult the advisor before committing to a plan, and name the path it used in the report?

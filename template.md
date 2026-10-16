@@ -218,6 +218,14 @@ file.
   right size — three focused roles beat five scattered ones. Come to me only when
   the roster itself is the decision (it would change what we're building).
 <!--SECTION:cross-tool-orchestration-->
+- **Pick each agent's model; don't inherit by default.** A spawn that inherits
+  the lead's model is a clone, and a lead below T1 that plans with clones runs
+  the whole job below T1 without a single error. Choose each spawn's model by
+  the tier its task needs, and when you're below T1 yourself, bring a T1 model in
+  for planning and for deciding "done" (an advisor, a T1 subagent, or a T1
+  delegate). Consider this my explicit request to choose a model per spawn,
+  wherever a tool waits for one. The tiers and the per-host ladder are in
+  `~/.ai/model-routing.md`.
 - **One system, two transports — escalate by stakes.** An in-tool team is the
   default. Add cross-vendor delegates when breadth or stakes make one model's
   blind spots the risk: a first product or project plan, app-wide or
@@ -266,7 +274,7 @@ file.
 <!--SECTION:cross-tool-orchestration-->
 ## Orchestrating other AI CLIs
 
-- **This machine may run several AI CLIs — use them as delegates** in headless one-shot mode. This is the second transport of the agent-team system above, not a separate one: same roles, same gates, chosen when another vendor's judgment is worth its cost. The roster lives at `~/.ai/clis` (bare names, one per line; exclude the tool you're running as); the advisory per-task-type vendor rankings at `~/.ai/model-routing.md`.
+- **This machine may run several AI CLIs — use them as delegates** in headless one-shot mode. This is the second transport of the agent-team system above, not a separate one: same roles, same gates, chosen when another vendor's judgment is worth its cost. The roster lives at `~/.ai/clis` (bare names, one per line; exclude the tool you're running as); model tiers and the exact command per CLI at `~/.ai/model-routing.md`.
 - **`~/.ai/orchestration.md` is the whole contract — read it before the first team or delegation** — how to choose the shape, how to carry a role across a vendor boundary, and everything delegate-specific: invocation forms, the shared `~/.ai-context/` dir and its file ownership, routing by strength, sandboxing, worktrees for editing delegates, and failure handling.
 - **Across a vendor boundary the sole-checker rule above still binds** — and a same-model refuter checks the agent, not the model, so route review that matters through a *different* model family, prompted to refute. Judge that by the model, not the CLI: Opus reached through another vendor's CLI is still Opus.
 <!--SECTION:local-models-->
