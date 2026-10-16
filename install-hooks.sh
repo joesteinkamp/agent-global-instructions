@@ -18,6 +18,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$DIR/hooks"
+# shellcheck source=lib/preserve.sh
+. "$DIR/lib/preserve.sh"
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 
 # Single source of truth for the hook scripts. Drives the copy loop AND the jq
@@ -283,8 +285,12 @@ install_antigravity() {
     # Resolve the real script via $0's dir at runtime — never embed $hd/$HOME into
     # the wrapper's quoted exec line (a HOME with a space or quote would otherwise
     # break the path or inject). Only the fixed hook name is interpolated.
-    printf '#!/usr/bin/env bash\nexport HOOK_PLATFORM=antigravity\nexec "$(dirname "$0")/%s.sh"\n' "$s" > "$hd/$s.ag.sh"
-    chmod +x "$hd/$s.ag.sh"
+    # Rendered to a temp file, then installed through the ledger, so a wrapper
+    # someone edited is saved before it's replaced (it used to be overwritten).
+    local wt; wt="$(mktemp "$hd/.aigi.XXXXXX")"; TMPFILES+=("$wt")
+    printf '#!/usr/bin/env bash\nexport HOOK_PLATFORM=antigravity\nexec "$(dirname "$0")/%s.sh"\n' "$s" > "$wt"
+    pv_write hook-wrapper "$wt" "$hd/$s.ag.sh" || return 1
+    [ -L "$hd/$s.ag.sh" ] || chmod +x "$hd/$s.ag.sh"
   done
   [ -f "$hj" ] || echo '{}' > "$hj"
   local add tmp
@@ -317,10 +323,14 @@ install_antigravity() {
 install_sweep_cli() {
   local dest="$HOME/.ai/worktree-sweep.sh"
   mkdir -p "$HOME/.ai" 2>/dev/null || true
-  if cmp -s "$SRC/worktree-reap.sh" "$dest" 2>/dev/null; then
-    echo "  ok ~/.ai/worktree-sweep.sh (up to date)"
-  elif cp "$SRC/worktree-reap.sh" "$dest" 2>/dev/null && chmod +x "$dest" 2>/dev/null; then
-    echo "  wrote ~/.ai/worktree-sweep.sh (tool-agnostic worktree sweep CLI)"
+  # Through the ledger: an edited copy is saved before it's replaced.
+  if pv_write sweep-cli "$SRC/worktree-reap.sh" "$dest" hooks/worktree-reap.sh 2>&1; then
+    case "$PV_ACTION" in
+      current) echo "  ok ~/.ai/worktree-sweep.sh (up to date)";;
+      skipped-symlink) ;;
+      *) chmod +x "$dest" 2>/dev/null || true
+         echo "  wrote ~/.ai/worktree-sweep.sh (tool-agnostic worktree sweep CLI)";;
+    esac
   else
     echo "  (could not write ~/.ai/worktree-sweep.sh — sweep CLI skipped)" >&2
   fi

@@ -7,6 +7,7 @@
 #   ./install.sh claude          # just Claude Code
 #   ./install.sh codex cursor    # instructions + skills + roles + hooks + settings for those
 #   ./install.sh --design        # force the design command group on (auto: on unless INC_DESIGN=n)
+#   ./install.sh --unlock        # clear a stuck install-state lock (only when no install is running)
 #
 # Layers (each applied to whichever targets you name):
 #   - instructions (customize.sh --global): all tools, always — the portable core.
@@ -32,8 +33,12 @@ for a in "$@"; do
     --yes|-y) yes_flag="--yes";;
     --design) design_flag=(--design);;
     --no-design) design_flag=(--no-design);;
+    --unlock)
+      st="${AIGI_STATE_DIR:-$HOME/.ai/install-state}"
+      rm -rf "$st/lock" "$st/lock.reap"
+      echo "Cleared the install-state lock in $st."; exit 0;;
     claude|codex|cursor|antigravity) targets+=("$a");;
-    *) echo "unknown arg: $a (use: --yes | --design | --no-design | claude | codex | cursor | antigravity)" >&2; exit 1;;
+    *) echo "unknown arg: $a (use: --yes | --design | --no-design | --unlock | claude | codex | cursor | antigravity)" >&2; exit 1;;
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)

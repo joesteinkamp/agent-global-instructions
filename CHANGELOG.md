@@ -12,6 +12,30 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Install ledger, phase 1: stop silently overwriting edited files
+  (2026-10-16, Claude, #75).** The ask: keep people's customizations in the
+  files `install.sh` writes, and tell which existing files are safe to replace
+  — written by this installer, or already shipped by this project — from ones
+  someone actually edited. What changed: a ledger (`lib/preserve.sh`, stored in
+  `~/.ai/install-state/`) records exactly what the installer last wrote. Roles
+  for all four tools, the `~/.ai/` playbooks, `worktree-sweep.sh`, `lm` and the
+  Antigravity hook wrappers now go through it. An edited file is copied to
+  `preserved/` before it is replaced (never rotated away), an older version
+  this repo shipped updates quietly, a symlink is never written through, and
+  another tool's `lm` is left alone. Also added: `install.sh --unlock`, a "When
+  you've edited an installed file" section in `docs/GUIDE.md`, and a
+  non-blocking macOS (bash 3.2) CI job. Why this approach: comparing an
+  installed file only to the new render can't tell an old version of ours from
+  a person's edit. A record of what we last wrote can, and the git history of
+  each source (re-rendering role ports at their last 30 commits, measured at
+  4.3 s) covers machines installed before the ledger existed. Considered and
+  rejected: backing up on every overwrite (it would keep every old playbook
+  forever, and edits would be buried among them), and a lock without a separate
+  reap mutex (a race test showed two installs holding it at once in 6 of 20
+  runs; the shipped lock had 0 of 20). The plan's later phases — prompts,
+  merge/keep/pin, `--plan`/`--resolve`, `~/AGENTS.md` routing into
+  `extras.local.md`, and uninstall reading the ledger — are in
+  `PLAN-install-preservation.md` and not yet built.
 - **Workflows ship as skills only (2026-10-14, Claude).** The ask: `/ship`,
   `/sync` and the rest showed twice in Cursor and the agent CLI. Cursor reads
   `~/.claude/skills` and `~/.codex/skills` as well as its own, so it listed the
