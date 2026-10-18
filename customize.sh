@@ -43,7 +43,7 @@ TEMPLATE="$DIR/template.md"
 # Adding a template {{VAR}} is a one-line change here: SUBST_VARS drives both the
 # values handed to awk and the substitution loop, and all three lists drive the
 # load_env allowlist — nothing to keep in sync by hand.
-SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TS_HOST)  # {{VAR}} <-> $VAR
+SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TEAM_DEFAULT TS_HOST)  # {{VAR}} <-> $VAR
 CTRL_VARS=(PREVIEW AUTONOMY PERSONA MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL LOCAL_MODELS)                     # control render, not substituted
 INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_ORCHESTRATION INC_LOCAL_MODELS INC_IMPROVE INC_TOOLS INC_PROPOSALS INC_ARTIFACTS INC_PROSE INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
@@ -80,7 +80,12 @@ done
 : "${PREVIEW:=local}"          # tailscale | local | none
 : "${TS_HOST:=your-host.ts.net}"
 : "${AUTONOMY:=aggressive}"    # aggressive | balanced
-: "${PERSONA:=generic}"        # accepted for back-compat; no longer changes any default
+: "${PERSONA:=designer}"       # designer | design-engineer | design-manager — picks the team default only
+# TEAM_DEFAULT is DERIVED from PERSONA in normalize_inputs(), never asked or read:
+# the lenses an agent team starts from. It is the ONE thing PERSONA changes in
+# the render (test.sh asserts that), so a value set in the environment or a
+# context file is overwritten rather than allowed to disagree with PERSONA.
+TEAM_DEFAULT=""
 # The team-role palette is DERIVED from roles/*.md rather than restated here.
 # Those files are what install-roles.sh renders into every tool's agents
 # directory, so they are what an agent can actually spawn by name — and a
@@ -224,11 +229,29 @@ build_mem_block() {
 # the non-interactive paths below, and again after the interactive prompts.
 normalize_inputs() {
   local _v
-  case "$(lc "$PERSONA")" in
-    prod*|design*|pd|ux|ui) PERSONA=product-designer;;
-    eng*|dev*|swe|backend|frontend) PERSONA=engineer;;
-    gen*|'') PERSONA=generic;;
-    *) echo "customize.sh: unknown PERSONA='$PERSONA' (expected product-designer/engineer/generic); using generic." >&2; PERSONA=generic;;
+  # PERSONA: the three design-team roles. The older values (product-designer,
+  # engineer, generic) still parse, mapped onto the nearest new one. Spaces and
+  # underscores read as hyphens ("Design Manager" = design-manager). Patterns
+  # are exact rather than "design*" / "prod*" prefixes, so a value like
+  # product-manager warns instead of silently becoming designer.
+  _v="$(lc "$PERSONA" | tr ' _' '--')"
+  case "$_v" in
+    design-engineer|design-eng|design-dev|eng*|dev*|swe|frontend|front-end|backend|back-end)
+      PERSONA=design-engineer;;
+    design-manager|design-mgr|design-lead|manager|mgr|lead|dm)
+      PERSONA=design-manager;;
+    designer|design|product-designer|prod|pd|ux|ui|ux-designer|ui-designer|generic|'')
+      PERSONA=designer;;
+    *) echo "customize.sh: unknown PERSONA='$PERSONA' (expected designer/design-engineer/design-manager); using designer." >&2; PERSONA=designer;;
+  esac
+  # The lenses a team starts from, by persona. `refuter` is not listed here:
+  # the template bullet adds it for every persona. render() reads it
+  # indirectly (${!v} over SUBST_VARS), which shellcheck can't see.
+  # shellcheck disable=SC2034
+  case "$PERSONA" in
+    design-engineer) TEAM_DEFAULT='`frontend-engineer`, `ui-designer`';;
+    design-manager)  TEAM_DEFAULT='`design-manager`, `product-designer`, `ux-researcher`';;
+    *)               TEAM_DEFAULT='`product-designer`, `ux-researcher`, `ui-designer`';;
   esac
   # The Design section is ON by default for every persona — everyone should
   # design better. Only an explicit INC_DESIGN=n (env or my-context.env) turns
@@ -791,6 +814,7 @@ NAME="$(ask 'Full name' "$NAME")"
 CALL_ME="$(ask 'What to call you' "$CALL_ME")"
 PRONOUNS="$(ask 'Pronouns' "$PRONOUNS")"
 ROLE="$(ask 'Role / title' "$ROLE")"
+PERSONA="$(ask_one 'Which describes you? (picks the agent team you start from)' "designer/design-engineer/design-manager" "$PERSONA")"
 TIMEZONE="$(ask 'Timezone & location' "$TIMEZONE")"
 
 echo ""

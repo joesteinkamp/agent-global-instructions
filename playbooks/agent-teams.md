@@ -61,7 +61,8 @@ Derive the roster from the task rather than reaching for a fixed set:
 - What decision is actually unresolved? If it's *what to build*, the product
   designer leads; if *what shape it should take*, the technical architect; if
   *whether people can use it*, the UX researcher; if *whether it looks right*,
-  the UI designer.
+  the UI designer; if *how the team is doing the work* — feedback, review
+  rigor, staffing — the design manager.
 - What could be wrong? Always spawn a `refuter` against the conclusion. Where a
   finding can fail in more than one way, give each checker a distinct lens
   (correctness, security, does-it-reproduce) instead of several identical ones.
@@ -75,6 +76,7 @@ may only see the name, so this table is what routes there.
 | `product-designer` | what should exist and why: scope, user value, the flow, what to cut | documents only |
 | `ux-researcher` | what we actually know about users versus what we're guessing | no |
 | `ui-designer` | whether the rendered result matches the design system and reads well | no |
+| `design-manager` | how the design team works: feedback quality, review rigor against the briefs, team health, staffing and sequencing, running a crit | documents only |
 | `technical-architect` | what shape a cross-module change, dependency, or data flow should take | no |
 | `backend-engineer` | server, data, API, migrations, auth — correctness under failure | yes |
 | `frontend-engineer` | client code, state, routing, and the accessibility of what renders | yes |
@@ -92,6 +94,9 @@ Rosters that work:
 | Feature across layers | `frontend-engineer` + `backend-engineer` + `technical-architect`, disjoint files |
 | A design or scope call | `product-designer` + `ux-researcher` + `ui-designer`, then `refuter` |
 | Research a library or approach | one agent per source or angle, then one synthesis pass |
+| A crit of work in progress | `design-manager` to run it + `product-designer` + `ui-designer`, then `refuter` on the feedback |
+| A design review against the briefs | `ui-designer` + `ux-researcher` + `product-designer`, each holding the work to the briefs and `guardrails/`, then `refuter` |
+| 1:1 or feedback prep | `design-manager` alone, then `refuter` on whether every point has evidence behind it |
 
 ## The brief you write first
 
@@ -121,7 +126,7 @@ against no brief at all.
 ## The role definitions
 
 Roles are files, not prose, so the same role behaves the same in every tool.
-All ten in the table above ship by default, and the file name is the name you
+All eleven in the table above ship by default, and the file name is the name you
 spawn by. `harness-steward` is in the palette like the rest, but its subject is
 the tooling itself, not the product — spawn it when that is the work, never as
 a lens on a product task.

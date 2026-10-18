@@ -15,7 +15,18 @@ Install them with `../install-skills.sh` (all tools) or
 | `/improve` | Spin up a multi-role review team (architect, back-end, front-end, +UI/UX) on the recent diff to surface prioritized improvement opportunities, then tee them up as a ready-to-apply plan and offer to make the changes on your go-ahead. **Runs in the background by default**, pinned to a snapshot taken at invocation — findings land as a completion notification plus a durable `findings.md` stamped with the snapshot SHA (HTML report on request). Nothing is edited until you approve. |
 | `/verify` | Product-grade evaluation of the recent work: prove it runs (build/test, headless browser with console/a11y/visual-regression evidence), then **grade how well it serves this session's goal** across goal-fit, experience quality, design/a11y, and product fit. Holds the briefs (`PRODUCT`/`DESIGN`/`CODE.md`) as reference — not gospel. **Synchronous by default** — it's a handoff gate; `--bg` defers it behind a done-condition the handoff waits on. Nothing is edited until you approve. |
 | `/update-model-routing` | Regenerate this machine's routing data in `~/.ai/model-routing.md`: probe which models each CLI can actually reach, price them, place each model in a tier from web-researched benchmarks, and refresh the vendor-by-task picks. Shows the diff for approval; nothing it writes is committed. |
+| `/critique` | Design crit on work in progress (a URL, route, screenshot, Figma link, or files). Plain: open feedback — what's working, what to explore, questions worth asking — with no pass/fail. `--gate`: a severity-ranked review against whichever of `PRODUCT`/`DESIGN`/`WRITING.md` and `guardrails/` exist, citing ban IDs and naming the briefs that are missing. Read-only; the deliverable is an HTML report. |
+| `/figma-parity` | A built screen (URL or route) against its Figma node and the project's tokens → a drift report on spacing, type, color, states and missing variants. Without Figma it falls back to the `DESIGN.md`/`DESIGN.json` tokens and says so. |
+| `/handoff` | A prototype (Figma or a URL) → a spec engineers can build from: every state, tokens by name, edge cases, a11y, and open questions for anything the design doesn't show. |
+| `/research-synthesis` | Notes, transcripts, survey exports or tickets → themes, each backed by verbatim quotes with their source, plus contradicting evidence, confidence, and open questions. Never invents participants or quotes. Read-only; a private HTML artifact. |
+| `/one-on-one` | 1:1 and feedback prep for a named report from whatever sources are connected: context since the last 1:1, talking points, and specific, evidence-backed feedback. Read-only apart from an optional Gmail draft; never sends or messages anyone. |
+| `/team-digest` | What shipped, what's blocked and what's next across connected sources for a date range (default: the last 7 days), saying which sources it couldn't read. Read-only; a paste-ready summary it never posts. |
 | `/ux-audit` | *(design group)* UX audit **from a screenshot**. Not in this directory: the full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `../.agents/skills/ux-audit` and linked by the same installer. Improve it upstream and sync with `npx skills update`; never edit the vendored copy. |
+
+The six design-team skills (`/critique` through `/team-digest`) are ordinary
+skills in this directory: they install for everyone, not with the design group
+below, and each one names the inputs and connected sources it found and the
+ones it didn't.
 
 Most take optional input, e.g. `/ship fix login redirect` uses that as the
 commit message / PR title. In Codex, write `$ship fix login redirect`.

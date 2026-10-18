@@ -1,7 +1,12 @@
 # The full guide
 
 Everything beyond the [README](../README.md) quick start: how the render works,
-every command, hook, and permission layer, and how to customize the wording.
+every skill, hook, and permission layer, and how to customize the wording.
+
+This is the AI harness for design teams — designers, design engineers, and
+design managers. It is one harness for all three, engineering tooling
+included; `PERSONA` picks which lenses an agent team starts from, and nothing
+else in the render depends on it.
 
 ## How it works
 
@@ -32,9 +37,11 @@ Independent parts — use any subset; `./install.sh` wires them all:
 
 1. **Instructions** (model-facing) — a customizable `template.md` rendered into
    per-tool instruction files. *Advice* the assistant should follow.
-2. **Commands** — slash-command shortcuts (`/ship`, `/sync`, `/worktrees`,
-   `/improve`, `/verify`, `/ux-audit`) for repeatable
-   workflows.
+2. **Skills** — workflow shortcuts for repeatable work: the design-team skills
+   (`/critique`, `/figma-parity`, `/handoff`, `/research-synthesis`,
+   `/one-on-one`, `/team-digest`) and the engineering ones (`/ship`, `/sync`,
+   `/worktrees`, `/grill-me`, `/improve`, `/verify`, `/update-model-routing`),
+   plus the vendored `/ux-audit`.
 3. **Guardrails & observability** (hooks) — auto-format, block edits to
    generated/sensitive paths, trip on catastrophic shell, log every tool call to
    JSONL, and surface your memory stores at session start. *Enforcement* the
@@ -73,7 +80,7 @@ Independent parts — use any subset; `./install.sh` wires them all:
 | `test.sh` | Smoke tests: render engine, the `load_env` parser, example reproducibility, and installer/uninstaller smoke tests. |
 
 Rendered output (`AGENTS.md`, `CLAUDE.md`), your `my-context.env`,
-`extras.local.md`, `mcp-rules.local`, the generated command ports, and the
+`extras.local.md`, `mcp-rules.local`, the generated role ports, and the
 `verify/` + `audits/` artifacts are **gitignored** — they're personal or
 generated; produce them locally. Want to see finished output first? Read
 [`examples/aggressive-tailscale.md`](../examples/aggressive-tailscale.md)
@@ -85,7 +92,16 @@ autonomy, local serving, improve + tools + worktrees + orchestration off).
 
 `customize.sh` asks (or reads from `my-context.env`):
 
-- **Who you are** — name, pronouns, role, timezone.
+- **Who you are** — name, pronouns, role, timezone, and `PERSONA`: which
+  design-team role you work in (`designer`, `design-engineer`, or
+  `design-manager`). `ROLE` is free text for the profile line; `PERSONA` picks
+  the lenses an agent team starts from — `product-designer`, `ux-researcher`,
+  `ui-designer` for a designer; `frontend-engineer`, `ui-designer` for a design
+  engineer; `design-manager`, `product-designer`, `ux-researcher` for a design
+  manager — with a `refuter` always added. That one line is all it changes, and
+  the task can still add or swap lenses. Older values still parse
+  (`product-designer` → `designer`, `engineer` → `design-engineer`, `generic` →
+  `designer`); an unknown value warns and falls back to `designer`.
 - **How you preview/test web & HTML work** — Tailscale, local, or none. The
   HTML-artifact preference stays either way; only the *serving* method changes.
 
@@ -182,9 +198,17 @@ left behind.
 | `/improve` | Spin up a multi-role review team on the recent diff (architect, back-end, front-end, +UI/UX) for prioritized improvement opportunities. **Backgrounds by default**: pins a snapshot SHA, reviews it while work continues, lands findings as a notification + durable `findings.md`. |
 | `/verify` | Prove the change is correct & true to spec — build/test, drive the route in a headless browser (responsive screenshots, console/a11y gates, visual regression), and check it against the project briefs (PRODUCT/DESIGN/CODE.md). Writes a served HTML report. **Synchronous by default** (it gates handoff); `--bg` defers it behind an explicit done-condition for long runs. |
 | `/update-model-routing` | Regenerate this machine's routing data in `~/.ai/model-routing.md`: probe which models each CLI can actually reach, price them from OpenRouter, place each in a tier from web-researched benchmarks, and refresh the vendor-by-task picks. Shows the diff for approval before anything is kept. Runs anywhere; nothing it writes is committed. |
+| `/critique` | Design crit on work in progress (a URL, route, screenshot, Figma link, or files). Plain: open feedback — what's working, what to explore — with no pass/fail. `--gate`: a severity-ranked review against whichever of `PRODUCT`/`DESIGN`/`WRITING.md` and `guardrails/` exist, citing ban IDs and naming the briefs that are missing. HTML report. |
+| `/figma-parity` | A built screen (URL or route) against its Figma node and the tokens → a drift report on spacing, type, color, states and missing variants. Without Figma it falls back to `DESIGN.md`/`DESIGN.json` tokens and says so. |
+| `/handoff` | A prototype (Figma or a URL) → a spec engineers can build from: states, tokens, edge cases, a11y, and open questions for what the design doesn't show. |
+| `/research-synthesis` | Notes and transcripts → themes, each backed by evidence (a verbatim quote and its source), with confidence and open questions. Never invents participants or quotes. |
+| `/one-on-one` | 1:1 and feedback prep for a named report from connected sources: talking points and specific, evidence-backed feedback. Read only apart from an optional Gmail draft; may publish a private artifact; never sends. |
+| `/team-digest` | What shipped, what's blocked and what's next across connected sources for a date range (default: the last 7 days). Read only. |
 | `/ux-audit` | *(design group)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots). Writes + serves a self-contained HTML report. |
 
-**Skill groups.** Everything in `skills/` is `core`, always installed. The
+**Skill groups.** Everything in `skills/` is `core`, always installed —
+including the six design-team skills, which install for everyone and do not
+depend on `INC_DESIGN`. The
 **`design`** group
 (`/ux-audit`) installs **by default for everyone** — everyone should design
 better; `--no-design` (or `INC_DESIGN=n`) forces it off and prunes any already

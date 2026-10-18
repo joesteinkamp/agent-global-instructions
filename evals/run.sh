@@ -14,7 +14,7 @@
 #
 # Where an anchor is looked for. By default, in the rendered instructions — that
 # is where most rules live. An entry may add `file: <path>` to point at a role
-# definition or a playbook instead, because those are separate surfaces that the
+# definition, a skill, or a playbook instead, because those are separate surfaces that the
 # render never contains. The path is relative to the repo root and must exist, so
 # a typo fails loudly rather than silently checking the wrong thing.
 #

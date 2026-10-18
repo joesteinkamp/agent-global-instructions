@@ -123,6 +123,84 @@ for _r in "$DIR"/roles/*.md; do
 done
 unset _r _rn palette
 assert_no  "default render no longer tells the agent to ask for roles" 'Never assume roles'
+
+# ---- PERSONA: the one role knob, and the one line it may change ------------
+# PERSONA picks the lenses a team starts from ({{TEAM_DEFAULT}}) and nothing
+# else. A second difference between persona renders is a per-role render, which
+# the design-harness plan rules out (one harness for everyone).
+echo ""
+echo "== PERSONA team default =="
+persona_line() {  # $1 = PERSONA value -> the rendered team-default line
+  PERSONA="$1" "$CUSTOMIZE" --print 2>/dev/null | grep -m1 -A1 "Start from your role's lenses" | tail -n1
+}
+TD_DESIGNER='  `product-designer`, `ux-researcher`, `ui-designer`, plus a `refuter`.'
+TD_ENGINEER='  `frontend-engineer`, `ui-designer`, plus a `refuter`.'
+TD_MANAGER='  `design-manager`, `product-designer`, `ux-researcher`, plus a `refuter`.'
+render
+assert_has "default render starts a team from the role's lenses" "Start from your role's lenses"
+assert_has "default render (no PERSONA) starts from the designer lenses" "$TD_DESIGNER"
+p_bad=""
+for pair in \
+  "designer:$TD_DESIGNER" "DESIGNER:$TD_DESIGNER" "product-designer:$TD_DESIGNER" "prod:$TD_DESIGNER" \
+  "pd:$TD_DESIGNER" "ux:$TD_DESIGNER" "ui:$TD_DESIGNER" "generic:$TD_DESIGNER" ":$TD_DESIGNER" \
+  "design-engineer:$TD_ENGINEER" "Design-Engineer:$TD_ENGINEER" "engineer:$TD_ENGINEER" "eng:$TD_ENGINEER" \
+  "dev:$TD_ENGINEER" "swe:$TD_ENGINEER" "frontend:$TD_ENGINEER" "backend:$TD_ENGINEER" \
+  "design-manager:$TD_MANAGER" "manager:$TD_MANAGER" "mgr:$TD_MANAGER" "lead:$TD_MANAGER" "dm:$TD_MANAGER" \
+  "Design Manager:$TD_MANAGER" "design_engineer:$TD_ENGINEER" "UX Designer:$TD_DESIGNER"; do
+  p_in="${pair%%:*}"; p_want="${pair#*:}"
+  [ "$(persona_line "$p_in")" = "$p_want" ] || p_bad="$p_bad '${p_in}'"
+done
+[ -z "$p_bad" ] && ok "PERSONA normalizes old and new values onto the three roles" \
+                || bad "PERSONA mapped to the wrong team default for:$p_bad"
+PERSONA=astronaut render
+{ grep -qF "unknown PERSONA='astronaut'" "$ERR" && grep -qF "$TD_DESIGNER" "$OUT"; } \
+  && ok "unknown PERSONA warns and falls back to designer" \
+  || bad "unknown PERSONA warns and falls back to designer"
+# Near-misses must warn, not silently match a prefix (product-manager is not a designer).
+p_bad=""
+for p_in in product-manager producer designated; do
+  PERSONA="$p_in" render
+  grep -qF "unknown PERSONA='$p_in'" "$ERR" || p_bad="$p_bad '$p_in'"
+done
+[ -z "$p_bad" ] && ok "PERSONA near-misses warn instead of matching a prefix" \
+                || bad "PERSONA near-misses matched silently:$p_bad"
+
+# The three renders differ in exactly one line, and it is the team-default line.
+PRD="$TMPD/persona"; mkdir -p "$PRD"
+for p in designer design-engineer design-manager; do
+  PERSONA="$p" "$CUSTOMIZE" --print > "$PRD/$p.md" 2>/dev/null
+done
+p_only=1
+for p in design-engineer design-manager; do
+  d="$(diff "$PRD/designer.md" "$PRD/$p.md" | grep '^[<>]' || true)"
+  [ "$(printf '%s\n' "$d" | grep -c '^[<>]')" = 2 ] || p_only=0
+  printf '%s\n' "$d" | grep -v 'plus a `refuter`\.$' | grep -q . && p_only=0
+done
+[ "$p_only" = 1 ] && ok "persona renders differ only in the team-default line" \
+                  || bad "persona renders differ outside the team-default line"
+rm -rf "$PRD"
+
+# TEAM_DEFAULT is derived, never read: an explicit value cannot disagree with
+# PERSONA. TEAM_ROLES is the opposite — an explicit palette still wins, under
+# any persona, and PERSONA never touches it.
+TEAM_DEFAULT='`bogus-role`' PERSONA=design-engineer render
+{ ! grep -qF 'bogus-role' "$OUT" && grep -qF "$TD_ENGINEER" "$OUT"; } \
+  && ok "an explicit TEAM_DEFAULT is overwritten by the PERSONA-derived value" \
+  || bad "an explicit TEAM_DEFAULT is overwritten by the PERSONA-derived value"
+TEAM_ROLES='alpha-lens, beta-lens' PERSONA=design-manager render
+{ grep -qF 'drawn from: alpha-lens, beta-lens.' "$OUT" && grep -qF "$TD_MANAGER" "$OUT"; } \
+  && ok "an explicit TEAM_ROLES still wins under any PERSONA" \
+  || bad "an explicit TEAM_ROLES still wins under any PERSONA"
+PT="$(mktemp -d)"
+cp "$CUSTOMIZE" "$DIR/template.md" "$PT/"
+printf 'TEAM_ROLES="alpha-lens, beta-lens"\nPERSONA="design-engineer"\n' > "$PT/my-context.env"
+pt_out="$(cd "$PT" && env -u AIGI_NO_USER_ENV bash ./customize.sh --print 2>/dev/null)"
+case "$pt_out" in
+  *'drawn from: alpha-lens, beta-lens.'*"$TD_ENGINEER"*) ok  "my-context.env sets PERSONA, and its TEAM_ROLES still wins";;
+  *)                                                     bad "my-context.env sets PERSONA, and its TEAM_ROLES still wins";;
+esac
+rm -rf "$PT"
+unset pair p_in p_want p_bad p_only p d pt_out
 INC_TEAMS=n render
 assert_no "INC_TEAMS=n removes the agent-teams heading" 'Agent teams & subagents'
 assert_no "INC_TEAMS=n removes the agent-teams playbook pointer" '~/.ai/agent-teams.md'
@@ -577,6 +655,54 @@ bash "$RTMP/render-roles.sh" >/dev/null 2>&1 \
   && bad "render-roles fails on a tool with no Antigravity mapping" \
   || ok "render-roles fails on a tool with no Antigravity mapping"
 rm -rf "$RTMP"
+
+# ---- design-team layer: the manager role and the six design skills ---------
+echo ""
+echo "== design-team layer =="
+[ -f "$DIR/roles/design-manager.md" ] \
+  && ok "the design-manager role ships in roles/" \
+  || bad "the design-manager role ships in roles/"
+grep -q '^| `design-manager` |' "$DIR/playbooks/agent-teams.md" \
+  && ok "the agent-teams playbook routes to design-manager" \
+  || bad "the agent-teams playbook routes to design-manager"
+# The playbook states how many roles ship; it has to track roles/*.md.
+n_role_files="$(find "$DIR/roles" -maxdepth 1 -name '*.md' ! -name README.md | wc -l | tr -d ' ')"
+n_role_rows="$(grep -cE '^\| `[a-z-]+` \| .* \| (yes|no|documents only|tests only) \|$' "$DIR/playbooks/agent-teams.md")"
+[ "$n_role_files" = "$n_role_rows" ] \
+  && ok "the playbook role table has one row per role ($n_role_files)" \
+  || bad "the playbook role table has one row per role (files=$n_role_files rows=$n_role_rows)"
+grep -qF 'All eleven in the table above ship by default' "$DIR/playbooks/agent-teams.md" \
+  && [ "$n_role_files" = 11 ] \
+  && ok "the playbook's role count matches roles/ (eleven)" \
+  || bad "the playbook's role count matches roles/ (says eleven, found $n_role_files)"
+
+# The six skills are portable (one dialect for every tool) and CORE: they live
+# in skills/, which installs for everyone, and never in the design group that
+# INC_DESIGN can switch off.
+DESIGN_TEAM_SKILLS="critique figma-parity handoff research-synthesis one-on-one team-digest"
+ds_bad=""
+for sn in $DESIGN_TEAM_SKILLS; do
+  sf="$DIR/skills/$sn/SKILL.md"
+  [ -f "$sf" ] || { ds_bad="$ds_bad $sn:missing"; continue; }
+  fm_keys="$(awk 'NR==1&&$0=="---"{f=1;next} f&&$0=="---"{exit} f&&/^[A-Za-z_-]+:/{sub(/:.*/,"");print}' "$sf" | sort | tr '\n' ' ')"
+  [ "$fm_keys" = "description name " ] || ds_bad="$ds_bad $sn:frontmatter($fm_keys)"
+  [ "$(sed -n 2p "$sf")" = "name: $sn" ] || ds_bad="$ds_bad $sn:name"
+  grep -qF '!`' "$sf"          && ds_bad="$ds_bad $sn:injection"
+  grep -qF '$ARGUMENTS' "$sf"  && ds_bad="$ds_bad $sn:ARGUMENTS"
+  grep -q 'allowed-tools' "$sf" && ds_bad="$ds_bad $sn:allowed-tools"
+done
+[ -z "$ds_bad" ] && ok "the six design-team skills exist in the portable dialect (name + description only)" \
+                 || bad "design-team skill format:$ds_bad"
+ds_group="$(sed -n 's/^DESIGN_SKILLS="\(.*\)"$/\1/p' "$DIR/install-skills.sh")"
+ds_gated=""
+for sn in $DESIGN_TEAM_SKILLS; do
+  case " $ds_group " in *" $sn "*) ds_gated="$ds_gated $sn";; esac
+  [ -e "$DIR/.agents/skills/$sn" ] && ds_gated="$ds_gated $sn(vendored)"
+done
+{ [ -n "$ds_group" ] && [ -z "$ds_gated" ]; } \
+  && ok "the design-team skills are core, not behind the design group" \
+  || bad "design-team skills gated behind INC_DESIGN:${ds_gated:- (no DESIGN_SKILLS line found)}"
+unset n_role_files n_role_rows DESIGN_TEAM_SKILLS ds_bad sn sf fm_keys ds_group ds_gated
 
 
 # ---- installer smoke tests — run the installers into a throwaway HOME so a
