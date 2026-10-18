@@ -591,6 +591,18 @@ pv_route_extras() {  # $1 = added-lines file
   echo "  moved your ~/AGENTS.md additions into $xf (the render's personal layer)" >&2
   out="$(mktemp "$AIGI_RUN_DIR/render.XXXXXX")" || return 1
   AIGI_GLOBAL_RENDER=1 "${DIR:-.}/customize.sh" --print < /dev/null > "$out" || return 1
+  # The render reads this checkout's layers (or the saved snapshot), which
+  # isn't the primary checkout's extras.local.md when you install from a linked
+  # worktree. Then the new ~/AGENTS.md wouldn't carry your lines, so don't
+  # claim it does: leave ~/AGENTS.md alone until an install that can see them.
+  while IFS= read -r l || [ -n "$l" ]; do
+    [ -n "$l" ] || continue
+    if ! grep -qxF -- "$l" "$out"; then
+      echo "  your lines are in $xf, but this checkout (${DIR:-.}) renders without them —" >&2
+      echo "  ~/AGENTS.md is left as it is; run ./install.sh from $(dirname "$xf") to pick them up" >&2
+      return 1
+    fi
+  done < "$1"
   printf '%s\n' "$out"
 }
 
@@ -658,7 +670,7 @@ pv_do_append() {  # $1 = class  $2 = new content file  $3 = dest  $4 = rel
   added="$(mktemp "$AIGI_RUN_DIR/added.XXXXXX")"; pv_added "$base" "$3" "$1" > "$added"
   pv_preserve "$3" "replaced by install" "$1" "$2" || { echo "  could not preserve $3 — left unchanged" >&2; return 1; }
   if [ "$1" = render ]; then
-    out="$(pv_route_extras "$added")" || { echo "  could not update extras.local.md — $3 left unchanged" >&2; return 1; }
+    out="$(pv_route_extras "$added")" || { echo "  $3 left unchanged (yours is saved: $PV_SAVED)" >&2; return 1; }
   else
     out="$(mktemp "$AIGI_RUN_DIR/appended.XXXXXX")"; pv_build_append "$2" "$added" "$1" "$out"
     echo "  kept your additions to $3 in its preserved block — your full version: $PV_SAVED" >&2
@@ -766,7 +778,7 @@ pv_write() {  # $1 = class  $2 = new content file  $3 = dest  [$4 = repo-relativ
       else
         case "$(pv_policy)" in
           keep)   pv_do_keep "$class" "$new" "$dest" "$rel";;
-          append) pv_do_append "$class" "$new" "$dest" "$rel" || return 1;;
+          append) pv_do_append "$class" "$new" "$dest" "$rel" || PV_ACTION=failed;;
           *)      pv_do_replace "$class" "$new" "$dest" "$rel" || return 1;;
         esac
       fi;;
@@ -846,11 +858,12 @@ pv_resolve_parked() {
         if [ -n "$all" ]; then ans=r; else echo "  [a] isn't available here: $why" >&2; ans=""; fi
       fi
     done
+    PV_ACTION=""
     case "$ans" in
-      r) pv_do_replace "$class" "$new" "$dest" "$rel";;
-      a) pv_do_append "$class" "$new" "$dest" "$rel";;
-      k) pv_do_keep "$class" "$new" "$dest" "$rel";;
-      p) pv_do_pin "$dest";;
+      r) pv_do_replace "$class" "$new" "$dest" "$rel" || PV_ACTION=failed;;
+      a) pv_do_append "$class" "$new" "$dest" "$rel" || PV_ACTION=failed;;
+      k) pv_do_keep "$class" "$new" "$dest" "$rel" || PV_ACTION=failed;;
+      p) pv_do_pin "$dest" || PV_ACTION=failed;;
       x) echo "  stopped — $dest and every file after it are left as they are" >&2
          PV_ACTION=left; pv_log "$dest" "$class"
          while IFS="$(printf '\t')" read -r id dest class rel blob ai; do PV_ACTION=left; pv_log "$dest" "$class"; done
@@ -886,7 +899,7 @@ pv_write_last_run() {
             replaced-custom)
               if [ -z "$(pv_no_append "$class")" ]; then recover="./install.sh --resolve $path --append"
               else recover="./install.sh --resolve $path --keep"; fi;;
-            left) recover="./install.sh";;
+            left|failed) recover="./install.sh";;
           esac
           [ "$first" = 1 ] && first=0 || printf ','
           printf '\n    {"path": "%s", "class": "%s", "verdict": "%s", "action": "%s", "preserved_at": %s, "ai": %s, "recover": %s}' \
@@ -909,7 +922,7 @@ pv_summary() {
         $4 == "replaced-custom" { r[++nr] = $1; rm[nr] = ($2 == "playbook" || $2 == "render") ? "--append" : "--keep" }
         $4 == "appended"        { a[++na] = $1 }
         $4 == "kept-custom" || $4 == "pinned" { k[++nk] = $1 }
-        $4 == "left"            { l[++nl] = $1 }
+        $4 == "left" || $4 == "failed" { l[++nl] = $1 }
         END {
           if (nr) { print ""; print "Replaced " nr " file(s) you had edited (your versions are in " st "/preserved/):"
                     for (i = 1; i <= nr; i++) print "  " r[i] "   recover: ./install.sh --resolve " r[i] " " rm[i] }
@@ -980,7 +993,7 @@ pv_resolve_cmd() {  # $1 = mode (replace|append|keep|pin|ask)  $2.. = paths (emp
         if [ -n "$why" ]; then echo "  can't append to $path ($why) — use --keep or --pin" >&2; continue; fi
         added="$AIGI_RUN_DIR/added.$n"; pv_added "$base" "$saved" "$class" > "$added"
         if ! grep -q . "$added"; then echo "  $path: your version only removed lines — nothing to add back" >&2; continue; fi
-        if [ "$class" = render ]; then out="$(pv_route_extras "$added")" || return 1
+        if [ "$class" = render ]; then out="$(pv_route_extras "$added")" || continue
         else out="$AIGI_RUN_DIR/out.$n"; pv_build_append "$path" "$added" "$class" "$out"; fi
         pv_contradictions "$added" "$path"
         pv_put "$out" "$path" || return 1

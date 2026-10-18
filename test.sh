@@ -2973,6 +2973,20 @@ lt render 'export PV_REPO="'"$RX"'" DIR="'"$RX"'" PV_LAYERS_DIR="'"$RX"'"
   && ok "ledger: ~/AGENTS.md recognizes an old render, and [a] moves your lines into extras.local.md" \
   || bad "ledger: ~/AGENTS.md recognizes an old render, and [a] moves your lines into extras.local.md"
 
+# From a linked worktree, routed lines land in the primary checkout's extras,
+# which that worktree's render can't see — so ~/AGENTS.md is left alone rather
+# than recorded as carrying lines it doesn't.
+git -C "$RX" worktree add -q "$LT/render-wt" 2>/dev/null
+lt renderwt 'export PV_REPO="'"$LT/render-wt"'" DIR="'"$LT/render-wt"'" PV_LAYERS_DIR="'"$LT/render-wt"'"
+  (cd "$DIR" && ./customize.sh --print) > "$HOME/new"; cp "$HOME/new" "$HOME/A.md"
+  pv_write render "$HOME/new" "$HOME/A.md" render:agents; printf "wt rule\n" >> "$HOME/A.md"
+  AIGI_ON_CONFLICT=append pv_write render "$HOME/new" "$HOME/A.md" render:agents; echo "B=$PV_ACTION"
+  echo "R=$(grep -c "wt rule" "$HOME/A.md")"'
+{ grep -q 'B=failed' "$LT/renderwt/out" && grep -q 'R=1' "$LT/renderwt/out" \
+  && grep -qx 'wt rule' "$RX/extras.local.md" && grep -q 'renders without them' "$LT/renderwt/out"; } \
+  && ok "ledger: routed lines a worktree's render can't see leave ~/AGENTS.md alone, and say why" \
+  || bad "ledger: routed lines a worktree's render can't see leave ~/AGENTS.md alone, and say why"
+
 # End to end, through install.sh: a second run changes nothing, --plan writes
 # nothing, last-run.json is valid, and --resolve --append brings a replaced
 # edit back.
