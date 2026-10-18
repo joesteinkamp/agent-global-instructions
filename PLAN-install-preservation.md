@@ -1,6 +1,6 @@
 # Plan — keep people's customizations in the files `install.sh` writes
 
-**Status: revision 3 (2026-10-12); phase 1 BUILT (see §17), phases 2–3 not started.** Revision 1 was refuted by a same-family refuter (§15); revision 2 was refuted by a cross-family one (Antigravity, §16). This revision resolves both. No product code yet; Joe asked for the plan
+**Status: revision 4 (2026-10-18); phase 1 BUILT (§17); phases 2–3 scoped in §18 and being built.** Revision 1 was refuted by a same-family refuter (§15); revision 2 was refuted by a cross-family one (Antigravity, §16). This revision resolves both. No product code yet; Joe asked for the plan
 first. Written by Claude (Opus 5.5). Rival drafts from other vendors are diffed
 in §13.
 **Lives on:** branch `ai/claude-install-preserve`, worktree
@@ -636,3 +636,90 @@ until now. It's outside phase 1 and should get its own fix.
   stale and harmless: the next install re-creates and re-records them.
 
 All of that is phases 2–3.
+
+## 18. Phases 2–3: scope as built (revision 4, 2026-10-18)
+
+Joe, 2026-10-18: *rebase #75, then finish phases 2–3 so it works right.* The
+branch was rebased onto `main` at `62cc9ff` (#78) first; only `CHANGELOG.md`
+conflicted, and both entries were kept.
+
+**What changed underneath the plan since revision 3.** #76 made workflows
+skills-only, installed by symlink, so the "commands" and "Codex skills" rows of
+§2 are gone: skills are ownership-checked links (already safe), and the only
+file writes left in `install-skills.sh` are the removal of retired command
+files. Everything else in §2 still stands.
+
+### Decisions taken in this revision (stated, not asked)
+
+| # | Decision | Why |
+|---|---|---|
+| E1 | **R9 settled as D1:** a run with no usable `/dev/tty` and no `--yes` is unattended and renders, instead of aborting the global render | The abort is exactly what Joe hit on 2026-10-18 (`customize.sh: /dev/tty: No such device or address`). D1 already says what an unanswerable run does. |
+| E2 | **Deferred resolution instead of a classify-everything-first pass.** Attended, a CUSTOM file is *not* written during its layer: it's left as is, its new version is parked in the run dir, and `install.sh` asks about every parked file once, at the end. Unattended, D1 applies on the spot. | Same UX (one batch of questions, nothing of yours replaced until you answer, `[x]` leaves everything parked untouched) without making six installers dry-run-capable. A layer run on its own resolves its own parked files when it finishes. |
+| E3 | **`--plan` covers the ledgered files only.** It runs the ledgered writers with `AIGI_PHASE=plan` (classify, record to `plan.tsv`, write nothing) and skips the skills, settings and memory-OS layers, which hold no ledgered files. | Those layers already merge by key or link by ownership; a dry run of them would show nothing the ledger decides. |
+| E4 | **`[a]` (append) is offered for the playbooks and `~/AGENTS.md` only.** Playbooks append inside an `aigi:preserved` block; `~/AGENTS.md` routes the added lines into the primary checkout's `extras.local.md` (D5) and re-renders. Roles (D6), scripts, wrappers, `lm` and `model-routing.md` (A10) never append. | §6's table, applied to the file classes that exist after #76. |
+| E5 | **AI check: `off` (default) \| `local` \| `command`.** `local` is `lm -p`; `command` runs `INSTALL_AI_CHECK_CMD`, which reads the prompt on stdin and prints the JSON verdict. The plan's `any` (auto-pick a CLI from `~/.ai/clis`) is dropped. | Inventing a one-shot invocation per vendor in the installer would duplicate `~/.ai/model-routing.md`, which already owns that and changes per machine. Anyone who wants a vendor CLI names its command. |
+| E6 | **`~/.ai/model-routing.md` joins the ledger outside its generated markers.** Its canonical part is the file with the generated block removed, so `/update-model-routing` rewriting the block never makes it CUSTOM, and an edit to the stable sections is preserved before it's replaced. The fixed-name `model-routing.unmarked.bak.md` (overwritten each run) becomes a `preserved/` copy. | R10. |
+
+### Phase 2 — decide, don't only save
+
+- **One unattended flag (G5, R9):** `install.sh` decides once (`--yes`,
+  `AIGI_UNATTENDED=1`, or `/dev/tty` fails to open) and exports
+  `AIGI_UNATTENDED` and `AIGI_RUN_DIR` to every layer.
+- **Rungs added to `pv_write`:** PINNED (`pins`), KEPT (`kept-blob` /
+  `kept-against`), canonical-part comparison for files carrying an
+  `aigi:preserved` block or generated markers, damaged markers → CUSTOM.
+- **The resolve pass:** `[r]` replace · `[a]` append (where E4 allows) ·
+  `[k]` keep this time · `[p]` pin · `[d]` diff · `[R]`/`[K]` same answer for
+  the rest · `[x]` stop and leave the rest untouched. Enter is `[r]` (D1).
+  `--on-conflict=replace|append|keep` / `INSTALL_ON_CONFLICT` sets the
+  unattended choice.
+- **`--resolve [<path>…] [--replace|--append|--keep|--pin]`** re-applies a
+  decision to a file an earlier run replaced, from the `preserved/` triple
+  (yours, the base it diverged from, the version that replaced it; R5).
+- **`--plan`** (E3) and **`--pin` / `--unpin <path>`**.
+- **`last-run.json`** in `install-state/`: one entry per ledgered action
+  (`path`, `class`, `verdict`, `action`, `preserved_at`, `ai`), journaled as
+  the run goes and closed at the end. Exit 0 on success either way (A9).
+- **More writers on the ledger:** `~/AGENTS.md` (SHIPPED = re-render of the
+  last 30 template/customize commits with today's personal layers, measured at
+  4.3 s in §17), the `~/.codex/AGENTS.md` real-file case and the `CLAUDE.md`
+  pointer (first displaced original copied to `orig/` once, G2), hook scripts
+  and retired hook scripts, retired command files, `model-routing.md` (E6).
+- **`extras.local.md` durability (R7, A6):** each global render snapshots the
+  personal layers into `install-state/`. A render from a checkout that has no
+  `extras.local.md` while a snapshot exists uses the snapshot and says so.
+- **Agent pointer:** one template bullet telling an agent to read
+  `~/.ai/install-state/last-run.json` after running an install, anchored in
+  `evals/behaviours.md` and pinned in `test.sh`.
+
+### Phase 3 — the rest of the plan
+
+- **`uninstall.sh` reads the ledger:** removes a ledgered file only when it's
+  OURS; anything else is copied to `preserved/` first. A pointer path restores
+  `orig/` (the first original) before the newest `.bak.*`. The state dir stays;
+  `--purge` removes it after a typed confirmation.
+- **Settings provenance (G4, A3, R13):** `install-state/settings.tsv` records
+  each permission rule this installer added. Retiring a rule and uninstalling
+  remove only rules we added; a rule we added that's since gone is `declined`
+  and never re-added; a new upstream rule is still added. Pre-ledger machines
+  adopt matching rules as ours on the first run (stated limitation).
+- **The AI check** (E5, §7): Markdown CUSTOM files only, `timeout 60` per file
+  and 300 s per run, strict JSON validated with `jq`, advisory only.
+- **Docs:** `README.md` and `docs/GUIDE.md` describe the real safety net.
+
+**Done when** (§12, reworded for E3): `./install.sh --plan` on this machine
+classifies every ledgered path and writes nothing; a second `./install.sh
+--yes` changes no ledgered file; every case in §11 that applies passes in
+`test.sh`; shellcheck, evals and `verify-skills.sh` are clean; a cross-family
+review's findings are fixed or listed.
+
+**Falsifier:** if the first real `./install.sh --plan` here (installed from
+`main` on 2026-10-18, so every file should be CURRENT or SHIPPED) shows any
+file CUSTOM that Joe didn't edit, the classification is wrong and nothing past
+it ships until that's explained.
+
+**Three lenses.** UX: one batch of questions at the end, Enter is safe, and
+every replaced edit names its recovery command. DX: every new writer is one
+`pv_write` call, and `--plan` is the debugger. AX: an agent passes `--yes`,
+reads `last-run.json`, and follows up with `--resolve` flags; nothing needs a
+TTY. Traded away: `--plan` doesn't preview the JSON/TOML merges (E3).
