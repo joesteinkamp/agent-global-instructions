@@ -31,6 +31,10 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 # shellcheck source=lib/preserve.sh
 . "$DIR/lib/preserve.sh"
+# Permission rules come off by provenance: only the ones settings.tsv says we
+# added (G4); a file from before the ledger falls back to the whole snippet.
+# shellcheck source=lib/settings-ledger.sh
+. "$DIR/lib/settings-ledger.sh"
 
 # Derive the hook-script set from the actual files so it can't drift from the
 # installer. HOOK_RE matches /<our-script>.sh on the dir slash.
@@ -161,19 +165,6 @@ unseed_advisor_model() {  # $1 = claude settings.json
     rm -f "$tmp"
   fi
   return 0
-}
-
-strip_permissions_json() {  # $1 = settings file  $2 = snippet file
-  [ -f "$2" ] || return 0
-  local perms; perms="$(jq '.permissions' "$2")"
-  edit_json "$1" '
-    if .permissions then
-      reduce ($add | to_entries[]) as $e (.;
-        .permissions[$e.key] = ((.permissions[$e.key] // []) - $e.value))
-      | .permissions |= with_entries(select((.value | length) > 0))
-      | if (.permissions == {}) then del(.permissions) else . end
-    else . end
-  ' --argjson add "$perms"
 }
 
 # Remove our managed permissions block from Codex's config.toml (between sentinels).
@@ -362,7 +353,7 @@ for t in "${targets[@]}"; do
       remove_roles_dir "$HOME/.claude/agents" md
       remove_skill_links "$HOME/.claude/skills"
       strip_hooks "$HOME/.claude/settings.json"
-      strip_permissions_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
+      sl_strip_perms "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
       disable_agent_teams "$HOME/.claude/settings.json"
       unseed_advisor_model "$HOME/.claude/settings.json"
       restore_global_pointer "$HOME/.claude/CLAUDE.md"
@@ -382,7 +373,7 @@ for t in "${targets[@]}"; do
       remove_skill_links "$HOME/.cursor/skills"
       strip_hooks "$HOME/.cursor/hooks.json"
       cursor_hooks_cleanup "$HOME/.cursor/hooks.json"
-      strip_permissions_json "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json"
+      sl_strip_perms "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json"
       ;;
     gemini)
       # Legacy cleanup only — the Gemini CLI is retired, so this strips whatever
@@ -403,7 +394,7 @@ for t in "${targets[@]}"; do
       ag_snip="$(mktemp)"; TMPFILES+=("$ag_snip")
       jq --arg h "$HOME" '.permissions |= with_entries(.value |= map(gsub("@HOME@"; $h)))' \
         "$DIR/settings-permissions.antigravity.snippet.json" > "$ag_snip" \
-        && strip_permissions_json "$HOME/.gemini/antigravity-cli/settings.json" "$ag_snip"
+        && sl_strip_perms "$HOME/.gemini/antigravity-cli/settings.json" "$ag_snip"
       ;;
     *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
   esac

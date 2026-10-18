@@ -875,6 +875,7 @@ PYEOF
   fi
 
   # Retired rules are pruned from an existing settings.json, not left orphaned.
+  rm -f "$SMOKE/.ai/install-state/settings.tsv"   # pre-ledger: orphans of an old install (R13)
   jq '.permissions.deny += ["Write(**/build/**)","Read(./.env)"]' \
      "$SMOKE/.claude/settings.json" > "$SMOKE/.claude/settings.json.t" \
     && mv "$SMOKE/.claude/settings.json.t" "$SMOKE/.claude/settings.json"
@@ -890,6 +891,138 @@ PYEOF
   p2="$(jq '.permissions.deny | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
   [ -n "$p1" ] && [ "$p1" = "$p2" ] && ok "install-settings is idempotent (no duplication)" \
                                     || bad "install-settings is idempotent (no duplication)"
+
+  # Settings provenance (lib/settings-ledger.sh, PLAN §9 G4, §16 A3, §15 R13):
+  # install-state/settings.tsv records each permission rule we added, so a
+  # rule the user deleted stays out, a user's own copy of a retired rule
+  # survives, and uninstall removes only ours. Every case uses a throwaway HOME,
+  # so the ledger lives at $H/.ai/install-state/settings.tsv.
+  slrow() {  # $1 = HOME  $2 = settings file  $3 = key  $4 = value  → prints the status, or nothing
+    awk -F'\t' -v f="$2" -v k="$3" -v v="$4" '$1 == f && $2 == k && $3 == v { print $4 }' \
+      "$1/.ai/install-state/settings.tsv" 2>/dev/null
+  }
+  slbaks() { set -- "$1".bak.*; if [ -e "$1" ]; then echo "$#"; else echo 0; fi; }
+  slset() {  # $1 = settings file  $2 = jq program — edit it the way a person would
+    jq "$2" "$1" > "$1.t" && mv "$1.t" "$1"
+  }
+  # A copy of the installer whose Claude snippet ships one extra rule, standing
+  # in for a future upstream release.
+  SLNEXT="$(mktemp -d)"
+  cp "$DIR"/install-settings.sh "$DIR"/*.snippet.json "$DIR"/*.snippet.toml "$SLNEXT"/
+  cp -R "$DIR/lib" "$SLNEXT/lib"
+  slset "$SLNEXT/settings-permissions.snippet.json" '.permissions.ask += ["Bash(fakenew:*)"]'
+
+  # Fresh install: every shipped rule is recorded as added.
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  sl_n="$(jq '[.permissions[] | length] | add' "$DIR/settings-permissions.snippet.json")"
+  sl_got="$(awk -F'\t' -v f="$SLF" '$1 == f && $4 == "added"' "$SLH/.ai/install-state/settings.tsv" 2>/dev/null | wc -l | tr -d ' ')"
+  [ -n "$sl_n" ] && [ "$sl_got" = "$sl_n" ] && [ "$(slrow "$SLH" "$SLF" deny 'Edit(**/dist/**)')" = added ] \
+    && ok "settings ledger records every rule a fresh install adds" \
+    || bad "settings ledger records every rule a fresh install adds (want $sl_n rows, got $sl_got)"
+
+  # Idempotence: a second run changes neither file and makes no backup.
+  sl_a="$(cksum < "$SLF")$(cksum < "$SLH/.ai/install-state/settings.tsv")"
+  sl_baks="$(slbaks "$SLF")"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  [ "$sl_a" = "$(cksum < "$SLF")$(cksum < "$SLH/.ai/install-state/settings.tsv")" ] \
+    && [ "$sl_baks" = "$(slbaks "$SLF")" ] \
+    && ok "settings ledger: a second run changes no file" \
+    || bad "settings ledger: a second run changes no file"
+
+  # A3: a rule we added that the user deleted is marked declined and stays out,
+  # on this run and every later one.
+  slset "$SLF" '.permissions.deny -= ["Edit(**/dist/**)"]'
+  sl_out="$(HOME="$SLH" bash "$DIR/install-settings.sh" claude 2>&1)"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  if ! jq -e '.permissions.deny | index("Edit(**/dist/**)")' "$SLF" >/dev/null 2>&1 \
+     && [ "$(slrow "$SLH" "$SLF" deny 'Edit(**/dist/**)')" = declined ] \
+     && printf '%s' "$sl_out" | grep -q 'you removed stay out'; then
+    ok "install-settings never re-adds a rule the user deleted (declined)"
+  else
+    bad "install-settings never re-adds a rule the user deleted (declined)"
+  fi
+
+  # G4: once the file has rows, the user's own copy of a retired rule survives
+  # the retired-rule subtraction, and is never recorded as ours.
+  slset "$SLF" '.permissions.deny += ["Write(**/build/**)"]'
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  jq -e '.permissions.deny | index("Write(**/build/**)")' "$SLF" >/dev/null 2>&1 \
+    && [ -z "$(slrow "$SLH" "$SLF" deny 'Write(**/build/**)')" ] \
+    && ok "install-settings keeps a user's own copy of a retired rule" \
+    || bad "install-settings keeps a user's own copy of a retired rule"
+
+  # ...while a retired rule we recorded as added is still removed, row and all.
+  slset "$SLF" '.permissions.deny += ["Write(**/dist/**)"]'
+  printf '%s\tdeny\tWrite(**/dist/**)\tadded\t2026-01-01T00:00:00Z\n' "$SLF" >> "$SLH/.ai/install-state/settings.tsv"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  ! jq -e '.permissions.deny | index("Write(**/dist/**)")' "$SLF" >/dev/null 2>&1 \
+    && [ -z "$(slrow "$SLH" "$SLF" deny 'Write(**/dist/**)')" ] \
+    && ok "install-settings removes a retired rule it added, and forgets it" \
+    || bad "install-settings removes a retired rule it added, and forgets it"
+
+  # A new upstream rule is still added (and recorded) on a file with rows; a
+  # declined one stays out under the new release too.
+  HOME="$SLH" bash "$SLNEXT/install-settings.sh" claude >/dev/null 2>&1
+  jq -e '.permissions.ask | index("Bash(fakenew:*)")' "$SLF" >/dev/null 2>&1 \
+    && [ "$(slrow "$SLH" "$SLF" ask 'Bash(fakenew:*)')" = added ] \
+    && ! jq -e '.permissions.deny | index("Edit(**/dist/**)")' "$SLF" >/dev/null 2>&1 \
+    && ok "install-settings still adds a new upstream rule" \
+    || bad "install-settings still adds a new upstream rule"
+
+  # Deleting the whole settings file starts it over: every rule comes back.
+  rm -f "$SLF"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  jq -e '.permissions.deny | index("Edit(**/dist/**)")' "$SLF" >/dev/null 2>&1 \
+    && [ "$(slrow "$SLH" "$SLF" deny 'Edit(**/dist/**)')" = added ] \
+    && ok "a deleted settings file is reinstalled whole (stale declined rows dropped)" \
+    || bad "a deleted settings file is reinstalled whole (stale declined rows dropped)"
+  rm -rf "$SLH"
+
+  # R13: a pre-ledger file (no rows) adopts the shipped rules already in it as
+  # ours, keeps the user's unrelated rule unrecorded, and still prunes retired
+  # rules the old way.
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"; mkdir -p "$SLH/.claude"
+  printf '%s\n' '{"permissions":{"deny":["Read(**/.env)","Read(./.env)"],"allow":["Bash(make:*)"]}}' > "$SLF"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  [ "$(slrow "$SLH" "$SLF" deny 'Read(**/.env)')" = added ] \
+    && [ -z "$(slrow "$SLH" "$SLF" allow 'Bash(make:*)')" ] \
+    && jq -e '.permissions.allow | index("Bash(make:*)")' "$SLF" >/dev/null 2>&1 \
+    && ! jq -e '.permissions.deny | index("Read(./.env)")' "$SLF" >/dev/null 2>&1 \
+    && ok "settings ledger adopts shipped rules on a pre-ledger file (R13)" \
+    || bad "settings ledger adopts shipped rules on a pre-ledger file (R13)"
+  rm -rf "$SLH"
+
+  # sl_strip_perms (uninstall): removes only rules recorded as added. The user's
+  # own rule, and their own copy of a rule that shipped later, both stay; a
+  # declined row survives for the next install.
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  slset "$SLF" '.permissions.allow += ["Bash(make:*)"] | .permissions.ask += ["Bash(fakenew:*)"] | .permissions.deny -= ["Edit(**/dist/**)"]'
+  HOME="$SLH" bash "$SLNEXT/install-settings.sh" claude >/dev/null 2>&1
+  # shellcheck disable=SC2030,SC2031
+  ( export HOME="$SLH"; unset AIGI_STATE_DIR
+    # shellcheck source=lib/settings-ledger.sh
+    . "$DIR/lib/settings-ledger.sh" && sl_strip_perms "$SLF" "$SLNEXT/settings-permissions.snippet.json" ) >/dev/null 2>&1
+  jq -e '.permissions.allow == ["Bash(make:*)"] and .permissions.ask == ["Bash(fakenew:*)"] and (.permissions.deny == null)' \
+       "$SLF" >/dev/null 2>&1 \
+    && [ -z "$(slrow "$SLH" "$SLF" ask 'Bash(sudo:*)')" ] \
+    && [ "$(slrow "$SLH" "$SLF" deny 'Edit(**/dist/**)')" = declined ] \
+    && ok "sl_strip_perms removes only the rules we added" \
+    || bad "sl_strip_perms removes only the rules we added"
+  rm -rf "$SLH"
+
+  # sl_strip_perms on a pre-ledger file falls back to subtracting the snippet.
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"; mkdir -p "$SLH/.claude"
+  printf '%s\n' '{"permissions":{"deny":["Read(**/.env)"],"allow":["Bash(make:*)","Bash(lm:*)"]}}' > "$SLF"
+  # shellcheck disable=SC2030,SC2031
+  ( export HOME="$SLH"; unset AIGI_STATE_DIR
+    # shellcheck source=lib/settings-ledger.sh
+    . "$DIR/lib/settings-ledger.sh" && sl_strip_perms "$SLF" "$DIR/settings-permissions.snippet.json" ) >/dev/null 2>&1
+  jq -e '.permissions == {"allow":["Bash(make:*)"]}' "$SLF" >/dev/null 2>&1 \
+    && ok "sl_strip_perms subtracts the snippet from a pre-ledger file" \
+    || bad "sl_strip_perms subtracts the snippet from a pre-ledger file"
+  rm -rf "$SLH" "$SLNEXT"
 
   # install-hooks wired the SessionStart memory loader (Claude).
   if jq -e '.hooks.SessionStart[0].hooks[0].command | test("load-memory")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
@@ -2485,7 +2618,7 @@ printf 'v2\n' > "$FX/roles/r.md"; git -C "$FX" -c user.name=t -c user.email=t@t 
 lt() {
   local h="$LT/$1"; rm -rf "$h"; mkdir -p "$h"
   # Each case's HOME/state/repo is deliberately local to its subshell.
-  # shellcheck disable=SC2030
+  # shellcheck disable=SC2030,SC2031
   ( export HOME="$h" AIGI_STATE_DIR="$h/state" PV_REPO="$FX"
     # shellcheck source=lib/preserve.sh
     . "$LEDGER_LIB"
