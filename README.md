@@ -80,6 +80,7 @@ All gitignored; all survive every re-render and `git pull`:
 | `my-context.env` | Your answers (name, role, preview method, section toggles). Copy from `my-context.env.example`. |
 | `extras.local.md` | Personal Markdown sections the shared template can't express (e.g. machine-specific serving notes) — spliced into every render. |
 | `mcp-rules.local` | Per-MCP-server "when to use" rules; generate with `./customize.sh --scan-mcp`. |
+| `settings-permissions.local.json` | Personal Claude permission rules (same shape as `settings-permissions.snippet.json`), unioned into `~/.claude/settings.json` after the shared snippet — e.g. pre-approving a CLI only your machine has. |
 
 **Never edit the rendered files** (`CLAUDE.md`, `AGENTS.md` in this repo, or
 the machine-wide `~/AGENTS.md` and its per-tool pointers) —

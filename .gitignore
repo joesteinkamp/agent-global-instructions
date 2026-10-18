@@ -4,6 +4,8 @@ my-context.env
 mcp-rules.local
 # Personal sections spliced into every render at {{EXTRAS}} — never commit
 extras.local.md
+# Personal Claude permission rules unioned after the shared snippet — never commit
+settings-permissions.local.json
 
 # Tool-call audit logs — local, never commit
 *.jsonl

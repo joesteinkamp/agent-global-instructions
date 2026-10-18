@@ -133,7 +133,12 @@ merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label  [$4 =
 
 install_claude_settings() {
   echo "  claude:"
-  merge_perms_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json" claude "$CLAUDE_RETIRED_PERMS"
+  merge_perms_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json" claude "$CLAUDE_RETIRED_PERMS" || return 1
+  # Personal layer (gitignored): rules for tools only this machine has, e.g. a
+  # local CLI you want pre-approved. Same shape as the shared snippet.
+  if [ -f "$DIR/settings-permissions.local.json" ]; then
+    merge_perms_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.local.json" "claude (local)"
+  fi
 }
 
 install_cursor_settings() {
