@@ -114,8 +114,10 @@ All gitignored; all survive every re-render and `git pull`:
 
 **Never edit the rendered files** (`CLAUDE.md`, `AGENTS.md` in this repo, or
 the machine-wide `~/AGENTS.md` and its per-tool pointers) —
-they're snapshots, overwritten on the next render. Put the change in the
-template or one of the layers above instead.
+they're snapshots. The installer catches a hand edit and saves it rather than
+losing it, and asks what to do when you're at a terminal
+([details](docs/GUIDE.md#when-youve-edited-an-installed-file)), but the
+durable place for a change is the template or one of the layers above.
 
 ## For your team
 
