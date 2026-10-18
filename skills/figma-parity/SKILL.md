@@ -19,7 +19,7 @@ measured, the cell says "not measured" and why.
 
 **Read-only on product code.** This skill measures and reports. It never edits components, styles, tokens
 or the Figma file, and the project's `git status` is the same when it ends as when it began. The report
-lives outside the repo (step 6). Fixes are suggestions, applied only on my go-ahead.
+lives in the repo but is excluded from git (step 6). Fixes are suggestions, applied only on my go-ahead.
 
 ### 1. Resolve the inputs and say which path runs
 - **The screen.** A full URL is used as-is. A route needs the app running. If the integration tree's dev
@@ -90,8 +90,10 @@ color, or a contrast failure under WCAG 2.2 AA. *medium* for a visible off-scale
 a token exists. *low* for an on-scale value that is the wrong step, or a small offset with no visual effect.
 
 ### 6. Report
-Write a self-contained HTML artifact to `~/.ai-context/<repo>-figma-parity/<slug>-YYYY-MM-DD/report.html`,
-with its `screenshots/` beside it, never inside the product repo. It contains:
+Write a self-contained HTML artifact to `figma-parity/<slug>-YYYY-MM-DD/report.html` at the project root,
+the way `/verify` keeps its reports, with its `screenshots/` beside it. First add `/figma-parity/` to the
+clone's `.git/info/exclude` if it isn't there (local, never committed), so the report never shows as a
+change. Outside a git repo, use `~/.ai-context/figma-parity/<slug>-YYYY-MM-DD/`. It contains:
 - **Header:** which path ran, every input found and missing, node id and link, URL, breakpoints, the
   snapshot SHA, and the tolerance.
 - **Side by side, per breakpoint:** Figma on the left, build on the right. On the tokens-only path the

@@ -22,6 +22,9 @@ extras.local.md
 /review/
 /audits/
 /verify/
+/critique/
+/figma-parity/
+/handoff/
 
 # Per-tool port research notes (agent scratch) — local, never commit
 /ports/

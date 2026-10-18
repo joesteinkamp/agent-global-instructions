@@ -30,7 +30,7 @@ its main output is an HTML report:
 - **`/research-synthesis`** — notes and transcripts → themes, each backed by
   evidence.
 - **`/one-on-one`** — 1:1 and feedback prep from your connected sources. Read
-  only.
+  only apart from an optional Gmail draft; never sends.
 - **`/team-digest`** — what shipped, what's blocked, and what's next, from your
   connected sources. Read only.
 

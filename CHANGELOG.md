@@ -12,6 +12,20 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **The harness for design teams (2026-10-18, Claude, #78).** The ask: stop
+  being agnostic of who the user is, and make this a harness for designers,
+  design engineers and design managers. What changed: six core skills
+  (`/critique` with a `--gate` mode, `/figma-parity`, `/handoff`,
+  `/research-synthesis`, `/one-on-one`, `/team-digest`); `PERSONA` revived as
+  designer/design-engineer/design-manager, changing only a new "Start from your
+  role's lenses" bullet; a `design-manager` role; a README/GUIDE pitch for design
+  teams; BEH-19 to BEH-27. Why: one harness for everyone keeps a single render
+  to maintain, and the role picks the starting lenses rather than different
+  instructions. Rejected: per-role renders (three copies would drift); gating
+  the skills behind the design group; a per-persona roster subset (the Codex
+  rival plan) that would stop deriving roles from the task; folding critique and
+  design review into ux-audit. Supersedes the 2026-07-17 "Design is on for
+  everyone" decision that left `PERSONA` doing nothing.
 - **A lead below T1 escalates judgment; spawns pick a model by tier
   (2026-10-15, Claude).** The ask: model routing never visibly fired, and there
   were no errors. Every in-tool spawn inherited the lead's model. Routing never

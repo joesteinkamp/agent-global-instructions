@@ -20,7 +20,7 @@ Name tokens, never raw values where a token exists. A value with no token is a t
 designer.
 
 **Read-only.** This skill never edits the Figma file, the prototype or product code, and never posts the
-spec anywhere. The artifact lives outside the repo (step 10).
+spec anywhere. The artifact lives in the repo but is excluded from git (step 10).
 
 ### 1. Resolve the source and say which path runs
 - **Figma.** From `figma.com/design/<fileKey>/<name>?node-id=12-345`, take the file key and node id
@@ -90,8 +90,10 @@ target size (at least 24×24 CSS px). Report contrast only from measured or reso
 ### 10. Open questions and the artifact
 Close the spec with numbered open questions. Each one states what's missing, what it blocks, and a
 recommended answer. Write a self-contained HTML artifact to
-`~/.ai-context/<repo>-handoff/<slug>-YYYY-MM-DD/spec.html` (with `screenshots/` beside it; use the slug as
-`<repo>` outside a repo). It holds the header (path ran, inputs found and missing), inventory, state
+`handoff/<slug>-YYYY-MM-DD/spec.html` at the project root, the way `/verify` keeps its reports, with
+`screenshots/` beside it. First add `/handoff/` to the clone's `.git/info/exclude` if it isn't there
+(local, never committed), so the spec never shows as a change. Outside a git repo, use
+`~/.ai-context/handoff/<slug>-YYYY-MM-DD/`. It holds the header (path ran, inputs found and missing), inventory, state
 matrix, tokens, responsive, motion, a11y, content, edge cases, then the open questions last. Serve it per
 my preview method (headless: a static server on `0.0.0.0`, verify the URL you hand me returns 200, keep it
 running). Inline, give the path that ran, counts of screens, components and open questions, and the link.

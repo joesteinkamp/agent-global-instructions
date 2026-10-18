@@ -18,11 +18,13 @@ gate, or a ready-to-ship check. Anything else runs **plain** mode, and plain mod
 a gate. If someone asks "is it good?" in plain mode, answer as a crit and offer `--gate`.
 
 **Read-only, always.** Critique never edits, formats, builds, or installs anything in the project. Every
-output (screenshots, ux-audit output, the report) goes to `~/.ai-context/<repo>-critique/<slug>-YYYY-MM-DD/`
-(`<repo>` is the project directory's basename; use `critique` when there's no project; append `-gate` to
-the slug in gate mode so the two runs never share a directory). `cd` into that directory before running
-`playwright-cli` or ux-audit, because both write working files to the current directory. Nothing goes in
-the project tree.
+output (screenshots, ux-audit output, the report) goes in the project, the way `/verify`'s does:
+`critique/<slug>-YYYY-MM-DD/` at the project root, with `-gate` appended to the slug in gate mode so the
+two runs never share a directory. Before writing, add `/critique/` to the clone's `.git/info/exclude` if
+it isn't there. That file is local and never committed, so the report can't show up as a change or be
+committed by accident. Outside a git repo, use `~/.ai-context/critique/<slug>-YYYY-MM-DD/` instead. `cd`
+into the report directory before running `playwright-cli` or ux-audit, because both write working files
+to the current directory.
 
 ### 1. Get the artifact, and say what you couldn't get
 Work from the thing itself, not a description of it. Find the work and the focus in the request.
@@ -77,7 +79,7 @@ licenses a standard you made up.
    section, unranked.
 3. **Screenshot heuristics: compose ux-audit, don't re-implement it.** When you have a screenshot, run the
    `ux-audit` skill. Pre-answer its intake (goal, persona, platform, stage) from the request and
-   `PRODUCT.md`, so it only asks what neither one answers. Run it with the context dir as its working
+   `PRODUCT.md`, so it only asks what neither one answers. Run it with the report directory as its working
    directory so its `audits/` output lands there. Fold its findings in with their principle IDs and
    severities. Carry over its candidate funnel and any `issue_overflow`, because its capped list isn't the
    whole picture. **If ux-audit isn't installed or can't run** (for example its Python environment isn't
@@ -110,7 +112,7 @@ licenses a standard you made up.
 
 ### 3. Report
 **Findings are never trimmed.** Every finding goes in the report, ranked. Ranking is the filter. The
-primary deliverable is a self-contained `report.html` in the context dir:
+primary deliverable is a self-contained `report.html` in the report directory:
 - inputs used and inputs unavailable
 - the brief inventory (gate mode)
 - the screenshots with findings or crit notes keyed to regions

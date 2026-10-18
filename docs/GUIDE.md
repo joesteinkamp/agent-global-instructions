@@ -202,7 +202,7 @@ left behind.
 | `/figma-parity` | A built screen (URL or route) against its Figma node and the tokens → a drift report on spacing, type, color, states and missing variants. Without Figma it falls back to `DESIGN.md`/`DESIGN.json` tokens and says so. |
 | `/handoff` | A prototype (Figma or a URL) → a spec engineers can build from: states, tokens, edge cases, a11y, and open questions for what the design doesn't show. |
 | `/research-synthesis` | Notes and transcripts → themes, each backed by evidence (a verbatim quote and its source), with confidence and open questions. Never invents participants or quotes. |
-| `/one-on-one` | 1:1 and feedback prep for a named report from connected sources: talking points and specific, evidence-backed feedback. Read only; may publish a private artifact; never sends. |
+| `/one-on-one` | 1:1 and feedback prep for a named report from connected sources: talking points and specific, evidence-backed feedback. Read only apart from an optional Gmail draft; may publish a private artifact; never sends. |
 | `/team-digest` | What shipped, what's blocked and what's next across connected sources for a date range (default: the last 7 days). Read only. |
 | `/ux-audit` | *(design group)* UX audit **from a screenshot**. The full [`ux-audit`](https://github.com/joesteinkamp/ux-audit-skill) skill is vendored at `.agents/skills/ux-audit` and symlinked into `~/.claude/skills`, `~/.codex/skills`, and `~/.cursor/skills` at install — Claude/Codex/Cursor run the real engine (15 heuristic frameworks, 0–100 scores, annotated screenshots). Writes + serves a self-contained HTML report. |
 

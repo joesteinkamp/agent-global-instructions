@@ -76,9 +76,9 @@ Steps:
      name people, so it stays private: no shared doc, channel, or public host.
    - **Channel summary.** Paste-ready Markdown, about 10 lines: the range, then
      shipped, blocked, and next by project, with links. It leaves out the risks
-     and decisions section, and anything that came only from email or a private
-     thread. If it can't stand without one of those, say so rather than
-     including it.
+     and decisions section. Items that came only from email or a private thread
+     are included, marked with where they came from, so I can cut any I don't
+     want the channel to see before posting.
 9. **Report inline.** The artifact path or URL, the resolved range, the sources
    used and unavailable, the decisions that need me, and the channel summary in
    a fenced block, ready to copy. Then stop. Posting it is mine to do.
