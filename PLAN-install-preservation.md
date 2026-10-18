@@ -723,3 +723,60 @@ every replaced edit names its recovery command. DX: every new writer is one
 `pv_write` call, and `--plan` is the debugger. AX: an agent passes `--yes`,
 reads `last-run.json`, and follows up with `--resolve` flags; nothing needs a
 TTY. Traded away: `--plan` doesn't preview the JSON/TOML merges (E3).
+
+### Review record (2026-10-18)
+
+**Falsifier result:** with the real layers copied into the worktree and then
+removed, `./install.sh --plan` against the real HOME showed 99 CURRENT and
+`~/AGENTS.md` SHIPPED, with no CUSTOM file, and wrote nothing. The falsifier
+did not fire.
+
+- **Cross-family, first choice: Codex.** It hit its usage limit before it
+  wrote a report, so it produced nothing.
+- **In-tool refuter (same family, Opus).** It found six confirmed breaks plus
+  minor ones. All were fixed, each with a regression test in `test.sh`:
+  - A checkout with only some layers dropped the others and deleted the saved
+    `extras.local.md`.
+  - `--resolve --keep` overwrote an edit made inside the preserved block.
+  - `--resolve --append` added the same lines twice.
+  - An uninstall followed by a reinstall adopted the user's own settings rule
+    as ours.
+  - Uninstall restored a stale `orig/`.
+  - Command files with a skill's name were removed without a saved copy.
+  - Minor: resolve-mode flags were accepted without `--resolve`, `--resolve`
+    overwrote `last-run.json`, and preserved entries went stale.
+- **Cross-family: Antigravity (`agy`, Gemini Flash, T2).** It was static
+  only: it ran no commands and had no bypass flag. It raised eight findings:
+  - **Fixed:**
+    - The install-policy queries (`--on-conflict`, `--ai-check`,
+      `--ai-check-cmd`, `--autonomy`) ignored the saved layers.
+    - Uninstall did not recognise a Codex pointer installed as a copy (no
+      symlink support).
+    - A failed re-render on the extras route returned without saying so.
+  - **Refuted:**
+    1. The claimed `set -e` exit in `pv_do_replace`: a `local` assignment plus
+       a `||` group survives `set -e` (tested).
+    2. Bare `mktemp`: macOS CI (bash 3.2) passes.
+    3. JSON backslash escaping: correct under gawk, mawk and nawk. The
+       apparent failure came from zsh's `echo`; a guard test was added.
+    4. `--resolve --append` losing a playbook block: `pv_compose` carries the
+       block through every replace, so only the lines outside it need adding
+       back. A test was added.
+    5. Rolling back `extras.local.md` when the route fails: leaving the lines
+       there is deliberate, and the next install renders them.
+  - **Declined (judgement call, open to reversal):** to leave a CUSTOM
+    retired or legacy command file in place rather than save it and remove
+    it. Removing it keeps a stale entry out of the slash menu, and
+    `preserved/` plus `--resolve` is the safety net, consistent with D1.
+
+**Known limitations, stated rather than fixed:**
+
+- Settings:
+  - A user's own copy of a rule we also ship goes unrecorded, so it reads as
+    ours.
+  - `pv_lock $$` in subshells uses the parent's PID.
+  - A renamed HOME looks like a set of new files.
+- Antigravity's hooks layer runs before `install-settings` creates its
+  directory. This predates this work.
+- Deleting a layer file doesn't retire that layer: the saved copy is used
+  instead. Empty the file to retire it.

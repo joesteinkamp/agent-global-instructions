@@ -194,11 +194,14 @@ load_env() {
 # layer for good, empty the file rather than deleting it.
 STATE_DIR="${AIGI_STATE_DIR:-$HOME/.ai/install-state}"
 GLOBAL_RENDER=""
-if [ -z "${AIGI_NO_USER_ENV:-}" ] && { [ "${AIGI_GLOBAL_RENDER:-}" = 1 ] || [ "${1:-}" = --global ]; }; then GLOBAL_RENDER=1; fi
+# The install-policy queries install.sh makes count as global too: they must
+# answer with the layers ~/AGENTS.md was rendered from, not the defaults.
+case "${1:-}" in --global) _gq=1;; --on-conflict|--ai-check|--ai-check-cmd|--autonomy) _gq=quiet;; *) _gq="";; esac
+if [ -z "${AIGI_NO_USER_ENV:-}" ] && { [ "${AIGI_GLOBAL_RENDER:-}" = 1 ] || [ -n "$_gq" ]; }; then GLOBAL_RENDER=1; fi
 layer_file() {  # $1 = layer name — prints the file to read, or nothing
   if [ -f "$DIR/$1" ]; then printf '%s\n' "$DIR/$1"
   elif [ -n "$GLOBAL_RENDER" ] && [ -f "$STATE_DIR/layers/$1" ]; then
-    echo "  note: $DIR has no $1 — using the copy the last install saved ($STATE_DIR/layers/$1)" >&2
+    [ "$_gq" = quiet ] || echo "  note: $DIR has no $1 — using the copy the last install saved ($STATE_DIR/layers/$1)" >&2
     printf '%s\n' "$STATE_DIR/layers/$1"
   fi
 }

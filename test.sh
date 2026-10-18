@@ -3122,6 +3122,47 @@ HOME="$CH" bash "$DIR/install-skills.sh" claude >/dev/null 2>&1
   && ok "install-skills: your command file with a skill's name is saved before it's removed" \
   || bad "install-skills: your command file with a skill's name is saved before it's removed"
 
+# Regressions from the cross-family (agy) review of phases 2–3 (2026-10-18).
+# a. last-run.json strings escape a backslash, so a path with one stays valid JSON.
+lt jsonesc 'printf "\"%s\"\n" "$(pv_json_str "a\\b\"c")" > "$HOME/j"'
+[ "$(jq -r . "$LT/jsonesc/j" 2>/dev/null)" = 'a\b"c' ] \
+  && ok "ledger: JSON strings escape backslashes and quotes" \
+  || bad "ledger: JSON strings escape backslashes and quotes ($(cat "$LT/jsonesc/j" 2>/dev/null))"
+
+# b. --resolve --append on a playbook with a preserved block adds the edit made
+#    outside it back, and the block (carried through the replace) stays once.
+lt appendblock 'printf "v2\nb\nc\nd\n" > "$HOME/s"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "BLOCKLINE\n" >> "$HOME/p.md"
+  AIGI_ON_CONFLICT=append pv_write playbook "$HOME/s" "$HOME/p.md"
+  awk "NR == 1 { print; print \"OUTSIDE-EDIT\"; next } { print }" "$HOME/p.md" > "$HOME/p.t" && mv "$HOME/p.t" "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION O=$(grep -c "^OUTSIDE-EDIT$" "$HOME/p.md")"
+  pv_resolve_cmd append "$HOME/p.md"
+  echo "O2=$(grep -c "^OUTSIDE-EDIT$" "$HOME/p.md") B=$(grep -c "^BLOCKLINE$" "$HOME/p.md")"'
+{ grep -q 'A=replaced-custom O=0' "$LT/appendblock/out" && grep -q 'O2=1 B=1' "$LT/appendblock/out"; } \
+  && ok "ledger: --resolve --append restores an edit outside a playbook's preserved block" \
+  || bad "ledger: --resolve --append restores an edit outside a playbook's preserved block"
+
+# c. The install-policy queries read the saved layers too, so a checkout
+#    without my-context.env doesn't quietly drop your INSTALL_ON_CONFLICT.
+QHM="$LT/query-home"; mkdir -p "$QHM"
+printf 'INSTALL_ON_CONFLICT="keep"\n' > "$LB/my-context.env"
+( unset AIGI_NO_USER_ENV; HOME="$QHM" bash "$LB/customize.sh" --global --yes ) >/dev/null 2>&1
+rm -f "$LB/my-context.env"
+qv="$( unset AIGI_NO_USER_ENV; HOME="$QHM" bash "$LB/customize.sh" --on-conflict 2>"$LT/query.err" )"
+{ [ "$qv" = keep ] && [ ! -s "$LT/query.err" ]; } \
+  && ok "customize --on-conflict answers from the saved layers, quietly" \
+  || bad "customize --on-conflict answers from the saved layers, quietly (got '$qv')"
+
+# d. Where symlinks fail, ~/.codex/AGENTS.md is a copy; uninstall still knows
+#    it's ours and hands back the original.
+CXH="$LT/codex-copy"; mkdir -p "$CXH/.codex"; printf 'codex original\n' > "$CXH/.codex/AGENTS.md"
+HOME="$CXH" bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+rm -f "$CXH/.codex/AGENTS.md"; cp "$CXH/AGENTS.md" "$CXH/.codex/AGENTS.md"
+HOME="$CXH" bash "$DIR/uninstall.sh" codex >/dev/null 2>&1
+grep -qx 'codex original' "$CXH/.codex/AGENTS.md" \
+  && ok "uninstall: a copied Codex pointer is recognised and its original restored" \
+  || bad "uninstall: a copied Codex pointer is recognised and its original restored"
+
 # A resolve mode without --resolve is an error, not a silent full install.
 HOME="$LT/flag-home" bash "$DIR/install.sh" --keep > "$LT/flag.out" 2>&1 && fk=0 || fk=1
 { [ "$fk" = 1 ] && grep -q 'only goes with --resolve' "$LT/flag.out" && [ ! -e "$LT/flag-home/AGENTS.md" ]; } \

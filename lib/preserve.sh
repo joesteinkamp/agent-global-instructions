@@ -592,7 +592,9 @@ pv_route_extras() {  # $1 = added-lines file
   cat "$add" >> "$xf" || return 1
   echo "  moved your ~/AGENTS.md additions into $xf (the render's personal layer)" >&2
   out="$(mktemp "$AIGI_RUN_DIR/render.XXXXXX")" || return 1
-  AIGI_GLOBAL_RENDER=1 "${DIR:-.}/customize.sh" --print < /dev/null > "$out" || return 1
+  AIGI_GLOBAL_RENDER=1 "${DIR:-.}/customize.sh" --print < /dev/null > "$out" || {
+    echo "  the re-render failed — ~/AGENTS.md is left as it is; your lines stay in $xf for the next install" >&2
+    return 1; }
   # The render reads this checkout's layers (or the saved snapshot), which
   # isn't the primary checkout's extras.local.md when you install from a linked
   # worktree. Then the new ~/AGENTS.md wouldn't carry your lines, so don't

@@ -72,7 +72,9 @@ restore_global_pointer() {  # $1 = pointer path
   if [ -L "$f" ]; then
     [ "$(readlink "$f")" = "$HOME/AGENTS.md" ] || return 0
   elif [ -f "$f" ]; then
-    { grep -qF '@~/AGENTS.md' "$f" && grep -qF 'agent-global-instructions' "$f"; } || return 0
+    # Our pointer file, or the copy install makes where symlinks fail.
+    { grep -qF '@~/AGENTS.md' "$f" && grep -qF 'agent-global-instructions' "$f"; } \
+      || cmp -s "$f" "$HOME/AGENTS.md" || return 0
   else
     return 0
   fi
