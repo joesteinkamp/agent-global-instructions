@@ -64,8 +64,9 @@ claim a sample size is adequate unless you can say why.
 ### 5. Check before writing
 Re-read every quote against its source file to confirm the wording and attribution match exactly.
 Re-count each theme's support. Drop or fix anything that doesn't hold, and say how many you corrected.
-If you're unsure the synthesis holds up and another vendor's CLI is installed, have it refute the themes
-against the same sources (read `~/.ai/orchestration.md`) and report where it disagrees.
+If you're unsure the synthesis holds up, have an in-tool `refuter` subagent attack the themes against the
+same sources and report where it disagrees. **Participant data never goes to another vendor's CLI unasked.**
+Sending it there is an external send: offer a cross-vendor refutation and run it only on an explicit yes.
 
 ### 6. Deliver a private artifact
 This is participant data. The report is **private**: write a self-contained `report.html` to

@@ -3,6 +3,9 @@ name: critique
 description: "Design crit on work in progress (a URL, route, screenshot, Figma link, or files): open feedback by default, meaning what's working, what to explore, and questions worth asking, with no scores. With --gate, or when asked for a review or gate, it becomes a severity-ranked review against the project's own PRODUCT/DESIGN/WRITING.md and guardrails ban IDs, ending in a pass / pass with issues / fail verdict. Use for \"crit this\", \"feedback on this design\", \"review this against our design system\", \"is this ready to ship\". Read-only; the deliverable is an HTML report."
 ---
 
+Run these probes **from the project's root** (`cd` there first), not from wherever the session started.
+Run from the wrong directory, they report every brief missing.
+
 Project briefs: run `ls PRODUCT.md DESIGN.md DESIGN.json WRITING.md guardrails 2>/dev/null || true`
 Guardrail registry: run `test -f guardrails/registry.json && echo "guardrails/registry.json, so cite bans by ID" || echo "none"`
 Validate skill: run `ls -d ~/.claude/skills/validate ~/.codex/skills/validate ~/.cursor/skills/validate .agents/skills/validate 2>/dev/null || true`
@@ -16,8 +19,10 @@ a gate. If someone asks "is it good?" in plain mode, answer as a crit and offer 
 
 **Read-only, always.** Critique never edits, formats, builds, or installs anything in the project. Every
 output (screenshots, ux-audit output, the report) goes to `~/.ai-context/<repo>-critique/<slug>-YYYY-MM-DD/`
-(`<repo>` is the project directory's basename; use `critique` when there's no project). Nothing goes in the
-project tree.
+(`<repo>` is the project directory's basename; use `critique` when there's no project; append `-gate` to
+the slug in gate mode so the two runs never share a directory). `cd` into that directory before running
+`playwright-cli` or ux-audit, because both write working files to the current directory. Nothing goes in
+the project tree.
 
 ### 1. Get the artifact, and say what you couldn't get
 Work from the thing itself, not a description of it. Find the work and the focus in the request.
@@ -25,9 +30,12 @@ Work from the thing itself, not a description of it. Find the work and the focus
   already running. If nothing serves the route, you may serve existing build output statically
   (`python3 -m http.server PORT --bind 0.0.0.0 --directory dist`). Never run an install or a build in the
   project to get a screenshot: ask for a URL or a screenshot instead. Screenshot at the project's
-  breakpoints (`DESIGN.json` `breakpoints` if it exists, else 390 / 768 / 1280) with `resize` and then
-  `screenshot`, and capture interactive states the request names. **Run `playwright-cli close` as soon as
-  the evidence is captured**, then run the process check from web-preview.md.
+  breakpoints (`DESIGN.json` `breakpoints` if it exists, else 390 / 768 / 1280) with `resize <width> 900`
+  and then `screenshot`, and capture interactive states the request names. Before a full-page capture,
+  scroll through the page so lazy-loaded and scroll-revealed content renders, then look at the image: a
+  capture that's blank below the fold is false evidence, not a finding. **Run `playwright-cli close` once
+  every browser-based measurement is done** (screenshots, computed styles, contrast probes), then run the
+  process check from web-preview.md.
 - **Figma link.** Use the Figma MCP server if one is connected in this session (read the node and its
   variables and export an image). If none is connected, ask for an exported frame and say the live Figma
   path didn't run.
@@ -39,7 +47,8 @@ Work from the thing itself, not a description of it. Find the work and the focus
 ### 2a. Plain mode: the crit
 Start with what the work is for: the user's goal, the stage (sketch, hi-fi, live), and the feedback the
 maker wants. Take these from the request. If the request doesn't say, read `PRODUCT.md` as context; if it
-still isn't clear, ask once. Then give, for each screen or flow:
+still isn't clear, ask once. On an unattended run, where nobody can answer, state the goal you assumed at
+the top of the report and mark it assumed. Then give, for each screen or flow:
 - **What's working.** Name the specific choice and why it serves the goal. "Nice layout" isn't feedback.
 - **Worth exploring.** Directions, not fixes: "what if the primary action led the card?" Give the reason,
   and where it fits, an alternative worth sketching.
@@ -71,24 +80,33 @@ licenses a standard you made up.
    `PRODUCT.md`, so it only asks what neither one answers. Run it with the context dir as its working
    directory so its `audits/` output lands there. Fold its findings in with their principle IDs and
    severities. Carry over its candidate funnel and any `issue_overflow`, because its capped list isn't the
-   whole picture.
-4. **Validate.** If the probe found the starter-pack `validate` skill, read its SKILL.md and run it.
-   Report its results by ban ID. If it would write to the project, skip it and say so.
-5. **Rank.** Use ux-audit's scale so the findings merge cleanly: **critical** (blocks the user's goal,
-   breaks a ban, or fails WCAG 2.2 AA with measured evidence), **high**, **medium**, **low**. Where the
-   registry carries a severity for a ban, use it. Otherwise rate the finding yourself and mark it as your
-   rating. When the same element breaks the same rule, list it once and cite every source. A divergence
+   whole picture. **If ux-audit isn't installed or can't run** (for example its Python environment isn't
+   set up), list it under inputs unavailable and put "ux-audit not run" in the verdict line. Never install
+   or bootstrap it, or anything else outside the project, without a go-ahead.
+4. **Validate.** If the probe found the starter-pack `validate` skill, read its SKILL.md and run it. If it
+   would write to the project, skip it and say so. When the project has its own `guardrails/`, report its
+   results by the project's ban IDs and count them toward the verdict. When it doesn't, validate cites the
+   starter pack's own registry: report those IDs in a separate section labelled "starter-pack bans, not
+   this project's standard", and keep them out of the verdict.
+5. **Rank.** Use ux-audit's scale so the findings merge cleanly. Where the registry carries a severity for
+   a ban, use it. Otherwise rate with this rubric and mark the rating as yours:
+   - **critical**: blocks the user's goal, breaks a project ban, or fails WCAG 2.2 AA with a measured value
+   - **high**: breaks a brief rule, with evidence, in a way a user would notice
+   - **medium**: a visible deviation from a brief with little user impact, or an inferred failure
+   - **low**: cosmetic, or a value off-scale but not visibly so When the same element breaks the same rule, list it once and cite every source. A divergence
    that looks deliberate is still a finding: flag it as "the brief may be stale" and don't pass it
    silently.
 6. **Verdict, with the threshold printed beside it.**
    - **fail**: any critical
    - **pass with issues**: no critical, at least one high
    - **pass**: nothing above medium
-   A verdict reached with major briefs missing says so in the same line ("pass, judged against
-   DESIGN.md only").
-7. **Second opinion when it's your own work.** If this session built the work you're gating, have another
-   vendor's CLI give a verdict independently (read `~/.ai/orchestration.md`; the delegate gets read access
-   to the project and write access only to the context dir). Report both verdicts and never average them.
+   A verdict reached with major briefs missing, or with ux-audit or validate not run, says so in the same
+   line ("pass, judged against DESIGN.md only; ux-audit not run").
+7. **Second opinion when it's your own work.** If this session, or the model you're running as, built the
+   work you're gating, have another vendor's CLI give a verdict independently (read
+   `~/.ai/orchestration.md`; the delegate gets read access to the project and write access only to the
+   context dir). Report both verdicts and never average them. A delegated or QA run gating someone else's
+   work marks this step "not applicable" and says why.
 
 ### 3. Report
 **Findings are never trimmed.** Every finding goes in the report, ranked. Ranking is the filter. The
@@ -101,7 +119,8 @@ primary deliverable is a self-contained `report.html` in the context dir:
 
 Every claim says how you know it: measured, seen in a screenshot, read in a file, or inferred. Serve the
 directory per the preview rules (bind `0.0.0.0`, curl until you get a 200, hand over the
-`http://<host>.ts.net:PORT/report.html` URL) and keep it running.
+`http://<host>.ts.net:PORT/report.html` URL) and keep it running unless the caller says otherwise. Report
+its port and PID so whoever is done with it can stop it.
 
 In chat, keep it short: the mode, the verdict and threshold (gate) or the two or three most useful crit
 points (plain), counts by severity, missing briefs and inputs, and the URL.

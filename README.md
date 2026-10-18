@@ -2,8 +2,9 @@
 
 **For designers, design engineers, and design managers.** One install gives
 every AI coding tool you use — Claude Code, Codex, Antigravity, and Cursor —
-the same instructions, the same agent roles, and the same skills, rendered from
-one template. You edit one file, run one command, and every tool is
+the same instructions and the same agent roles, rendered from one template,
+plus the same skills in Claude Code, Codex and Cursor (Antigravity has no
+skill install yet). You edit one file, run one command, and every tool is
 regenerated in sync.
 
 It is one harness for everyone on the team, engineering tooling included:
@@ -42,9 +43,9 @@ hook and settings installers).
 git clone <this repo> && cd agent-global-instructions
 cp my-context.env.example my-context.env && $EDITOR my-context.env
                                # your answers — every render and re-run reads them
-./install.sh                   # instructions + skills + roles + hooks + settings,
-                               #   for all four tools: Claude, Codex, Cursor,
-                               #   Antigravity (asks once; --yes skips)
+./install.sh                   # instructions + roles + hooks + settings for all
+                               #   four tools (Claude, Codex, Cursor, Antigravity),
+                               #   skills for the first three (asks once; --yes skips)
 ```
 
 That's it. Prefer answering questions to editing a file? `./customize.sh` runs

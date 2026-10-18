@@ -230,13 +230,18 @@ build_mem_block() {
 normalize_inputs() {
   local _v
   # PERSONA: the three design-team roles. The older values (product-designer,
-  # engineer, generic) still parse, mapped onto the nearest new one. The
-  # design-engineer / design-manager patterns come first, because both also
-  # start with "design".
-  case "$(lc "$PERSONA")" in
-    design-eng*|design-dev*|eng*|dev*|swe|frontend|backend) PERSONA=design-engineer;;
-    design-man*|design-mgr|manager*|mgr|lead|dm)            PERSONA=design-manager;;
-    design*|prod*|pd|ux|ui|gen*|'')                          PERSONA=designer;;
+  # engineer, generic) still parse, mapped onto the nearest new one. Spaces and
+  # underscores read as hyphens ("Design Manager" = design-manager). Patterns
+  # are exact rather than "design*" / "prod*" prefixes, so a value like
+  # product-manager warns instead of silently becoming designer.
+  _v="$(lc "$PERSONA" | tr ' _' '--')"
+  case "$_v" in
+    design-engineer|design-eng|design-dev|eng*|dev*|swe|frontend|front-end|backend|back-end)
+      PERSONA=design-engineer;;
+    design-manager|design-mgr|design-lead|manager|mgr|lead|dm)
+      PERSONA=design-manager;;
+    designer|design|product-designer|prod|pd|ux|ui|ux-designer|ui-designer|generic|'')
+      PERSONA=designer;;
     *) echo "customize.sh: unknown PERSONA='$PERSONA' (expected designer/design-engineer/design-manager); using designer." >&2; PERSONA=designer;;
   esac
   # The lenses a team starts from, by persona. `refuter` is not listed here:

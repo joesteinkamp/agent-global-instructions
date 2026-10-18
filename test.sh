@@ -145,7 +145,8 @@ for pair in \
   "pd:$TD_DESIGNER" "ux:$TD_DESIGNER" "ui:$TD_DESIGNER" "generic:$TD_DESIGNER" ":$TD_DESIGNER" \
   "design-engineer:$TD_ENGINEER" "Design-Engineer:$TD_ENGINEER" "engineer:$TD_ENGINEER" "eng:$TD_ENGINEER" \
   "dev:$TD_ENGINEER" "swe:$TD_ENGINEER" "frontend:$TD_ENGINEER" "backend:$TD_ENGINEER" \
-  "design-manager:$TD_MANAGER" "manager:$TD_MANAGER" "mgr:$TD_MANAGER" "lead:$TD_MANAGER" "dm:$TD_MANAGER"; do
+  "design-manager:$TD_MANAGER" "manager:$TD_MANAGER" "mgr:$TD_MANAGER" "lead:$TD_MANAGER" "dm:$TD_MANAGER" \
+  "Design Manager:$TD_MANAGER" "design_engineer:$TD_ENGINEER" "UX Designer:$TD_DESIGNER"; do
   p_in="${pair%%:*}"; p_want="${pair#*:}"
   [ "$(persona_line "$p_in")" = "$p_want" ] || p_bad="$p_bad '${p_in}'"
 done
@@ -155,6 +156,14 @@ PERSONA=astronaut render
 { grep -qF "unknown PERSONA='astronaut'" "$ERR" && grep -qF "$TD_DESIGNER" "$OUT"; } \
   && ok "unknown PERSONA warns and falls back to designer" \
   || bad "unknown PERSONA warns and falls back to designer"
+# Near-misses must warn, not silently match a prefix (product-manager is not a designer).
+p_bad=""
+for p_in in product-manager producer designated; do
+  PERSONA="$p_in" render
+  grep -qF "unknown PERSONA='$p_in'" "$ERR" || p_bad="$p_bad '$p_in'"
+done
+[ -z "$p_bad" ] && ok "PERSONA near-misses warn instead of matching a prefix" \
+                || bad "PERSONA near-misses matched silently:$p_bad"
 
 # The three renders differ in exactly one line, and it is the team-default line.
 PRD="$TMPD/persona"; mkdir -p "$PRD"
