@@ -193,9 +193,12 @@ load_env() {
 # (PLAN-install-preservation.md R7/A6).
 LAYER_DIR="$DIR"
 STATE_DIR="${AIGI_STATE_DIR:-$HOME/.ai/install-state}"
+has_layers() {  # $1 = dir: true when it holds at least one personal layer
+  local f; for f in my-context.env team-context.env extras.local.md mcp-rules.local; do [ -f "$1/$f" ] && return 0; done
+  return 1
+}
 if [ -z "${AIGI_NO_USER_ENV:-}" ] && { [ "${AIGI_GLOBAL_RENDER:-}" = 1 ] || [ "${1:-}" = --global ]; } \
-   && ! ls "$DIR"/my-context.env "$DIR"/team-context.env "$DIR"/extras.local.md "$DIR"/mcp-rules.local >/dev/null 2>&1 \
-   && ls "$STATE_DIR"/layers/* >/dev/null 2>&1; then
+   && ! has_layers "$DIR" && has_layers "$STATE_DIR/layers"; then
   LAYER_DIR="$STATE_DIR/layers"
   echo "  note: $DIR has no personal layers — rendering with the ones the last install used ($LAYER_DIR)" >&2
 fi

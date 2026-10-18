@@ -331,7 +331,7 @@ pv_record() {  # $1 = path  $2 = class  $3 = source label
 pv_mark_kept() {  # $1 = path  $2 = class  $3 = new content file  $4 = source label
   local p="$1" id row
   id="$(pv_pathid "$p")"
-  row="$(awk -F'\t' -v id="$id" '$1 == id' "$PV_STATE/manifest.tsv" 2>/dev/null | tail -n 1)"
+  row="$(awk -F'\t' -v id="$id" '$1 == id' "$PV_STATE/manifest.tsv" 2>/dev/null | tail -n 1 || true)"
   [ -n "$row" ] || row="$(printf '%s\t%s\t%s\t-\t-\t-\t-\t%s\t-\t-' "$id" "$p" "$2" "${4:-generated}")"
   row="$(printf '%s\n' "$row" | awk -F'\t' -v OFS='\t' -v kb="$(pv_canon_blob "$p" "$2")" -v ka="$(pv_canon_blob "$3" "$2")" -v d="$(pv_now)" \
     '{ $6 = kb; $7 = ka; $10 = d; print }')"
@@ -383,7 +383,7 @@ pv_render_blobs() {
   local repo="${PV_REPO:-${DIR:-.}}" layers="${PV_LAYERS_DIR:-${DIR:-.}}" head key cache c d f cd_
   head="$(git -C "$repo" rev-parse --short HEAD 2>/dev/null)" || return 1
   key="$(cat "$layers"/my-context.env "$layers"/team-context.env "$layers"/extras.local.md "$layers"/mcp-rules.local 2>/dev/null \
-         | git hash-object --stdin | cut -c1-12)"
+         | git hash-object --stdin | cut -c1-12 || true)"
   cd_="$(pv_cache_dir)"; cache="$cd_/.shipped-render.$head.$key"
   if [ ! -s "$cache" ]; then
     mkdir -p "$cd_" || return 1
@@ -505,11 +505,13 @@ pv_no_append() {  # $1 = class
 
 # The lines you added: "> " lines of a normal diff from the base to yours,
 # canonical parts only, in order, with a blank line between separate runs.
-# Normal diff output is POSIX, so this works with BSD diff too.
+# Normal diff output is POSIX, so this works with BSD diff too. diff exits 1
+# when the files differ, which every caller's `set -e -o pipefail` would take
+# as a failure, hence the `|| true`s here and in pv_counts.
 pv_added() {  # $1 = base file  $2 = your file  $3 = class
   local a b; a="$(mktemp "${TMPDIR:-/tmp}/aigi_a.XXXXXX")"; b="$(mktemp "${TMPDIR:-/tmp}/aigi_b.XXXXXX")"
   pv_canon "$1" "$3" > "$a"; pv_canon "$2" "$3" > "$b"
-  diff "$a" "$b" | awk '/^[0-9]/ { if (n) gap = 1; next } /^> / { if (gap) { print ""; gap = 0 } print substr($0, 3); n++ }'
+  { diff "$a" "$b" || true; } | awk '/^[0-9]/ { if (n) gap = 1; next } /^> / { if (gap) { print ""; gap = 0 } print substr($0, 3); n++ }'
   rm -f "$a" "$b"
 }
 
@@ -517,7 +519,7 @@ pv_added() {  # $1 = base file  $2 = your file  $3 = class
 pv_counts() {  # $1 = base file  $2 = your file  $3 = class
   local a b; a="$(mktemp "${TMPDIR:-/tmp}/aigi_a.XXXXXX")"; b="$(mktemp "${TMPDIR:-/tmp}/aigi_b.XXXXXX")"
   pv_canon "$1" "$3" > "$a"; pv_canon "$2" "$3" > "$b"
-  diff "$a" "$b" | awk '/^> / { p++ } /^< / { m++ } END { printf "+%d/-%d\n", p, m }'
+  { diff "$a" "$b" || true; } | awk '/^> / { p++ } /^< / { m++ } END { printf "+%d/-%d\n", p, m }'
   rm -f "$a" "$b"
 }
 
@@ -531,7 +533,7 @@ pv_base_for() {  # $1 = dest  $2 = new content file
 # The checkout whose extras.local.md receives lines routed from ~/AGENTS.md:
 # the primary checkout, never a linked worktree that may be reaped (A6).
 pv_extras_file() {
-  local p; p="$(git -C "${DIR:-.}" worktree list --porcelain 2>/dev/null | awk 'NR == 1 { print substr($0, 10) }')"
+  local p; p="$(git -C "${DIR:-.}" worktree list --porcelain 2>/dev/null | awk 'NR == 1 { print substr($0, 10) }' || true)"
   printf '%s/extras.local.md\n' "${p:-${DIR:-.}}"
 }
 
@@ -540,10 +542,10 @@ pv_append_blocked() {  # $1 = class  $2 = dest  $3 = new content file
   local why n total base
   why="$(pv_no_append "$1")"; [ -n "$why" ] && { echo "$why"; return 0; }
   base="$(pv_base_for "$2" "$3")"
-  n="$(pv_added "$base" "$2" "$1" | grep -c .)"
+  n="$(pv_added "$base" "$2" "$1" | grep -c . || true)"
   [ "$n" -eq 0 ] && { echo "you only removed lines — there's nothing to append"; return 0; }
   # A file that's mostly yours isn't "ours plus a few lines" (R7).
-  total="$(grep -c . < "$3")"
+  total="$(grep -c . < "$3" || true)"
   [ "$n" -gt $(( total / 2 )) ] && { echo "most of the file is yours — keep, pin or replace it instead"; return 0; }
   return 0
 }
@@ -807,7 +809,7 @@ pv_resolve_parked() {
   local pf="$AIGI_RUN_DIR/parked.tsv" id dest class rel blob ai new all="" ans why base n
   [ -s "$pf" ] || return 0
   pv_lock || return 1
-  n="$(grep -c . < "$pf")"
+  n="$(grep -c . < "$pf" || true)"
   exec 9< "$(pv_tty)" || { echo "  can't ask about $n edited file(s) (no terminal) — left as they are" >&2; return 0; }
   echo "" >&2
   echo "== $n file(s) you edited — what should the installer do? ==" >&2
@@ -837,7 +839,7 @@ pv_resolve_parked() {
       case "$ans" in
         ''|r) ans=r;; a|k|p|x) ;;
         R|A|K) all="$(printf '%s' "$ans" | tr 'RAK' 'rak')"; ans="$all";;
-        d) diff -u "$dest" "$new" >&2; ans="";;
+        d) diff -u "$dest" "$new" >&2 || true; ans="";;
         *) echo "  (not an option)" >&2; ans="";;
       esac
       if [ "$ans" = a ] && [ -n "$why" ]; then
@@ -962,7 +964,7 @@ pv_resolve_cmd() {  # $1 = mode (replace|append|keep|pin|ask)  $2.. = paths (emp
       echo "$path — replaced by an install; yours is $saved ($(pv_counts "$base" "$saved" "$class") lines)" >&2
       echo "  [r] leave the new version   [a] add your lines back   [k] put yours back   [p] put yours back and pin it   [d] diff   [s] skip" >&2
       printf '  choice [s]: ' >&2; IFS= read -r ans <&9 || ans=s
-      case "$ans" in r) ans=replace;; a) ans=append;; k) ans=keep;; p) ans=pin;; d) diff -u "$path" "$saved" >&2; ans=ask;; *) ans=skip;; esac
+      case "$ans" in r) ans=replace;; a) ans=append;; k) ans=keep;; p) ans=pin;; d) diff -u "$path" "$saved" >&2 || true; ans=ask;; *) ans=skip;; esac
     done
     PV_VERDICT=RESOLVE; PV_SAVED="$saved"; PV_AI=""
     case "$ans" in

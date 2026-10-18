@@ -15,12 +15,22 @@
 # (Claude's @import file, Codex's symlink) is restored from its newest backup
 # (or removed if none). The rendered ~/AGENTS.md itself is LEFT IN PLACE.
 #
+# Files the install ledger tracks (roles, the lm shim, the sweep CLI) are
+# removed through it: one still holding what we installed goes quietly, one you
+# edited is saved to ~/.ai/install-state/preserved/ first. A pointer path gets
+# back the first original we displaced (install-state/orig/), not merely the
+# newest .bak.*. The state dir itself stays — it's your recovery store:
+#
+#   ./uninstall.sh --purge        # also delete ~/.ai/install-state (asks you to type "purge")
+#
 # `gemini` is accepted only to clean up artifacts from a pre-retirement install
 # (the Gemini CLI itself is no longer a supported target — see CHANGELOG).
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
+# shellcheck source=lib/preserve.sh
+. "$DIR/lib/preserve.sh"
 
 # Derive the hook-script set from the actual files so it can't drift from the
 # installer. HOOK_RE matches /<our-script>.sh on the dir slash.
@@ -62,11 +72,16 @@ restore_global_pointer() {  # $1 = pointer path
   else
     return 0
   fi
+  # The first original we displaced beats the newest backup, which after a
+  # few installs is only ever one of our own old pointers (G2).
+  local orig; orig="$PV_STATE/orig/$(pv_pathid "$f")"
   # shellcheck disable=SC2012  # newest-first by mtime; names are mktemp-safe
   bak="$(ls -1t -- "$f".bak.* 2>/dev/null | head -n 1 || true)"
   if [ -f "$f" ] && [ ! -L "$f" ]; then backup_file "$f"; fi
   rm -f "$f"
-  if [ -n "$bak" ]; then
+  if [ -f "$orig" ]; then
+    cp "$orig" "$f" && echo "  restored $f to the original it had before the first install"
+  elif [ -n "$bak" ]; then
     cp "$bak" "$f" && echo "  restored $f from ${bak##*/}"
   else
     echo "  removed pointer $f (no prior backup to restore)"
@@ -200,12 +215,10 @@ remove_roles_dir() {  # $1 = dest dir  $2 = ext  [$3 = rendered src dir, for the
     base="$(basename "$f" .md)"
     [ "$base" = "README" ] && continue
     [ -f "$dest/$base.$ext" ] || continue
-    if [ -n "$src" ] && [ -f "$src/$base.$ext" ] && ! cmp -s "$src/$base.$ext" "$dest/$base.$ext"; then
-      backup_file "$dest/$base.$ext"
-    elif [ -z "$src" ] && [ -f "$DIR/roles/$base.$ext" ] && ! cmp -s "$DIR/roles/$base.$ext" "$dest/$base.$ext"; then
-      backup_file "$dest/$base.$ext"
-    fi
-    rm -f "$dest/$base.$ext"; n=$((n+1))
+    # Through the ledger: ours goes quietly, an edited one is preserved first.
+    if [ -n "$src" ]; then pv_delete "$dest/$base.$ext" uninstall render:roles role || continue
+    else pv_delete "$dest/$base.$ext" uninstall "roles/$base.md" role || continue; fi
+    [ "$PV_ACTION" = removed ] && n=$((n+1))
   done
   [ "$n" -gt 0 ] && echo "  removed $n role file(s) from $dest"
   return 0
@@ -307,10 +320,12 @@ strip_antigravity_hooks() {  # $1 = hooks.json
 }
 
 PROJECT=0
+PURGE=0
 targets=()
 for a in "$@"; do
   case "$a" in
     --project) PROJECT=1;;
+    --purge) PURGE=1;;
     claude|codex|cursor|antigravity) targets+=("$a");;
     gemini) targets+=("$a");;  # legacy cleanup only — see header comment
     *) echo "  unknown arg: $a (use: --project | claude codex cursor antigravity | gemini for legacy cleanup)" >&2; exit 1;;
@@ -335,6 +350,7 @@ if [ "$PROJECT" = 1 ]; then
       *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
     esac
   done
+  pv_finish
   echo "Done. Removed in-repo (--project) command and role files only."
   exit 0
 fi
@@ -397,8 +413,8 @@ done
 # ~/.ai/ registry files (clis, local-models, model-routing, playbooks) are
 # regenerable metadata and stay in place, like the roster.
 if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
-  rm -f "$HOME/.local/bin/lm"
-  echo "  removed $HOME/.local/bin/lm (local-model shim)"
+  pv_delete "$HOME/.local/bin/lm" uninstall lm shim \
+    && [ "$PV_ACTION" = removed ] && echo "  removed $HOME/.local/bin/lm (local-model shim)"
 fi
 # Same for the portable `timeout` shim (only ever installed where none existed).
 if [ -f "$HOME/.local/bin/timeout" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/timeout" 2>/dev/null; then
@@ -412,8 +428,18 @@ fi
 # rate-limit stamps in ~/.ai-logs are logs and stay, like every other log.
 if [ -f "$HOME/.ai/worktree-sweep.sh" ] \
    && grep -q 'Worktree reaper' "$HOME/.ai/worktree-sweep.sh" 2>/dev/null; then
-  rm -f "$HOME/.ai/worktree-sweep.sh"
-  echo "  removed $HOME/.ai/worktree-sweep.sh (worktree sweep CLI)"
+  pv_delete "$HOME/.ai/worktree-sweep.sh" uninstall hooks/worktree-reap.sh sweep-cli \
+    && [ "$PV_ACTION" = removed ] && echo "  removed $HOME/.ai/worktree-sweep.sh (worktree sweep CLI)"
+fi
+pv_finish
+
+# --purge: the state dir holds every edit the installer ever saved for you, so
+# deleting it is the one irreversible step here — typed confirmation only.
+if [ "$PURGE" = 1 ] && [ -d "$PV_STATE" ]; then
+  echo "This deletes $PV_STATE, including every edited file the installer saved for you in preserved/."
+  ans=""; read -r -p 'Type "purge" to confirm: ' ans </dev/tty 2>/dev/null || true
+  if [ "$ans" = purge ]; then rm -rf "$PV_STATE"; echo "  removed $PV_STATE"
+  else echo "  kept $PV_STATE (not confirmed)"; fi
 fi
 
 echo "Done. Backups saved next to each file. ~/AGENTS.md left in place;"

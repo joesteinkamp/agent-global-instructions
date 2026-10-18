@@ -10,6 +10,9 @@ set -uo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CUSTOMIZE="$DIR/customize.sh"
 export AIGI_NO_USER_ENV=1
+# Nobody answers prompts in a test run, even from a real terminal: the
+# attended cases set AIGI_UNATTENDED=0 and AIGI_TTY to a file of answers.
+export AIGI_UNATTENDED=1
 
 pass=0; fail=0
 ok()   { pass=$((pass+1)); printf '  ok   %s\n' "$1"; }
@@ -1155,12 +1158,11 @@ PY
     || bad "model-routing splice ignores a marker quoted mid-line"
 
   # A pre-marker copy (or a damaged block) is replaced by the seed stub, and the
-  # old content is backed up rather than silently lost.
+  # old content is saved to the ledger's preserved/ rather than silently lost.
   printf '# old routing table\nLEGACY-ROUTING-DATA\n' > "$MR"
-  rm -f "$SMOKE2/.ai/model-routing.unmarked.bak.md"
   HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
   { cmp -s "$DIR/MODEL-ROUTING.md" "$MR" \
-    && grep -qF 'LEGACY-ROUTING-DATA' "$SMOKE2/.ai/model-routing.unmarked.bak.md"; } \
+    && grep -lqF 'LEGACY-ROUTING-DATA' "$SMOKE2/.ai/install-state/preserved/"* 2>/dev/null; } \
     && ok "a pre-marker model-routing copy is backed up, then replaced by the seed" \
     || bad "a pre-marker model-routing copy is backed up, then replaced by the seed"
 
@@ -1381,7 +1383,7 @@ PY
   GT="$(mktemp -d)"
   cp -R "$DIR/skills" "$GT/skills"
   mkdir -p "$GT/.agents" && cp -R "$DIR/.agents/skills" "$GT/.agents/skills"
-  cp "$DIR/install-skills.sh" "$GT/"
+  cp "$DIR/install-skills.sh" "$GT/"; cp -R "$DIR/lib" "$GT/lib"
   printf '#!/bin/sh\nexit 1\n' > "$GT/customize.sh"; chmod +x "$GT/customize.sh"
   HOME="$GT/home" "$GT/install-skills.sh" --design claude >/dev/null 2>&1
   HOME="$GT/home" "$GT/install-skills.sh" claude >/dev/null 2>&1   # auto + broken resolver
@@ -1414,8 +1416,8 @@ PY
   rm -rf "$GT"
 
   # Retired names (renamed/removed commands, e.g. the /audit -> /ux-audit rename)
-  # prune on reinstall — WITH a backup, since a generic name like "audit" could
-  # be the user's own command rather than our stale install.
+  # prune on reinstall — saved to the ledger's preserved/ first, since a generic
+  # name like "audit" could be the user's own command rather than our stale install.
   GT="$(mktemp -d)"; GC="$GT/.claude/commands"
   mkdir -p "$GC"
   echo "the user's own audit notes" > "$GC/audit.md"
@@ -1423,10 +1425,10 @@ PY
   HOME="$GT" "$DIR/install-skills.sh" --no-design claude >/dev/null 2>&1
   ret_ok=1
   if [ -f "$GC/audit.md" ] || [ -f "$GC/critique.md" ]; then ret_ok=0; fi
-  grep -q "the user's own audit notes" "$GC"/audit.md.bak.* 2>/dev/null || ret_ok=0
+  grep -lq "the user's own audit notes" "$GT/.ai/install-state/preserved/"* 2>/dev/null || ret_ok=0
   [ "$ret_ok" = 1 ] \
     && ok "retired /audit + /critique prune with a backup of the prior copy" \
-    || bad "retired prune (audit=$([ -f "$GC/audit.md" ] && echo present || echo gone) backup=$(grep -q "the user's own audit notes" "$GC"/audit.md.bak.* 2>/dev/null && echo yes || echo MISSING))"
+    || bad "retired prune (audit=$([ -f "$GC/audit.md" ] && echo present || echo gone) preserved=$(grep -lq "the user's own audit notes" "$GT/.ai/install-state/preserved/"* 2>/dev/null && echo yes || echo MISSING))"
   rm -rf "$GT"
   # Codex permissions TOML snippet parses.
   if command -v python3 >/dev/null 2>&1; then
@@ -2711,6 +2713,196 @@ HOME="$SH" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
   && grep -lq 'my tweak' "$SH/.ai/install-state/preserved/"* 2>/dev/null; } \
   && ok "install-hooks: an edited sweep CLI is preserved, then reinstalled executable" \
   || bad "install-hooks: an edited sweep CLI is preserved, then reinstalled executable"
+
+# ---- install ledger, phases 2–3: decide, don't only save ----------------------
+# Pins, [k] that sticks, the attended resolve pass, the append-merge and its
+# canonical part, --plan/--resolve, last-run.json, ~/AGENTS.md's own rungs and
+# routing, the AI check's advice, and the uninstall side (PLAN §18).
+echo "== install ledger, phases 2–3 =="
+
+lt pin 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"; pv_do_pin "$HOME/d.md" 2>/dev/null; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION V=$PV_VERDICT"'
+{ grep -q 'A=pinned V=PINNED' "$LT/pin/out" && grep -qx 'mine' "$LT/pin/d.md"; } \
+  && ok "ledger: a pinned file is never written" \
+  || bad "ledger: a pinned file is never written"
+
+# [k] holds until upstream changes again; then it's a question again (A5).
+lt kept 'printf "v3\n" > "$HOME/v3"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"
+  AIGI_ON_CONFLICT=keep pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "B=$PV_ACTION $PV_VERDICT"
+  pv_write role "$HOME/v3" "$HOME/d.md" roles/r.md; echo "C=$PV_ACTION $PV_VERDICT"'
+{ grep -q 'A=kept-custom' "$LT/kept/out" && grep -q 'B=kept KEPT' "$LT/kept/out" \
+  && grep -q 'C=replaced-custom CUSTOM' "$LT/kept/out" && grep -qx v3 "$LT/kept/d.md"; } \
+  && ok "ledger: [k] keeps your file until upstream changes again, then it's CUSTOM" \
+  || bad "ledger: [k] keeps your file until upstream changes again, then it's CUSTOM"
+
+# Attended: the edited file is parked untouched, then asked about once.
+lt park 'printf "r\n" > "$HOME/ans"; export AIGI_UNATTENDED=0 AIGI_TTY="$HOME/ans"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"; echo "D=$(cat "$HOME/d.md")"
+  pv_resolve_parked; echo "E=$(cat "$HOME/d.md")"'
+{ grep -q 'A=parked' "$LT/park/out" && grep -q 'D=mine' "$LT/park/out" && grep -q 'E=v2' "$LT/park/out" \
+  && grep -lq '^mine$' "$(st park)/preserved/"* 2>/dev/null; } \
+  && ok "ledger: attended, an edited file is left alone until the end-of-run question" \
+  || bad "ledger: attended, an edited file is left alone until the end-of-run question"
+
+lt parkx 'printf "x\n" > "$HOME/ans"; export AIGI_UNATTENDED=0 AIGI_TTY="$HOME/ans"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; pv_resolve_parked; echo "E=$(cat "$HOME/d.md")"
+  tail -n 1 "$AIGI_RUN_DIR/actions.tsv" | cut -f4'
+{ grep -q 'E=mine' "$LT/parkx/out" && grep -qx 'left' "$LT/parkx/out"; } \
+  && ok "ledger: [x] stops and leaves the edited file untouched" \
+  || bad "ledger: [x] stops and leaves the edited file untouched"
+
+# Append: your lines land in one preserved block, carried forward byte for
+# byte, never nested; editing inside the block doesn't make the file yours.
+lt append 'printf "v2\nb\nc\nd\n" > "$HOME/s"; printf "v3\nb\nc\nd\n" > "$HOME/v3"; export AIGI_ON_CONFLICT=append
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "my line\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "B=$PV_ACTION"
+  sed -i.x "s/my line/my edited line/" "$HOME/p.md"
+  pv_write playbook "$HOME/v3" "$HOME/p.md"; echo "C=$PV_ACTION $PV_VERDICT"
+  printf "another\n" >> "$HOME/v3"; pv_write playbook "$HOME/v3" "$HOME/p.md"; echo "D=$PV_ACTION"'
+{ grep -q 'A=appended' "$LT/append/out" && grep -q 'B=current' "$LT/append/out" \
+  && grep -q 'C=updated OURS' "$LT/append/out" && grep -q 'D=updated' "$LT/append/out" \
+  && [ "$(grep -c 'aigi:preserved begin' "$LT/append/p.md")" = 1 ] \
+  && grep -qx 'my edited line' "$LT/append/p.md" && [ "$(head -n 1 "$LT/append/p.md")" = v3 ]; } \
+  && ok "ledger: [a] keeps your lines in one preserved block that later installs carry forward" \
+  || bad "ledger: [a] keeps your lines in one preserved block that later installs carry forward"
+
+lt damaged 'printf "v2\nb\nc\nd\n" > "$HOME/s"; export AIGI_ON_CONFLICT=append
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "my line\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION"
+  printf "<!-- aigi:preserved begin — stray\n" >> "$HOME/p.md"; echo "V=$(pv_classify "$HOME/p.md" "" playbook "$HOME/s")"'
+{ grep -q 'A=appended' "$LT/damaged/out" && grep -q 'V=CUSTOM' "$LT/damaged/out"; } \
+  && ok "ledger: a damaged preserved block is CUSTOM, never guessed at" \
+  || bad "ledger: a damaged preserved block is CUSTOM, never guessed at"
+
+lt roleappend 'printf "v2\nb\nc\nd\n" > "$HOME/s"; export AIGI_ON_CONFLICT=append
+  pv_write role "$HOME/s" "$HOME/d.md"; printf "my line\n" >> "$HOME/d.md"
+  pv_write role "$HOME/s" "$HOME/d.md"; echo "A=$PV_ACTION"'
+{ grep -q 'A=replaced-custom' "$LT/roleappend/out" && grep -q "can't append" "$LT/roleappend/out"; } \
+  && ok "ledger: a role file never takes an appended block (D6) — it's replaced, yours saved" \
+  || bad "ledger: a role file never takes an appended block (D6) — it's replaced, yours saved"
+
+# model-routing.md: the generated block is /update-model-routing's, so a
+# changed block doesn't make the file look edited (E6).
+lt routing 'printf "stable v1\n<!-- generated:begin -->\nmodels A\n<!-- generated:end -->\n" > "$HOME/new1"
+  pv_write model-routing "$HOME/new1" "$HOME/mr.md"
+  printf "stable v1\n<!-- generated:begin -->\nmodels B\n<!-- generated:end -->\n" > "$HOME/mr.md"
+  printf "stable v2\n<!-- generated:begin -->\nmodels B\n<!-- generated:end -->\n" > "$HOME/new2"
+  pv_write model-routing "$HOME/new2" "$HOME/mr.md"; echo "A=$PV_ACTION $PV_VERDICT"'
+grep -q 'A=updated OURS' "$LT/routing/out" \
+  && ok "ledger: model-routing.md is compared outside its generated block" \
+  || bad "ledger: model-routing.md is compared outside its generated block"
+
+# The AI check is advice: a stub says "not covered", the run still replaces
+# unattended (D7), and the verdict is recorded. Malformed output is no verdict.
+AISTUB="$LT/ai-stub.sh"
+cat > "$AISTUB" <<'STUB'
+cat >/dev/null
+echo '{"covered": false, "reason": "stub says no"}'
+STUB
+lt aicheck 'export AIGI_AI_CHECK=command AIGI_AI_CHECK_CMD="sh '"$AISTUB"'"
+  printf "v2\nb\nc\nd\n" > "$HOME/s"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "my line\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION AI=$PV_AI"
+  AIGI_AI_CHECK_CMD="echo not json"; printf "again\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "B=$PV_AI"'
+{ grep -q 'A=replaced-custom AI=not covered: stub says no' "$LT/aicheck/out" \
+  && grep -q 'B=skipped: no valid verdict' "$LT/aicheck/out"; } \
+  && ok "ledger: the AI check only advises, and malformed output counts as no verdict" \
+  || bad "ledger: the AI check only advises, and malformed output counts as no verdict"
+
+lt contra 'export AIGI_ON_CONFLICT=append
+  printf -- "# P\n\n- **Cite sources.** Always.\n- b\n" > "$HOME/new1"; printf -- "# P\n\n- **Cite sources.** Sometimes.\n- b\n" > "$HOME/new2"
+  pv_write playbook "$HOME/new1" "$HOME/p.md"; printf -- "- **Cite sources.** With file:line.\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/new2" "$HOME/p.md"; echo "A=$PV_ACTION"'
+{ grep -q 'A=appended' "$LT/contra/out" && grep -q 'also appears in the new version' "$LT/contra/out"; } \
+  && ok "ledger: a kept rule whose headline the new version rewords is flagged" \
+  || bad "ledger: a kept rule whose headline the new version rewords is flagged"
+
+# ~/AGENTS.md: SHIPPED means "a render of a recent commit with today's
+# layers", and [a] routes your lines into extras.local.md, then re-renders.
+RX="$LT/render-repo"; mkdir -p "$RX"; git -C "$RX" init -q
+printf '#!/bin/sh\n[ "$1" = --print ] && { cat "$(dirname "$0")/template.md"; [ -f "$(dirname "$0")/extras.local.md" ] && cat "$(dirname "$0")/extras.local.md"; }\nexit 0\n' > "$RX/customize.sh"
+chmod +x "$RX/customize.sh"
+printf 'rules v1\nb\nc\nd\n' > "$RX/template.md"; git -C "$RX" add -A; git -C "$RX" -c user.name=t -c user.email=t@t commit -qm v1
+printf 'rules v2\nb\nc\nd\n' > "$RX/template.md"; git -C "$RX" -c user.name=t -c user.email=t@t commit -qam v2
+lt render 'export PV_REPO="'"$RX"'" DIR="'"$RX"'" PV_LAYERS_DIR="'"$RX"'"
+  printf "rules v1\nb\nc\nd\n" > "$HOME/A.md"; (cd "$PV_REPO" && ./customize.sh --print) > "$HOME/new"
+  pv_write render "$HOME/new" "$HOME/A.md" render:agents; echo "A=$PV_ACTION $PV_VERDICT"
+  printf "my rule\n" >> "$HOME/A.md"; AIGI_ON_CONFLICT=append pv_write render "$HOME/new" "$HOME/A.md" render:agents
+  echo "B=$PV_ACTION"; echo "X=$(grep -c "my rule" "$PV_REPO/extras.local.md")"; echo "R=$(grep -c "my rule" "$HOME/A.md")"'
+{ grep -q 'A=updated SHIPPED' "$LT/render/out" && grep -q 'B=appended' "$LT/render/out" \
+  && grep -q 'X=1' "$LT/render/out" && grep -q 'R=1' "$LT/render/out" \
+  && grep -q '^## Preserved from ~/AGENTS.md' "$RX/extras.local.md"; } \
+  && ok "ledger: ~/AGENTS.md recognizes an old render, and [a] moves your lines into extras.local.md" \
+  || bad "ledger: ~/AGENTS.md recognizes an old render, and [a] moves your lines into extras.local.md"
+
+# End to end, through install.sh: a second run changes nothing, --plan writes
+# nothing, last-run.json is valid, and --resolve --append brings a replaced
+# edit back.
+EH="$LT/e2e"; mkdir -p "$EH/.gemini/antigravity-cli"   # as on a machine with agy installed
+HOME="$EH" bash "$DIR/install.sh" --yes >/dev/null 2>&1
+HOME="$EH" bash "$DIR/install.sh" --yes >/dev/null 2>&1
+{ jq -e '.files | length > 0' "$EH/.ai/install-state/last-run.json" >/dev/null 2>&1 \
+  && [ "$(jq '[.files[] | select(.action != "current")] | length' "$EH/.ai/install-state/last-run.json")" = 0 ]; } \
+  && ok "install.sh: a second --yes changes no ledgered file, and last-run.json says so" \
+  || bad "install.sh: a second --yes changes no ledgered file, and last-run.json says so"
+find "$EH" -exec ls -ld {} + 2>/dev/null | sort > "$LT/e2e.before"
+HOME="$EH" bash "$DIR/install.sh" --plan > "$LT/e2e.plan" 2>&1
+find "$EH" -exec ls -ld {} + 2>/dev/null | sort > "$LT/e2e.after"
+{ cmp -s "$LT/e2e.before" "$LT/e2e.after" && grep -q 'CURRENT  current' "$LT/e2e.plan"; } \
+  && ok "install.sh --plan classifies every ledgered file and writes nothing" \
+  || bad "install.sh --plan classifies every ledgered file and writes nothing"
+printf '\n- **My playbook rule.** Mine.\n' >> "$EH/.ai/orchestration.md"
+HOME="$EH" bash "$DIR/install.sh" --yes > "$LT/e2e.r3" 2>&1
+{ ! grep -q 'My playbook rule' "$EH/.ai/orchestration.md" \
+  && grep -q "recover: ./install.sh --resolve $EH/.ai/orchestration.md --append" "$LT/e2e.r3" \
+  && jq -e --arg p "$EH/.ai/orchestration.md" '.files[] | select(.path == $p) | .action == "replaced-custom" and (.recover | test("--append"))' \
+       "$EH/.ai/install-state/last-run.json" >/dev/null 2>&1; } \
+  && ok "install.sh --yes: an edited playbook is replaced and its recovery command is reported" \
+  || bad "install.sh --yes: an edited playbook is replaced and its recovery command is reported"
+HOME="$EH" bash "$DIR/install.sh" --resolve "$EH/.ai/orchestration.md" --append >/dev/null 2>&1
+HOME="$EH" bash "$DIR/install.sh" --resolve --append > "$LT/e2e.r4" 2>&1
+{ grep -q 'My playbook rule' "$EH/.ai/orchestration.md" && grep -q 'aigi:preserved begin' "$EH/.ai/orchestration.md" \
+  && grep -q 'Nothing to resolve' "$LT/e2e.r4"; } \
+  && ok "install.sh --resolve --append adds a replaced edit back, once" \
+  || bad "install.sh --resolve --append adds a replaced edit back, once"
+HOME="$EH" bash "$DIR/install.sh" --yes >/dev/null 2>&1
+[ "$(jq -r --arg p "$EH/.ai/orchestration.md" '.files[] | select(.path == $p) | .action' "$EH/.ai/install-state/last-run.json")" = current ] \
+  && ok "install.sh: a resolved append stays put on the next install" \
+  || bad "install.sh: a resolved append stays put on the next install"
+
+# Hook scripts are ledgered now: an edit is preserved, not a rotating .bak.*.
+printf '\n# my hook tweak\n' >> "$EH/.claude/hooks/guard-bash.sh"
+printf '#!/bin/sh\n# my own scorecard\n' > "$EH/.claude/hooks/scorecard.sh"
+HOME="$EH" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+{ cmp -s "$DIR/hooks/guard-bash.sh" "$EH/.claude/hooks/guard-bash.sh" && [ -x "$EH/.claude/hooks/guard-bash.sh" ] \
+  && ! ls "$EH/.claude/hooks/"guard-bash.sh.bak.* >/dev/null 2>&1 && [ ! -e "$EH/.claude/hooks/scorecard.sh" ] \
+  && grep -lq 'my hook tweak' "$EH/.ai/install-state/preserved/"* && grep -lq 'my own scorecard' "$EH/.ai/install-state/preserved/"*; } \
+  && ok "install-hooks: edited and retired hook scripts go through the ledger" \
+  || bad "install-hooks: edited and retired hook scripts go through the ledger"
+
+# E1: no terminal and no --yes is unattended, and an unattended run renders.
+NH="$LT/notty"; mkdir -p "$NH"
+HOME="$NH" AIGI_UNATTENDED=1 bash "$CUSTOMIZE" --global > "$LT/notty.out" 2>&1
+{ [ -s "$NH/AGENTS.md" ] && ! grep -q 'Aborted' "$LT/notty.out"; } \
+  && ok "customize --global: an unattended run without --yes renders instead of aborting" \
+  || bad "customize --global: an unattended run without --yes renders instead of aborting"
+
+# Uninstall: an edited role is preserved before removal, and a pointer gets
+# back the original we first displaced.
+UH2="$LT/uninst"; mkdir -p "$UH2/.codex"; printf 'my own codex notes\n' > "$UH2/.codex/AGENTS.md"
+HOME="$UH2" bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+HOME="$UH2" bash "$DIR/install-roles.sh" claude >/dev/null 2>&1
+printf '\nmy role note\n' >> "$UH2/.claude/agents/refuter.md"
+HOME="$UH2" bash "$DIR/uninstall.sh" claude codex > "$LT/uninst.out" 2>&1
+{ [ ! -e "$UH2/.claude/agents/refuter.md" ] && grep -lq 'my role note' "$UH2/.ai/install-state/preserved/"* \
+  && grep -qx 'my own codex notes' "$UH2/.codex/AGENTS.md" && grep -q 'original it had before' "$LT/uninst.out"; } \
+  && ok "uninstall: edited roles are preserved, and a pointer path gets its first original back" \
+  || bad "uninstall: edited roles are preserved, and a pointer path gets its first original back"
 rm -rf "$LT"
 
 echo ""
