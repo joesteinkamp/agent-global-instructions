@@ -44,7 +44,7 @@ TEMPLATE="$DIR/template.md"
 # values handed to awk and the substitution loop, and all three lists drive the
 # load_env allowlist — nothing to keep in sync by hand.
 SUBST_VARS=(NAME CALL_ME PRONOUNS ROLE TIMEZONE CARES ENVIRONMENT TEAM_ROLES TEAM_DEFAULT TS_HOST)  # {{VAR}} <-> $VAR
-CTRL_VARS=(PREVIEW AUTONOMY PERSONA MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL LOCAL_MODELS)                     # control render, not substituted
+CTRL_VARS=(PREVIEW AUTONOMY PERSONA MEM_BLOCK MEM_KIND MEM_PATH MEM_TOOL LOCAL_MODELS INSTALL_ON_CONFLICT INSTALL_AI_CHECK INSTALL_AI_CHECK_CMD)  # control render/install, not substituted
 INC_VARS=(INC_MEMORY INC_TEAMS INC_WORKTREES INC_ORCHESTRATION INC_LOCAL_MODELS INC_IMPROVE INC_TOOLS INC_PROPOSALS INC_ARTIFACTS INC_PROSE INC_DESIGN INC_PROJECT INC_DOCS INC_CORRECTIONS INC_CHANGELOG)
 
 # ---- temp-file cleanup (no leaks on error paths) ----------------------------
@@ -121,6 +121,13 @@ fi
                                # hatch for servers autodetection can't see (custom ports, remote
                                # boxes over Tailscale, an MLX Mac). Merged ahead of autodetection.
 : "${EXTRAS:=}"                # personal sections spliced in verbatim; filled from extras.local.md
+# What install.sh does with a file you edited when nobody can answer (D1:
+# replace, after saving yours), and the optional advisory AI check of edited
+# Markdown (off | local = the lm shim | command = INSTALL_AI_CHECK_CMD, which
+# reads the prompt on stdin and prints a JSON verdict). PLAN-install-preservation.md §7.
+: "${INSTALL_ON_CONFLICT:=replace}"
+: "${INSTALL_AI_CHECK:=off}"
+: "${INSTALL_AI_CHECK_CMD:=}"
 : "${INC_MEMORY:=y}"; : "${INC_TEAMS:=y}"; : "${INC_WORKTREES:=y}"; : "${INC_ORCHESTRATION:=y}"; : "${INC_LOCAL_MODELS:=y}"; : "${INC_IMPROVE:=y}"; : "${INC_TOOLS:=y}"
 : "${INC_PROPOSALS:=y}"; : "${INC_ARTIFACTS:=y}"; : "${INC_PROSE:=y}"; : "${INC_PROJECT:=y}"; : "${INC_DOCS:=y}"; : "${INC_CORRECTIONS:=y}"; : "${INC_CHANGELOG:=y}"
 # INC_DESIGN starts UNSET (empty) on purpose: normalize_inputs() seeds it to "y"
@@ -179,16 +186,31 @@ load_env() {
   done < "$file"
 }
 
+# Where the personal layers come from. Normally this checkout. A global render
+# from a checkout that has none of them (a fresh clone, a worktree) would
+# silently drop your name, extras and MCP rules from ~/AGENTS.md, so it uses
+# the copy the last global render saved in install-state/ instead, and says so
+# (PLAN-install-preservation.md R7/A6).
+LAYER_DIR="$DIR"
+STATE_DIR="${AIGI_STATE_DIR:-$HOME/.ai/install-state}"
+if [ -z "${AIGI_NO_USER_ENV:-}" ] && { [ "${AIGI_GLOBAL_RENDER:-}" = 1 ] || [ "${1:-}" = --global ]; } \
+   && ! ls "$DIR"/my-context.env "$DIR"/team-context.env "$DIR"/extras.local.md "$DIR"/mcp-rules.local >/dev/null 2>&1 \
+   && ls "$STATE_DIR"/layers/* >/dev/null 2>&1; then
+  LAYER_DIR="$STATE_DIR/layers"
+  echo "  note: $DIR has no personal layers — rendering with the ones the last install used ($LAYER_DIR)" >&2
+fi
+export PV_LAYERS_DIR="$LAYER_DIR"
+
 if [ -z "${AIGI_NO_USER_ENV:-}" ]; then
   # Team baseline first (committed by a team fork), personal answers second —
   # so my-context.env overrides team-context.env key by key.
-  [ -f "$DIR/team-context.env" ] && load_env "$DIR/team-context.env"
-  [ -f "$DIR/my-context.env" ] && load_env "$DIR/my-context.env"
-  [ -f "$DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$DIR/mcp-rules.local")"
+  [ -f "$LAYER_DIR/team-context.env" ] && load_env "$LAYER_DIR/team-context.env"
+  [ -f "$LAYER_DIR/my-context.env" ] && load_env "$LAYER_DIR/my-context.env"
+  [ -f "$LAYER_DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$LAYER_DIR/mcp-rules.local")"
   # Personal sections the shared template can't express (e.g. machine-specific
   # serving notes) — spliced in verbatim at {{EXTRAS}}, so they survive every
   # re-render instead of living as hand-edits in the rendered output.
-  [ -f "$DIR/extras.local.md" ] && EXTRAS="$(cat "$DIR/extras.local.md")"
+  [ -f "$LAYER_DIR/extras.local.md" ] && EXTRAS="$(cat "$LAYER_DIR/extras.local.md")"
 fi
 
 # Record whether MEM_BLOCK was supplied verbatim (env or my-context.env) BEFORE
@@ -576,6 +598,10 @@ write_global() {
   # it. Loaded here, not at the top: rendering (--print) needs none of it.
   # shellcheck source=lib/preserve.sh
   . "$DIR/lib/preserve.sh" || { echo "missing $DIR/lib/preserve.sh — refusing to install" >&2; return 1; }
+  # A plan run (install.sh --plan) classifies the ledgered files and writes
+  # nothing, so everything else here is skipped when planning.
+  local planning=""; pv_planning && planning=1
+  if [ -z "$planning" ]; then
   mkdir -p "$HOME/.claude" "$HOME/.codex"
   # The legacy Gemini CLI is retired (Antigravity replaced it and reads
   # AGENTS.md natively). Clean up a stale pointer this script wrote in the
@@ -584,17 +610,49 @@ write_global() {
     rm -f "$HOME/.gemini/GEMINI.md"
     echo "  removed stale ~/.gemini/GEMINI.md pointer (Gemini CLI retired)"
   fi
+  fi
   # If the render fails, stop before touching the pointers — otherwise we'd
   # replace real per-tool files with pointers to a stale or missing target.
-  render_to "$HOME/AGENTS.md" backup || return 1
-  echo "  wrote ~/AGENTS.md"
+  # The render goes through the ledger: one you edited by hand is saved (and,
+  # attended, asked about) instead of being overwritten. Its "shipped"
+  # versions are re-renders of recent commits with today's layers.
+  local rtmp
+  if [ -n "$planning" ]; then rtmp="$(mktemp "${TMPDIR:-/tmp}/aigi_render.XXXXXX")" || return 1
+  else rtmp="$(mktmp "$HOME")" || return 1; fi
+  TMPFILES+=("$rtmp")
+  AIGI_GLOBAL_RENDER=1 render > "$rtmp" || { rm -f "$rtmp"; echo "Render failed; ~/AGENTS.md left unchanged." >&2; return 1; }
+  # The first original we displace is kept forever (G2). Before the ledger
+  # existed, the oldest surviving .bak.* is the best guess at it.
+  if [ -z "$planning" ] && ! pv_has_row "$HOME/AGENTS.md"; then
+    local oldest
+    # shellcheck disable=SC2012  # oldest by mtime; names are mktemp-safe
+    oldest="$(ls -1tr -- "$HOME/AGENTS.md".bak.* 2>/dev/null | head -n 1 || true)"
+    [ -n "$oldest" ] && pv_orig "$HOME/AGENTS.md" "$oldest"
+  fi
+  pv_write render "$rtmp" "$HOME/AGENTS.md" render:agents || { rm -f "$rtmp"; return 1; }
+  rm -f "$rtmp"
+  case "$PV_ACTION" in
+    current) echo "  ok ~/AGENTS.md (up to date)";;
+    parked|kept|kept-custom|pinned|skipped-symlink|would-*) ;;
+    *) echo "  wrote ~/AGENTS.md";;
+  esac
+  # Save the personal layers this render used, so a later render from a
+  # checkout without them still produces your file (see LAYER_DIR above).
+  if [ -z "$planning" ] && [ "$LAYER_DIR" = "$DIR" ] && [ -z "${AIGI_NO_USER_ENV:-}" ]; then
+    local lf; mkdir -p "$PV_STATE/layers"
+    for lf in my-context.env team-context.env extras.local.md mcp-rules.local; do
+      if [ -f "$DIR/$lf" ]; then cmp -s "$DIR/$lf" "$PV_STATE/layers/$lf" || cp -p "$DIR/$lf" "$PV_STATE/layers/$lf"
+      else rm -f "$PV_STATE/layers/$lf"; fi
+    done
+  fi
+  if [ -z "$planning" ]; then
 
   local cf="$HOME/.claude/CLAUDE.md"
   [ -L "$cf" ] && rm -f "$cf"   # migrate the old symlink layout; target keeps the content
   if [ -f "$cf" ] && grep -qF '@~/AGENTS.md' "$cf"; then
     echo "  ok $cf imports ~/AGENTS.md"
   else
-    if [ -f "$cf" ]; then backup_keep5 "$cf" && echo "  backed up existing $cf"; fi
+    if [ -f "$cf" ]; then pv_orig "$cf"; backup_keep5 "$cf" && echo "  backed up existing $cf"; fi
     printf '%s\n%s\n\n%s\n' \
       '<!-- Pointer file: the real instructions live in ~/AGENTS.md, rendered by agent-global-instructions.' \
       '     Claude-specific additions and # memories accumulate below the import and survive re-renders. -->' \
@@ -610,7 +668,7 @@ write_global() {
     # Already-identical real file (e.g. the copy fallback on a prior run):
     # nothing to back up or churn — try to upgrade it to a link in place.
     if [ -e "$t" ] && [ ! -L "$t" ] && ! cmp -s "$HOME/AGENTS.md" "$t"; then
-      backup_keep5 "$t" && echo "  backed up existing $t"
+      pv_orig "$t"; backup_keep5 "$t" && echo "  backed up existing $t"
     fi
     if ln -sf "$HOME/AGENTS.md" "$t" 2>/dev/null; then
       echo "  linked $t -> ~/AGENTS.md"
@@ -626,6 +684,7 @@ write_global() {
   # stays in ~/.ai-logs/.
   mkdir -p "$HOME/.ai"
   install_timeout_shim
+  fi
   # Local-model layer: install the `lm` shim and record this machine's
   # local-model endpoints (Ollama / llama.cpp / MLX / a remote box — one
   # OpenAI-compatible contract) at ~/.ai/local-models. The file's ABSENCE is
@@ -634,22 +693,23 @@ write_global() {
   local lmf="$HOME/.ai/local-models" reg
   if [ "$INC_LOCAL_MODELS" = "y" ]; then
     if [ -f "$DIR/lm" ]; then
-      mkdir -p "$HOME/.local/bin"
+      [ -n "$planning" ] || mkdir -p "$HOME/.local/bin"
       # Never replace a foreign `lm` — another tool's binary of the same name.
       # Ours carries the repo name, the same marker the removal below checks.
       if [ -e "$HOME/.local/bin/lm" ] && ! grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
         echo "  note: ~/.local/bin/lm is not ours (no agent-global-instructions marker) — left alone"
       elif pv_write shim "$DIR/lm" "$HOME/.local/bin/lm" lm; then
-        chmod 0755 "$HOME/.local/bin/lm" 2>/dev/null || true
         case "$PV_ACTION" in
           current) echo "  ok ~/.local/bin/lm (up to date)";;
-          skipped-symlink) ;;
-          *) echo "  wrote ~/.local/bin/lm (local-model shim)";;
+          created|updated|replaced-custom)
+            chmod 0755 "$HOME/.local/bin/lm" 2>/dev/null || true
+            echo "  wrote ~/.local/bin/lm (local-model shim)";;
         esac
       fi
       command -v lm >/dev/null 2>&1 \
         || echo "  (note: ~/.local/bin is not on PATH — add it so 'lm' is invocable)"
     fi
+    if [ -z "$planning" ]; then
     reg="$(detect_local_models)"
     if [ -n "$reg" ]; then
       # $(…) stripped the trailing newline — restore it, or the last registry
@@ -660,8 +720,9 @@ write_global() {
       rm -f "$lmf"
       echo "  (no local models detected — start the server and re-run, or register endpoints via LOCAL_MODELS in my-context.env)"
     fi
+    fi
   else
-    rm -f "$lmf"
+    [ -n "$planning" ] || rm -f "$lmf"
     # Only remove OUR shim (marker check) — never a foreign `lm` binary.
     if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
       pv_delete "$HOME/.local/bin/lm" "INC_LOCAL_MODELS=n" lm \
@@ -674,7 +735,8 @@ write_global() {
   # Bare names only, one per line — no header, so `cat` output is pure roster
   # (a comment line would be fed to the model as if it were an entry).
   local mf="$HOME/.ai/clis" c
-  if { for c in codex agy claude; do
+  if [ -n "$planning" ]; then :
+  elif { for c in codex agy claude; do
          command -v "$c" >/dev/null 2>&1 && printf '%s\n' "$c"
        done
        # Cursor's CLI brands itself `agent` (older installs: `cursor-agent`) —
@@ -692,7 +754,7 @@ write_global() {
   # The roster lived at ~/.ai-logs/ai-clis before ~/.ai/ existed; remove the
   # stale copy so nothing keeps reading the old path (old rendered instructions
   # fall back to `command -v` probing until their next re-render).
-  rm -f "$HOME/.ai-logs/ai-clis"
+  [ -n "$planning" ] || rm -f "$HOME/.ai-logs/ai-clis"
   # Model routing — one file, two owners. Outside the generated markers is the
   # stable method, owned by the repo's MODEL-ROUTING.md. Inside them is this
   # machine's data (which models this account can reach, their tiers, prices),
@@ -703,7 +765,7 @@ write_global() {
   # seed stub, and a non-empty file being replaced is backed up first.
   if [ -f "$DIR/MODEL-ROUTING.md" ]; then
     local mr_dst="$HOME/.ai/model-routing.md" mr_tmp mr_note
-    mr_tmp="$(mktemp)"
+    mr_tmp="$(mktemp)"; TMPFILES+=("$mr_tmp")
     if [ -f "$mr_dst" ] && awk '
          /^<!-- generated:begin/ { nb++; if (!b) b = NR }
          /^<!-- generated:end/   { ne++; if (!e) e = NR }
@@ -724,18 +786,18 @@ write_global() {
     else
       cp "$DIR/MODEL-ROUTING.md" "$mr_tmp"
       mr_note="seed stub; run /update-model-routing to generate this machine's data"
-      if [ -s "$mr_dst" ] && ! cmp -s "$mr_dst" "$mr_tmp"; then
-        cp "$mr_dst" "$HOME/.ai/model-routing.unmarked.bak.md" \
-          && mr_note="$mr_note; previous copy kept at ~/.ai/model-routing.unmarked.bak.md"
-      fi
     fi
-    if cmp -s "$mr_tmp" "$mr_dst" 2>/dev/null; then
-      echo "  ok ~/.ai/model-routing.md (up to date)"
-      rm -f "$mr_tmp"
-    else
-      chmod 644 "$mr_tmp"; mv "$mr_tmp" "$mr_dst" \
-        && echo "  wrote ~/.ai/model-routing.md ($mr_note)"
+    # Through the ledger, compared outside the generated block (E6): the
+    # block is /update-model-routing's, but an edit to the stable sections is
+    # yours and is saved before it's replaced (it used to go to one fixed
+    # .unmarked.bak.md, overwritten every time).
+    if pv_write model-routing "$mr_tmp" "$mr_dst" MODEL-ROUTING.md; then
+      case "$PV_ACTION" in
+        current) echo "  ok ~/.ai/model-routing.md (up to date)";;
+        created|updated|replaced-custom|appended) chmod 644 "$mr_dst"; echo "  wrote ~/.ai/model-routing.md ($mr_note)";;
+      esac
     fi
+    rm -f "$mr_tmp"
   fi
   # On-demand playbooks — the rendered instructions keep short resident rules
   # and point at these for the full contracts (orchestration, agent-team
@@ -754,15 +816,15 @@ write_global() {
       if pv_write playbook "$DIR/playbooks/$name.md" "$HOME/.ai/$name.md" "playbooks/$name.md"; then
         case "$PV_ACTION" in
           current) echo "  ok ~/.ai/$name.md (up to date)";;
-          skipped-symlink) ;;
-          *) echo "  wrote ~/.ai/$name.md (on-demand playbook)";;
+          created|updated|replaced-custom|appended) echo "  wrote ~/.ai/$name.md (on-demand playbook)";;
         esac
       fi
     else
       # Section toggled off: remove it, but an edited copy is saved first.
-      pv_delete "$HOME/.ai/$name.md" "section toggled off" "playbooks/$name.md" || true
+      pv_delete "$HOME/.ai/$name.md" "section toggled off" "playbooks/$name.md" playbook || true
     fi
   done
+  [ -n "$planning" ] && return 0
   # Seed the default /loop maintenance prompt for Claude Code — bare `/loop`
   # runs it instead of the tool's built-in one. Seed-only: never overwrite,
   # the installed copy is the user's to tune. (Codex/Cursor need no file: a
@@ -777,6 +839,8 @@ write_global() {
   if [ -f "$DIR/CHANGELOG.md" ] && [ ! -f "$HOME/.claude/CHANGELOG.md" ]; then
     cp "$DIR/CHANGELOG.md" "$HOME/.claude/CHANGELOG.md" && echo "  seeded ~/.claude/CHANGELOG.md"
   fi
+  # Run on its own (not under install.sh): ask about anything parked, report.
+  pv_finish
 }
 
 # ---- prompt helpers (used by both the --global confirm and the interactive flow)
@@ -803,6 +867,11 @@ case "${1:-}" in
   # render. install-hooks.sh queries this to decide whether the SessionStart
   # autonomy-reminder hook gets wired, so it never re-parses my-context.env.
   --autonomy) printf '%s\n' "$AUTONOMY"; exit 0;;
+  # install.sh's conflict policy and AI check, from the same precedence (env
+  # beats my-context.env beats the default), so install.sh never parses the file.
+  --on-conflict) printf '%s\n' "$INSTALL_ON_CONFLICT"; exit 0;;
+  --ai-check) case "$INSTALL_AI_CHECK" in local|command) printf '%s\n' "$INSTALL_AI_CHECK";; *) echo off;; esac; exit 0;;
+  --ai-check-cmd) printf '%s\n' "$INSTALL_AI_CHECK_CMD"; exit 0;;
   # Dry-run of local-model detection: print the registry lines that --global
   # would write to ~/.ai/local-models (nothing is written). For humans checking
   # what a machine would register, and for test.sh.
@@ -813,7 +882,10 @@ case "${1:-}" in
     echo "file at those paths is backed up first):"
     echo "  ~/.claude/CLAUDE.md   -> imports ~/AGENTS.md (@import; your additions below it survive)"
     echo "  ~/.codex/AGENTS.md  ->  symlink to ~/AGENTS.md"
-    if [ -z "$ASSUME_YES" ]; then
+    # No terminal to answer on (an agent's `!` line, cron, CI) is unattended,
+    # and an unattended run proceeds — the rule for every question nobody can
+    # answer (D1). Only someone at a terminal is asked.
+    if [ -z "$ASSUME_YES" ] && [ "${AIGI_UNATTENDED:-}" != 1 ] && (: </dev/tty) 2>/dev/null; then
       CONFIRM="$(ask_one 'Proceed?' "y/N" "N")"
       case "$CONFIRM" in [Yy]*) ;; *) echo "Aborted (pass --yes to skip this prompt)."; exit 0;; esac
     fi

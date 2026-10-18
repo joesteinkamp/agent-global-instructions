@@ -50,7 +50,7 @@ done
 # instead of being overwritten silently as it was before.
 install_dir() {  # $1 = src dir  $2 = ext  $3 = dest dir  $4 = label  [$5 = repo-relative src dir, or render:roles for a port]
   local src="$1" ext="$2" dest="$3" label="$4" rel="${5:-}" f base n=0
-  mkdir -p "$dest"
+  pv_planning || mkdir -p "$dest"
   for f in "$src"/*."$ext"; do
     [ -e "$f" ] || continue
     base="$(basename "$f")"
@@ -90,3 +90,5 @@ for t in "${targets[@]}"; do
       ;;
   esac
 done
+# Run on its own (not under install.sh): ask about anything parked, report.
+pv_finish
