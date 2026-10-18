@@ -10,6 +10,9 @@ set -uo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CUSTOMIZE="$DIR/customize.sh"
 export AIGI_NO_USER_ENV=1
+# Nobody answers prompts in a test run, even from a real terminal: the
+# attended cases set AIGI_UNATTENDED=0 and AIGI_TTY to a file of answers.
+export AIGI_UNATTENDED=1
 
 pass=0; fail=0
 ok()   { pass=$((pass+1)); printf '  ok   %s\n' "$1"; }
@@ -872,6 +875,7 @@ PYEOF
   fi
 
   # Retired rules are pruned from an existing settings.json, not left orphaned.
+  rm -f "$SMOKE/.ai/install-state/settings.tsv"   # pre-ledger: orphans of an old install (R13)
   jq '.permissions.deny += ["Write(**/build/**)","Read(./.env)"]' \
      "$SMOKE/.claude/settings.json" > "$SMOKE/.claude/settings.json.t" \
     && mv "$SMOKE/.claude/settings.json.t" "$SMOKE/.claude/settings.json"
@@ -887,6 +891,138 @@ PYEOF
   p2="$(jq '.permissions.deny | length' "$SMOKE/.claude/settings.json" 2>/dev/null)"
   [ -n "$p1" ] && [ "$p1" = "$p2" ] && ok "install-settings is idempotent (no duplication)" \
                                     || bad "install-settings is idempotent (no duplication)"
+
+  # Settings provenance (lib/settings-ledger.sh, PLAN §9 G4, §16 A3, §15 R13):
+  # install-state/settings.tsv records each permission rule we added, so a
+  # rule the user deleted stays out, a user's own copy of a retired rule
+  # survives, and uninstall removes only ours. Every case uses a throwaway HOME,
+  # so the ledger lives at $H/.ai/install-state/settings.tsv.
+  slrow() {  # $1 = HOME  $2 = settings file  $3 = key  $4 = value  → prints the status, or nothing
+    awk -F'\t' -v f="$2" -v k="$3" -v v="$4" '$1 == f && $2 == k && $3 == v { print $4 }' \
+      "$1/.ai/install-state/settings.tsv" 2>/dev/null
+  }
+  slbaks() { set -- "$1".bak.*; if [ -e "$1" ]; then echo "$#"; else echo 0; fi; }
+  slset() {  # $1 = settings file  $2 = jq program — edit it the way a person would
+    jq "$2" "$1" > "$1.t" && mv "$1.t" "$1"
+  }
+  # A copy of the installer whose Claude snippet ships one extra rule, standing
+  # in for a future upstream release.
+  SLNEXT="$(mktemp -d)"
+  cp "$DIR"/install-settings.sh "$DIR"/*.snippet.json "$DIR"/*.snippet.toml "$SLNEXT"/
+  cp -R "$DIR/lib" "$SLNEXT/lib"
+  slset "$SLNEXT/settings-permissions.snippet.json" '.permissions.ask += ["Bash(fakenew:*)"]'
+
+  # Fresh install: every shipped rule is recorded as added.
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  sl_n="$(jq '[.permissions[] | length] | add' "$DIR/settings-permissions.snippet.json")"
+  sl_got="$(awk -F'\t' -v f="$SLF" '$1 == f && $4 == "added"' "$SLH/.ai/install-state/settings.tsv" 2>/dev/null | wc -l | tr -d ' ')"
+  [ -n "$sl_n" ] && [ "$sl_got" = "$sl_n" ] && [ "$(slrow "$SLH" "$SLF" deny 'Edit(**/dist/**)')" = added ] \
+    && ok "settings ledger records every rule a fresh install adds" \
+    || bad "settings ledger records every rule a fresh install adds (want $sl_n rows, got $sl_got)"
+
+  # Idempotence: a second run changes neither file and makes no backup.
+  sl_a="$(cksum < "$SLF")$(cksum < "$SLH/.ai/install-state/settings.tsv")"
+  sl_baks="$(slbaks "$SLF")"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  [ "$sl_a" = "$(cksum < "$SLF")$(cksum < "$SLH/.ai/install-state/settings.tsv")" ] \
+    && [ "$sl_baks" = "$(slbaks "$SLF")" ] \
+    && ok "settings ledger: a second run changes no file" \
+    || bad "settings ledger: a second run changes no file"
+
+  # A3: a rule we added that the user deleted is marked declined and stays out,
+  # on this run and every later one.
+  slset "$SLF" '.permissions.deny -= ["Edit(**/dist/**)"]'
+  sl_out="$(HOME="$SLH" bash "$DIR/install-settings.sh" claude 2>&1)"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  if ! jq -e '.permissions.deny | index("Edit(**/dist/**)")' "$SLF" >/dev/null 2>&1 \
+     && [ "$(slrow "$SLH" "$SLF" deny 'Edit(**/dist/**)')" = declined ] \
+     && printf '%s' "$sl_out" | grep -q 'you removed stay out'; then
+    ok "install-settings never re-adds a rule the user deleted (declined)"
+  else
+    bad "install-settings never re-adds a rule the user deleted (declined)"
+  fi
+
+  # G4: once the file has rows, the user's own copy of a retired rule survives
+  # the retired-rule subtraction, and is never recorded as ours.
+  slset "$SLF" '.permissions.deny += ["Write(**/build/**)"]'
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  jq -e '.permissions.deny | index("Write(**/build/**)")' "$SLF" >/dev/null 2>&1 \
+    && [ -z "$(slrow "$SLH" "$SLF" deny 'Write(**/build/**)')" ] \
+    && ok "install-settings keeps a user's own copy of a retired rule" \
+    || bad "install-settings keeps a user's own copy of a retired rule"
+
+  # ...while a retired rule we recorded as added is still removed, row and all.
+  slset "$SLF" '.permissions.deny += ["Write(**/dist/**)"]'
+  printf '%s\tdeny\tWrite(**/dist/**)\tadded\t2026-01-01T00:00:00Z\n' "$SLF" >> "$SLH/.ai/install-state/settings.tsv"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  ! jq -e '.permissions.deny | index("Write(**/dist/**)")' "$SLF" >/dev/null 2>&1 \
+    && [ -z "$(slrow "$SLH" "$SLF" deny 'Write(**/dist/**)')" ] \
+    && ok "install-settings removes a retired rule it added, and forgets it" \
+    || bad "install-settings removes a retired rule it added, and forgets it"
+
+  # A new upstream rule is still added (and recorded) on a file with rows; a
+  # declined one stays out under the new release too.
+  HOME="$SLH" bash "$SLNEXT/install-settings.sh" claude >/dev/null 2>&1
+  jq -e '.permissions.ask | index("Bash(fakenew:*)")' "$SLF" >/dev/null 2>&1 \
+    && [ "$(slrow "$SLH" "$SLF" ask 'Bash(fakenew:*)')" = added ] \
+    && ! jq -e '.permissions.deny | index("Edit(**/dist/**)")' "$SLF" >/dev/null 2>&1 \
+    && ok "install-settings still adds a new upstream rule" \
+    || bad "install-settings still adds a new upstream rule"
+
+  # Deleting the whole settings file starts it over: every rule comes back.
+  rm -f "$SLF"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  jq -e '.permissions.deny | index("Edit(**/dist/**)")' "$SLF" >/dev/null 2>&1 \
+    && [ "$(slrow "$SLH" "$SLF" deny 'Edit(**/dist/**)')" = added ] \
+    && ok "a deleted settings file is reinstalled whole (stale declined rows dropped)" \
+    || bad "a deleted settings file is reinstalled whole (stale declined rows dropped)"
+  rm -rf "$SLH"
+
+  # R13: a pre-ledger file (no rows) adopts the shipped rules already in it as
+  # ours, keeps the user's unrelated rule unrecorded, and still prunes retired
+  # rules the old way.
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"; mkdir -p "$SLH/.claude"
+  printf '%s\n' '{"permissions":{"deny":["Read(**/.env)","Read(./.env)"],"allow":["Bash(make:*)"]}}' > "$SLF"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  [ "$(slrow "$SLH" "$SLF" deny 'Read(**/.env)')" = added ] \
+    && [ -z "$(slrow "$SLH" "$SLF" allow 'Bash(make:*)')" ] \
+    && jq -e '.permissions.allow | index("Bash(make:*)")' "$SLF" >/dev/null 2>&1 \
+    && ! jq -e '.permissions.deny | index("Read(./.env)")' "$SLF" >/dev/null 2>&1 \
+    && ok "settings ledger adopts shipped rules on a pre-ledger file (R13)" \
+    || bad "settings ledger adopts shipped rules on a pre-ledger file (R13)"
+  rm -rf "$SLH"
+
+  # sl_strip_perms (uninstall): removes only rules recorded as added. The user's
+  # own rule, and their own copy of a rule that shipped later, both stay; a
+  # declined row survives for the next install.
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"
+  HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+  slset "$SLF" '.permissions.allow += ["Bash(make:*)"] | .permissions.ask += ["Bash(fakenew:*)"] | .permissions.deny -= ["Edit(**/dist/**)"]'
+  HOME="$SLH" bash "$SLNEXT/install-settings.sh" claude >/dev/null 2>&1
+  # shellcheck disable=SC2030,SC2031
+  ( export HOME="$SLH"; unset AIGI_STATE_DIR
+    # shellcheck source=lib/settings-ledger.sh
+    . "$DIR/lib/settings-ledger.sh" && sl_strip_perms "$SLF" "$SLNEXT/settings-permissions.snippet.json" ) >/dev/null 2>&1
+  jq -e '.permissions.allow == ["Bash(make:*)"] and .permissions.ask == ["Bash(fakenew:*)"] and (.permissions.deny == null)' \
+       "$SLF" >/dev/null 2>&1 \
+    && [ -z "$(slrow "$SLH" "$SLF" ask 'Bash(sudo:*)')" ] \
+    && [ "$(slrow "$SLH" "$SLF" deny 'Edit(**/dist/**)')" = declined ] \
+    && ok "sl_strip_perms removes only the rules we added" \
+    || bad "sl_strip_perms removes only the rules we added"
+  rm -rf "$SLH"
+
+  # sl_strip_perms on a pre-ledger file falls back to subtracting the snippet.
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"; mkdir -p "$SLH/.claude"
+  printf '%s\n' '{"permissions":{"deny":["Read(**/.env)"],"allow":["Bash(make:*)","Bash(lm:*)"]}}' > "$SLF"
+  # shellcheck disable=SC2030,SC2031
+  ( export HOME="$SLH"; unset AIGI_STATE_DIR
+    # shellcheck source=lib/settings-ledger.sh
+    . "$DIR/lib/settings-ledger.sh" && sl_strip_perms "$SLF" "$DIR/settings-permissions.snippet.json" ) >/dev/null 2>&1
+  jq -e '.permissions == {"allow":["Bash(make:*)"]}' "$SLF" >/dev/null 2>&1 \
+    && ok "sl_strip_perms subtracts the snippet from a pre-ledger file" \
+    || bad "sl_strip_perms subtracts the snippet from a pre-ledger file"
+  rm -rf "$SLH" "$SLNEXT"
 
   # install-hooks wired the SessionStart memory loader (Claude).
   if jq -e '.hooks.SessionStart[0].hooks[0].command | test("load-memory")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then
@@ -1155,12 +1291,11 @@ PY
     || bad "model-routing splice ignores a marker quoted mid-line"
 
   # A pre-marker copy (or a damaged block) is replaced by the seed stub, and the
-  # old content is backed up rather than silently lost.
+  # old content is saved to the ledger's preserved/ rather than silently lost.
   printf '# old routing table\nLEGACY-ROUTING-DATA\n' > "$MR"
-  rm -f "$SMOKE2/.ai/model-routing.unmarked.bak.md"
   HOME="$SMOKE2" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
   { cmp -s "$DIR/MODEL-ROUTING.md" "$MR" \
-    && grep -qF 'LEGACY-ROUTING-DATA' "$SMOKE2/.ai/model-routing.unmarked.bak.md"; } \
+    && grep -lqF 'LEGACY-ROUTING-DATA' "$SMOKE2/.ai/install-state/preserved/"* 2>/dev/null; } \
     && ok "a pre-marker model-routing copy is backed up, then replaced by the seed" \
     || bad "a pre-marker model-routing copy is backed up, then replaced by the seed"
 
@@ -1381,7 +1516,7 @@ PY
   GT="$(mktemp -d)"
   cp -R "$DIR/skills" "$GT/skills"
   mkdir -p "$GT/.agents" && cp -R "$DIR/.agents/skills" "$GT/.agents/skills"
-  cp "$DIR/install-skills.sh" "$GT/"
+  cp "$DIR/install-skills.sh" "$GT/"; cp -R "$DIR/lib" "$GT/lib"
   printf '#!/bin/sh\nexit 1\n' > "$GT/customize.sh"; chmod +x "$GT/customize.sh"
   HOME="$GT/home" "$GT/install-skills.sh" --design claude >/dev/null 2>&1
   HOME="$GT/home" "$GT/install-skills.sh" claude >/dev/null 2>&1   # auto + broken resolver
@@ -1414,8 +1549,8 @@ PY
   rm -rf "$GT"
 
   # Retired names (renamed/removed commands, e.g. the /audit -> /ux-audit rename)
-  # prune on reinstall — WITH a backup, since a generic name like "audit" could
-  # be the user's own command rather than our stale install.
+  # prune on reinstall — saved to the ledger's preserved/ first, since a generic
+  # name like "audit" could be the user's own command rather than our stale install.
   GT="$(mktemp -d)"; GC="$GT/.claude/commands"
   mkdir -p "$GC"
   echo "the user's own audit notes" > "$GC/audit.md"
@@ -1423,10 +1558,10 @@ PY
   HOME="$GT" "$DIR/install-skills.sh" --no-design claude >/dev/null 2>&1
   ret_ok=1
   if [ -f "$GC/audit.md" ] || [ -f "$GC/critique.md" ]; then ret_ok=0; fi
-  grep -q "the user's own audit notes" "$GC"/audit.md.bak.* 2>/dev/null || ret_ok=0
+  grep -lq "the user's own audit notes" "$GT/.ai/install-state/preserved/"* 2>/dev/null || ret_ok=0
   [ "$ret_ok" = 1 ] \
     && ok "retired /audit + /critique prune with a backup of the prior copy" \
-    || bad "retired prune (audit=$([ -f "$GC/audit.md" ] && echo present || echo gone) backup=$(grep -q "the user's own audit notes" "$GC"/audit.md.bak.* 2>/dev/null && echo yes || echo MISSING))"
+    || bad "retired prune (audit=$([ -f "$GC/audit.md" ] && echo present || echo gone) preserved=$(grep -lq "the user's own audit notes" "$GT/.ai/install-state/preserved/"* 2>/dev/null && echo yes || echo MISSING))"
   rm -rf "$GT"
   # Codex permissions TOML snippet parses.
   if command -v python3 >/dev/null 2>&1; then
@@ -2467,6 +2602,573 @@ else
   bad "install-hooks wires SessionStart for forked sessions too"
 fi
 
+
+# ---- install ledger (lib/preserve.sh) — PLAN-install-preservation.md phase 1 --
+# The ledger exists to tell "a version this installer wrote" from "someone's
+# edit", which a plain `cmp new dest` can't. Each case runs in a subshell with
+# its own HOME, state dir, and a fixture git repo whose history holds v1 and v2
+# of one file, so SHIPPED is testable without depending on this checkout's depth.
+echo "== install ledger =="
+LT="$(mktemp -d "${TMPDIR:-/tmp}/aigi_ledger.XXXXXX")"
+FX="$LT/repo"; mkdir -p "$FX/roles"
+git -C "$FX" init -q
+printf 'v1\n' > "$FX/roles/r.md"; git -C "$FX" add -A; git -C "$FX" -c user.name=t -c user.email=t@t commit -qm v1
+printf 'v2\n' > "$FX/roles/r.md"; git -C "$FX" -c user.name=t -c user.email=t@t commit -qam v2
+# lt <case-name> <snippet>: run the snippet with the library loaded against the fixture.
+lt() {
+  local h="$LT/$1"; rm -rf "$h"; mkdir -p "$h"
+  # Each case's HOME/state/repo is deliberately local to its subshell.
+  # shellcheck disable=SC2030,SC2031
+  ( export HOME="$h" AIGI_STATE_DIR="$h/state" PV_REPO="$FX"
+    # shellcheck source=lib/preserve.sh
+    . "$LEDGER_LIB"
+    eval "$2" ) >"$h/out" 2>&1
+}
+LEDGER_LIB="$DIR/lib/preserve.sh"
+st() { printf '%s' "$LT/$1/state"; }
+
+lt created 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=created' "$LT/created/out" && [ "$(cut -f2 "$(st created)/manifest.tsv")" = "$LT/created/d.md" ] \
+  && cmp -s "$FX/roles/r.md" "$(st created)/base/$(cut -f1 "$(st created)/manifest.tsv")"; } \
+  && ok "ledger: a new file is created, recorded, and its bytes kept in base/" \
+  || bad "ledger: a new file is created, recorded, and its bytes kept in base/"
+
+lt adopt 'cp "$PV_REPO/roles/r.md" "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=current' "$LT/adopt/out" && [ "$(wc -l < "$(st adopt)/manifest.tsv")" -eq 1 ]; } \
+  && ok "ledger: an identical pre-ledger file is adopted without a write" \
+  || bad "ledger: an identical pre-ledger file is adopted without a write"
+
+lt ours 'printf "old\n" > "$HOME/s"; pv_write role "$HOME/s" "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md"; echo "A=$PV_ACTION"'
+{ grep -q 'A=updated' "$LT/ours/out" && [ ! -e "$(st ours)/preserved.tsv" ] && cmp -s "$FX/roles/r.md" "$LT/ours/d.md"; } \
+  && ok "ledger: a file still holding what we wrote is updated quietly, nothing preserved" \
+  || bad "ledger: a file still holding what we wrote is updated quietly, nothing preserved"
+
+lt custom 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "my edit\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION S=$PV_SAVED"'
+csaved="$(sed -n 's/.* S=//p' "$LT/custom/out")"
+{ grep -q 'A=replaced-custom' "$LT/custom/out" && grep -q 'replaced your edited' "$LT/custom/out" \
+  && [ "$(cat "$csaved" 2>/dev/null)" = "my edit" ] && cmp -s "$FX/roles/r.md" "$LT/custom/d.md" \
+  && [ "$(wc -l < "$(st custom)/preserved.tsv")" -eq 1 ]; } \
+  && ok "ledger: an edited file is saved to preserved/ before it's replaced, and the run says so" \
+  || bad "ledger: an edited file is saved to preserved/ before it's replaced, and the run says so"
+
+# R2: with a ledger row, matching an OLD shipped version is not "safe" — the
+# user put it there after our write (a deliberate revert).
+lt revert 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "v1\n" > "$HOME/d.md"; echo "V=$(pv_classify "$HOME/d.md" roles/r.md)"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION S=$PV_SAVED"'
+rsaved="$(sed -n 's/.* S=//p' "$LT/revert/out")"
+{ grep -q 'V=CUSTOM' "$LT/revert/out" && grep -q 'A=replaced-custom' "$LT/revert/out" && [ "$(cat "$rsaved" 2>/dev/null)" = "v1" ]; } \
+  && ok "ledger: a deliberate revert to an older shipped version is CUSTOM, not SHIPPED" \
+  || bad "ledger: a deliberate revert to an older shipped version is CUSTOM, not SHIPPED"
+
+# SHIPPED could be a stale install or a deliberate revert; with no ledger row
+# nothing can tell, so it's kept once (quietly) — and the next run is OURS.
+lt shipped 'printf "v1\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"; printf "v3\n" > "$HOME/s"; pv_write role "$HOME/s" "$HOME/d.md" roles/r.md; echo "B=$PV_ACTION"'
+{ grep -q 'A=updated' "$LT/shipped/out" && grep -q 'B=updated' "$LT/shipped/out" \
+  && ! grep -q 'replaced your edited' "$LT/shipped/out" && [ "$(wc -l < "$(st shipped)/preserved.tsv")" -eq 1 ]; } \
+  && ok "ledger: a pre-ledger shipped version updates quietly, kept once, then is OURS" \
+  || bad "ledger: a pre-ledger shipped version updates quietly, kept once, then is OURS"
+
+lt bootcustom 'printf "hand-made\n" > "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=replaced-custom' "$LT/bootcustom/out" && [ -s "$(st bootcustom)/preserved.tsv" ]; } \
+  && ok "ledger: a pre-ledger file in no shipped version is preserved before replacement" \
+  || bad "ledger: a pre-ledger file in no shipped version is preserved before replacement"
+
+lt generated 'printf "hand-made\n" > "$HOME/d.sh"; pv_write gen "$PV_REPO/roles/r.md" "$HOME/d.sh"; echo "A=$PV_ACTION"'
+grep -q "couldn't prove it was unedited" "$LT/generated/out" \
+  && ok "ledger: a generated file with no history is preserved and reported honestly" \
+  || bad "ledger: a generated file with no history is preserved and reported honestly"
+
+lt symlink 'printf "dotfile\n" > "$HOME/target"; ln -s "$HOME/target" "$HOME/d.md"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=skipped-symlink' "$LT/symlink/out" && [ "$(cat "$LT/symlink/target")" = "dotfile" ] && [ -L "$LT/symlink/d.md" ]; } \
+  && ok "ledger: a symlinked destination is never written through" \
+  || bad "ledger: a symlinked destination is never written through"
+
+lt delours 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; pv_delete "$HOME/d.md" toggled roles/r.md; echo "A=$PV_ACTION"'
+{ grep -q 'A=removed' "$LT/delours/out" && [ ! -e "$LT/delours/d.md" ] && [ ! -e "$(st delours)/preserved.tsv" ] \
+  && [ ! -s "$(st delours)/manifest.tsv" ]; } \
+  && ok "ledger: deleting a file we wrote removes it and its ledger row, nothing preserved" \
+  || bad "ledger: deleting a file we wrote removes it and its ledger row, nothing preserved"
+
+lt delcustom 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"; pv_delete "$HOME/d.md" toggled roles/r.md; echo "S=$PV_SAVED"'
+dsaved="$(sed -n 's/^S=//p' "$LT/delcustom/out")"
+{ [ ! -e "$LT/delcustom/d.md" ] && [ "$(cat "$dsaved" 2>/dev/null)" = "mine" ]; } \
+  && ok "ledger: deleting an edited file saves it to preserved/ first" \
+  || bad "ledger: deleting an edited file saves it to preserved/ first"
+
+# Lock: a live holder refuses a second writer; a dead holder is taken over.
+lt lockdead 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "999999\nnot-a-start\n%s\n%s\n" "$(pv_host)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+grep -q 'A=created' "$LT/lockdead/out" \
+  && ok "ledger: a lock left by a dead process is taken over" \
+  || bad "ledger: a lock left by a dead process is taken over"
+lt locklive 'mkdir -p "$AIGI_STATE_DIR/lock"; printf "%s\n%s\n%s\n%s\n" "$PPID" "$(pv_proc_start "$PPID")" "$(pv_host)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; if pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; then echo WROTE; else echo REFUSED; fi'
+{ grep -q REFUSED "$LT/locklive/out" && [ ! -e "$LT/locklive/d.md" ]; } \
+  && ok "ledger: a lock held by a live process refuses a second writer" \
+  || bad "ledger: a lock held by a live process refuses a second writer"
+
+# ps that can't report start times: a live holder must still refuse (fail closed).
+lt nops 'mkdir -p "$HOME/bin"; printf "#!/bin/sh\nexit 1\n" > "$HOME/bin/ps"; chmod +x "$HOME/bin/ps"; PATH="$HOME/bin:$PATH"; mkdir -p "$AIGI_STATE_DIR/lock"; printf "%s\n\n%s\n%s\n" "$PPID" "$(pv_host)" "$(date +%s)" > "$AIGI_STATE_DIR/lock/owner"; if pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; then echo WROTE; else echo REFUSED; fi'
+grep -q REFUSED "$LT/nops/out" \
+  && ok "ledger: with no usable ps, a live holder still refuses (fails closed)" \
+  || bad "ledger: with no usable ps, a live holder still refuses (fails closed)"
+
+# Killed mid-acquire: a lock dir with no owner file, over a minute old, is reclaimed.
+lt noowner 'mkdir -p "$AIGI_STATE_DIR/lock"; touch -t 200001010000 "$AIGI_STATE_DIR/lock"; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"'
+grep -q 'A=created' "$LT/noowner/out" \
+  && ok "ledger: a lock left with no owner (killed mid-acquire) is reclaimed" \
+  || bad "ledger: a lock left with no owner (killed mid-acquire) is reclaimed"
+
+# The takeover race: two writers start against one stale lock. Each logs when
+# it holds the lock and when it lets go; held periods must never overlap.
+race_ok=1
+for i in 1 2 3 4 5; do
+  rh="$LT/race$i"; mkdir -p "$rh/state/lock"
+  printf '999999\nx\n%s\n%s\n' "$(hostname 2>/dev/null | cut -d. -f1 | tr '[:upper:]' '[:lower:]')" "$(date +%s)" > "$rh/state/lock/owner"
+  for w in a b; do
+    # shellcheck disable=SC2030,SC2031
+    ( export AIGI_STATE_DIR="$rh/state"
+      # shellcheck source=lib/preserve.sh
+      . "$LEDGER_LIB"
+      if pv_lock 2>/dev/null; then echo "in $w" >> "$rh/log"; sleep 1; echo "out $w" >> "$rh/log"; rm -rf "$rh/state/lock"; fi ) &
+  done
+  wait
+  # Valid: in X, out X, (in Y, out Y). Invalid: two "in" lines in a row.
+  awk '/^in/ { if (held) bad = 1; held = 1 } /^out/ { held = 0 } END { exit bad }' "$rh/log" 2>/dev/null || race_ok=0
+  [ "$(grep -c '^in' "$rh/log" 2>/dev/null)" -ge 1 ] || race_ok=0
+done
+[ "$race_ok" = 1 ] \
+  && ok "ledger: two writers racing for one stale lock never hold it at once (5 runs)" \
+  || bad "ledger: two writers racing for one stale lock never hold it at once (5 runs)"
+
+# A symlink that appears between the check and the write is replaced, never written through.
+lt putlink 'printf "dotfile\n" > "$HOME/target"; ln -s "$HOME/target" "$HOME/d.md"; pv_put "$PV_REPO/roles/r.md" "$HOME/d.md"; echo done'
+{ [ "$(cat "$LT/putlink/target")" = "dotfile" ] && [ ! -L "$LT/putlink/d.md" ]; } \
+  && ok "ledger: the write itself (rename) never writes through a symlink" \
+  || bad "ledger: the write itself (rename) never writes through a symlink"
+
+lt pathid 'id="$(pv_pathid "/a/very/deep/$(printf "x%.0s" $(seq 1 300))/file.md")"; echo "ID=$id"'
+grep -Eq '^ID=[0-9a-f]{16}$' "$LT/pathid/out" \
+  && ok "ledger: path-ids are 16 hex chars however deep the path (NAME_MAX-safe)" \
+  || bad "ledger: path-ids are 16 hex chars however deep the path (NAME_MAX-safe)"
+
+# Role ports are generated, never committed: a stale-but-pristine port is
+# recognized by re-rendering at historical commits, not flagged as an edit.
+PFX="$LT/portrepo"; mkdir -p "$PFX/roles"
+printf '#!/usr/bin/env bash\nmkdir -p roles/codex\ncp roles/r.md roles/codex/r.toml\n' > "$PFX/render-roles.sh"; chmod +x "$PFX/render-roles.sh"
+printf 'p1\n' > "$PFX/roles/r.md"; git -C "$PFX" init -q; git -C "$PFX" add -A; git -C "$PFX" -c user.name=t -c user.email=t@t commit -qm p1
+printf 'p2\n' > "$PFX/roles/r.md"; git -C "$PFX" -c user.name=t -c user.email=t@t commit -qam p2
+lt ports 'export PV_REPO="'"$PFX"'"; printf "p1\n" > "$HOME/old.toml"; printf "hand\n" > "$HOME/mine.toml"; printf "p2\n" > "$HOME/new"
+  pv_write role "$HOME/new" "$HOME/old.toml" render:roles; echo "A=$PV_ACTION"; pv_write role "$HOME/new" "$HOME/mine.toml" render:roles; echo "B=$PV_ACTION"'
+{ grep -q 'A=updated' "$LT/ports/out" && grep -q 'B=replaced-custom' "$LT/ports/out"; } \
+  && ok "ledger: a stale role port is recognized from re-rendered history; an edited one isn't" \
+  || bad "ledger: a stale role port is recognized from re-rendered history; an edited one isn't"
+
+# Real writers, end to end, in a throwaway HOME. Roles used to be overwritten
+# with no backup at all (install-roles.sh); now the edit survives in preserved/.
+RH="$LT/roles-home"; mkdir -p "$RH"
+HOME="$RH" bash "$DIR/install-roles.sh" claude >/dev/null 2>&1
+printf '\nmy local rule\n' >> "$RH/.claude/agents/refuter.md"
+HOME="$RH" bash "$DIR/install-roles.sh" claude > "$LT/roles.out" 2>&1
+{ cmp -s "$DIR/roles/refuter.md" "$RH/.claude/agents/refuter.md" \
+  && grep -lq 'my local rule' "$RH/.ai/install-state/preserved/"* 2>/dev/null \
+  && grep -q 'replaced your edited' "$LT/roles.out"; } \
+  && ok "install-roles: an edited role is preserved, then reinstalled (no more silent overwrite)" \
+  || bad "install-roles: an edited role is preserved, then reinstalled (no more silent overwrite)"
+HOME="$RH" bash "$DIR/install-roles.sh" claude > "$LT/roles2.out" 2>&1
+grep -q 'roles already current' "$LT/roles2.out" \
+  && ok "install-roles: a second run changes nothing" \
+  || bad "install-roles: a second run changes nothing"
+
+# Playbooks: an edited playbook in a toggled-off section is saved, not just deleted.
+PH="$LT/pb-home"; mkdir -p "$PH"
+HOME="$PH" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+printf '\nmy playbook note\n' >> "$PH/.ai/orchestration.md"
+HOME="$PH" AIGI_NO_USER_ENV=1 INC_ORCHESTRATION=n bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+{ [ ! -e "$PH/.ai/orchestration.md" ] && grep -lq 'my playbook note' "$PH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "customize --global: an edited playbook is preserved when its section is toggled off" \
+  || bad "customize --global: an edited playbook is preserved when its section is toggled off"
+
+# lm: another tool's `lm` binary is never replaced.
+LH="$LT/lm-home"; mkdir -p "$LH/.local/bin"
+printf '#!/bin/sh\necho someone-elses-lm\n' > "$LH/.local/bin/lm"
+HOME="$LH" AIGI_NO_USER_ENV=1 INC_LOCAL_MODELS=y AIGI_NO_PROBE=1 bash "$CUSTOMIZE" --global --yes > "$LT/lm.out" 2>&1
+{ grep -q 'someone-elses-lm' "$LH/.local/bin/lm" && grep -q 'is not ours' "$LT/lm.out"; } \
+  && ok "customize --global: a foreign lm binary is left alone" \
+  || bad "customize --global: a foreign lm binary is left alone"
+HOME="$RH" bash "$DIR/install-roles.sh" codex >/dev/null 2>&1
+printf '\n# my codex tweak\n' >> "$RH/.codex/agents/refuter.toml"
+HOME="$RH" bash "$DIR/install-roles.sh" codex > "$LT/codex.out" 2>&1
+{ cmp -s "$DIR/roles/codex/refuter.toml" "$RH/.codex/agents/refuter.toml" \
+  && grep -lq 'my codex tweak' "$RH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "install-roles: an edited Codex port is preserved, then reinstalled" \
+  || bad "install-roles: an edited Codex port is preserved, then reinstalled"
+
+# Playbook edited while its section stays on: preserved, then replaced.
+printf '\nmy web note\n' >> "$PH/.ai/web-preview.md"
+HOME="$PH" AIGI_NO_USER_ENV=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+{ cmp -s "$DIR/playbooks/web-preview.md" "$PH/.ai/web-preview.md" \
+  && grep -lq 'my web note' "$PH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "customize --global: an edited playbook is preserved, then reinstalled" \
+  || bad "customize --global: an edited playbook is preserved, then reinstalled"
+
+# Our own lm, edited: preserved, then reinstalled executable.
+LO="$LT/lm-own"; mkdir -p "$LO"
+HOME="$LO" AIGI_NO_USER_ENV=1 INC_LOCAL_MODELS=y AIGI_NO_PROBE=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+printf '\n# my lm tweak\n' >> "$LO/.local/bin/lm"
+HOME="$LO" AIGI_NO_USER_ENV=1 INC_LOCAL_MODELS=y AIGI_NO_PROBE=1 bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+{ cmp -s "$DIR/lm" "$LO/.local/bin/lm" && [ -x "$LO/.local/bin/lm" ] \
+  && grep -lq 'my lm tweak' "$LO/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "customize --global: our own edited lm is preserved, then reinstalled executable" \
+  || bad "customize --global: our own edited lm is preserved, then reinstalled executable"
+
+# Antigravity hook wrappers (generated by install-hooks.sh).
+AH="$LT/ag-home"; mkdir -p "$AH/.gemini/antigravity-cli"
+HOME="$AH" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+printf '\n# my wrapper tweak\n' >> "$AH/.gemini/antigravity-cli/hooks/guard-bash.ag.sh"
+HOME="$AH" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+{ ! grep -q 'my wrapper tweak' "$AH/.gemini/antigravity-cli/hooks/guard-bash.ag.sh" \
+  && [ -x "$AH/.gemini/antigravity-cli/hooks/guard-bash.ag.sh" ] \
+  && grep -lq 'my wrapper tweak' "$AH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "install-hooks: an edited Antigravity wrapper is preserved, then regenerated" \
+  || bad "install-hooks: an edited Antigravity wrapper is preserved, then regenerated"
+
+# install.sh --unlock clears a stuck lock.
+UH="$LT/unlock"; mkdir -p "$UH/.ai/install-state/lock"
+HOME="$UH" bash "$DIR/install.sh" --unlock >/dev/null 2>&1
+[ ! -e "$UH/.ai/install-state/lock" ] \
+  && ok "install.sh --unlock clears a stuck install-state lock" \
+  || bad "install.sh --unlock clears a stuck install-state lock"
+
+# The sweep CLI (install-hooks.sh) was copied over with no backup.
+SH="$LT/sweep-home"; mkdir -p "$SH/.claude"
+HOME="$SH" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+printf '\n# my tweak\n' >> "$SH/.ai/worktree-sweep.sh"
+HOME="$SH" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+{ cmp -s "$DIR/hooks/worktree-reap.sh" "$SH/.ai/worktree-sweep.sh" && [ -x "$SH/.ai/worktree-sweep.sh" ] \
+  && grep -lq 'my tweak' "$SH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "install-hooks: an edited sweep CLI is preserved, then reinstalled executable" \
+  || bad "install-hooks: an edited sweep CLI is preserved, then reinstalled executable"
+
+# ---- install ledger, phases 2–3: decide, don't only save ----------------------
+# Pins, [k] that sticks, the attended resolve pass, the append-merge and its
+# canonical part, --plan/--resolve, last-run.json, ~/AGENTS.md's own rungs and
+# routing, the AI check's advice, and the uninstall side (PLAN §18).
+echo "== install ledger, phases 2–3 =="
+
+lt pin 'pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"; pv_do_pin "$HOME/d.md" 2>/dev/null; pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION V=$PV_VERDICT"'
+{ grep -q 'A=pinned V=PINNED' "$LT/pin/out" && grep -qx 'mine' "$LT/pin/d.md"; } \
+  && ok "ledger: a pinned file is never written" \
+  || bad "ledger: a pinned file is never written"
+
+# [k] holds until upstream changes again; then it's a question again (A5).
+lt kept 'printf "v3\n" > "$HOME/v3"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"
+  AIGI_ON_CONFLICT=keep pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "B=$PV_ACTION $PV_VERDICT"
+  pv_write role "$HOME/v3" "$HOME/d.md" roles/r.md; echo "C=$PV_ACTION $PV_VERDICT"'
+{ grep -q 'A=kept-custom' "$LT/kept/out" && grep -q 'B=kept KEPT' "$LT/kept/out" \
+  && grep -q 'C=replaced-custom CUSTOM' "$LT/kept/out" && grep -qx v3 "$LT/kept/d.md"; } \
+  && ok "ledger: [k] keeps your file until upstream changes again, then it's CUSTOM" \
+  || bad "ledger: [k] keeps your file until upstream changes again, then it's CUSTOM"
+
+# Attended: the edited file is parked untouched, then asked about once.
+lt park 'printf "r\n" > "$HOME/ans"; export AIGI_UNATTENDED=0 AIGI_TTY="$HOME/ans"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; echo "A=$PV_ACTION"; echo "D=$(cat "$HOME/d.md")"
+  pv_resolve_parked; echo "E=$(cat "$HOME/d.md")"'
+{ grep -q 'A=parked' "$LT/park/out" && grep -q 'D=mine' "$LT/park/out" && grep -q 'E=v2' "$LT/park/out" \
+  && grep -lq '^mine$' "$(st park)/preserved/"* 2>/dev/null; } \
+  && ok "ledger: attended, an edited file is left alone until the end-of-run question" \
+  || bad "ledger: attended, an edited file is left alone until the end-of-run question"
+
+lt parkx 'printf "x\n" > "$HOME/ans"; export AIGI_UNATTENDED=0 AIGI_TTY="$HOME/ans"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; printf "mine\n" > "$HOME/d.md"
+  pv_write role "$PV_REPO/roles/r.md" "$HOME/d.md" roles/r.md; pv_resolve_parked; echo "E=$(cat "$HOME/d.md")"
+  tail -n 1 "$AIGI_RUN_DIR/actions.tsv" | cut -f4'
+{ grep -q 'E=mine' "$LT/parkx/out" && grep -qx 'left' "$LT/parkx/out"; } \
+  && ok "ledger: [x] stops and leaves the edited file untouched" \
+  || bad "ledger: [x] stops and leaves the edited file untouched"
+
+# Append: your lines land in one preserved block, carried forward byte for
+# byte, never nested; editing inside the block doesn't make the file yours.
+lt append 'printf "v2\nb\nc\nd\n" > "$HOME/s"; printf "v3\nb\nc\nd\n" > "$HOME/v3"; export AIGI_ON_CONFLICT=append
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "my line\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "B=$PV_ACTION"
+  sed -i.x "s/my line/my edited line/" "$HOME/p.md"
+  pv_write playbook "$HOME/v3" "$HOME/p.md"; echo "C=$PV_ACTION $PV_VERDICT"
+  printf "another\n" >> "$HOME/v3"; pv_write playbook "$HOME/v3" "$HOME/p.md"; echo "D=$PV_ACTION"'
+{ grep -q 'A=appended' "$LT/append/out" && grep -q 'B=current' "$LT/append/out" \
+  && grep -q 'C=updated OURS' "$LT/append/out" && grep -q 'D=updated' "$LT/append/out" \
+  && [ "$(grep -c 'aigi:preserved begin' "$LT/append/p.md")" = 1 ] \
+  && grep -qx 'my edited line' "$LT/append/p.md" && [ "$(head -n 1 "$LT/append/p.md")" = v3 ]; } \
+  && ok "ledger: [a] keeps your lines in one preserved block that later installs carry forward" \
+  || bad "ledger: [a] keeps your lines in one preserved block that later installs carry forward"
+
+lt damaged 'printf "v2\nb\nc\nd\n" > "$HOME/s"; export AIGI_ON_CONFLICT=append
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "my line\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION"
+  printf "<!-- aigi:preserved begin — stray\n" >> "$HOME/p.md"; echo "V=$(pv_classify "$HOME/p.md" "" playbook "$HOME/s")"'
+{ grep -q 'A=appended' "$LT/damaged/out" && grep -q 'V=CUSTOM' "$LT/damaged/out"; } \
+  && ok "ledger: a damaged preserved block is CUSTOM, never guessed at" \
+  || bad "ledger: a damaged preserved block is CUSTOM, never guessed at"
+
+lt roleappend 'printf "v2\nb\nc\nd\n" > "$HOME/s"; export AIGI_ON_CONFLICT=append
+  pv_write role "$HOME/s" "$HOME/d.md"; printf "my line\n" >> "$HOME/d.md"
+  pv_write role "$HOME/s" "$HOME/d.md"; echo "A=$PV_ACTION"'
+{ grep -q 'A=replaced-custom' "$LT/roleappend/out" && grep -q "can't append" "$LT/roleappend/out"; } \
+  && ok "ledger: a role file never takes an appended block (D6) — it's replaced, yours saved" \
+  || bad "ledger: a role file never takes an appended block (D6) — it's replaced, yours saved"
+
+# model-routing.md: the generated block is /update-model-routing's, so a
+# changed block doesn't make the file look edited (E6).
+lt routing 'printf "stable v1\n<!-- generated:begin -->\nmodels A\n<!-- generated:end -->\n" > "$HOME/new1"
+  pv_write model-routing "$HOME/new1" "$HOME/mr.md"
+  printf "stable v1\n<!-- generated:begin -->\nmodels B\n<!-- generated:end -->\n" > "$HOME/mr.md"
+  printf "stable v2\n<!-- generated:begin -->\nmodels B\n<!-- generated:end -->\n" > "$HOME/new2"
+  pv_write model-routing "$HOME/new2" "$HOME/mr.md"; echo "A=$PV_ACTION $PV_VERDICT"'
+grep -q 'A=updated OURS' "$LT/routing/out" \
+  && ok "ledger: model-routing.md is compared outside its generated block" \
+  || bad "ledger: model-routing.md is compared outside its generated block"
+
+# The AI check is advice: a stub says "not covered", the run still replaces
+# unattended (D7), and the verdict is recorded. Malformed output is no verdict.
+AISTUB="$LT/ai-stub.sh"
+cat > "$AISTUB" <<'STUB'
+cat >/dev/null
+echo '{"covered": false, "reason": "stub says no"}'
+STUB
+lt aicheck 'export AIGI_AI_CHECK=command AIGI_AI_CHECK_CMD="sh '"$AISTUB"'"
+  printf "v2\nb\nc\nd\n" > "$HOME/s"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "my line\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION AI=$PV_AI"
+  AIGI_AI_CHECK_CMD="echo not json"; printf "again\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "B=$PV_AI"'
+{ grep -q 'A=replaced-custom AI=not covered: stub says no' "$LT/aicheck/out" \
+  && grep -q 'B=skipped: no valid verdict' "$LT/aicheck/out"; } \
+  && ok "ledger: the AI check only advises, and malformed output counts as no verdict" \
+  || bad "ledger: the AI check only advises, and malformed output counts as no verdict"
+
+lt contra 'export AIGI_ON_CONFLICT=append
+  printf -- "# P\n\n- **Cite sources.** Always.\n- b\n" > "$HOME/new1"; printf -- "# P\n\n- **Cite sources.** Sometimes.\n- b\n" > "$HOME/new2"
+  pv_write playbook "$HOME/new1" "$HOME/p.md"; printf -- "- **Cite sources.** With file:line.\n" >> "$HOME/p.md"
+  pv_write playbook "$HOME/new2" "$HOME/p.md"; echo "A=$PV_ACTION"'
+{ grep -q 'A=appended' "$LT/contra/out" && grep -q 'also appears in the new version' "$LT/contra/out"; } \
+  && ok "ledger: a kept rule whose headline the new version rewords is flagged" \
+  || bad "ledger: a kept rule whose headline the new version rewords is flagged"
+
+# ~/AGENTS.md: SHIPPED means "a render of a recent commit with today's
+# layers", and [a] routes your lines into extras.local.md, then re-renders.
+RX="$LT/render-repo"; mkdir -p "$RX"; git -C "$RX" init -q
+printf '#!/bin/sh\n[ "$1" = --print ] && { cat "$(dirname "$0")/template.md"; [ -f "$(dirname "$0")/extras.local.md" ] && cat "$(dirname "$0")/extras.local.md"; }\nexit 0\n' > "$RX/customize.sh"
+chmod +x "$RX/customize.sh"
+printf 'rules v1\nb\nc\nd\n' > "$RX/template.md"; git -C "$RX" add -A; git -C "$RX" -c user.name=t -c user.email=t@t commit -qm v1
+printf 'rules v2\nb\nc\nd\n' > "$RX/template.md"; git -C "$RX" -c user.name=t -c user.email=t@t commit -qam v2
+lt render 'export PV_REPO="'"$RX"'" DIR="'"$RX"'" PV_LAYERS_DIR="'"$RX"'"
+  printf "rules v1\nb\nc\nd\n" > "$HOME/A.md"; (cd "$PV_REPO" && ./customize.sh --print) > "$HOME/new"
+  pv_write render "$HOME/new" "$HOME/A.md" render:agents; echo "A=$PV_ACTION $PV_VERDICT"
+  printf "my rule\n" >> "$HOME/A.md"; AIGI_ON_CONFLICT=append pv_write render "$HOME/new" "$HOME/A.md" render:agents
+  echo "B=$PV_ACTION"; echo "X=$(grep -c "my rule" "$PV_REPO/extras.local.md")"; echo "R=$(grep -c "my rule" "$HOME/A.md")"'
+{ grep -q 'A=updated SHIPPED' "$LT/render/out" && grep -q 'B=appended' "$LT/render/out" \
+  && grep -q 'X=1' "$LT/render/out" && grep -q 'R=1' "$LT/render/out" \
+  && grep -q '^## Preserved from ~/AGENTS.md' "$RX/extras.local.md"; } \
+  && ok "ledger: ~/AGENTS.md recognizes an old render, and [a] moves your lines into extras.local.md" \
+  || bad "ledger: ~/AGENTS.md recognizes an old render, and [a] moves your lines into extras.local.md"
+
+# From a linked worktree, routed lines land in the primary checkout's extras,
+# which that worktree's render can't see — so ~/AGENTS.md is left alone rather
+# than recorded as carrying lines it doesn't.
+git -C "$RX" worktree add -q "$LT/render-wt" 2>/dev/null
+lt renderwt 'export PV_REPO="'"$LT/render-wt"'" DIR="'"$LT/render-wt"'" PV_LAYERS_DIR="'"$LT/render-wt"'"
+  (cd "$DIR" && ./customize.sh --print) > "$HOME/new"; cp "$HOME/new" "$HOME/A.md"
+  pv_write render "$HOME/new" "$HOME/A.md" render:agents; printf "wt rule\n" >> "$HOME/A.md"
+  AIGI_ON_CONFLICT=append pv_write render "$HOME/new" "$HOME/A.md" render:agents; echo "B=$PV_ACTION"
+  echo "R=$(grep -c "wt rule" "$HOME/A.md")"'
+{ grep -q 'B=failed' "$LT/renderwt/out" && grep -q 'R=1' "$LT/renderwt/out" \
+  && grep -qx 'wt rule' "$RX/extras.local.md" && grep -q 'renders without them' "$LT/renderwt/out"; } \
+  && ok "ledger: routed lines a worktree's render can't see leave ~/AGENTS.md alone, and say why" \
+  || bad "ledger: routed lines a worktree's render can't see leave ~/AGENTS.md alone, and say why"
+
+# End to end, through install.sh: a second run changes nothing, --plan writes
+# nothing, last-run.json is valid, and --resolve --append brings a replaced
+# edit back.
+EH="$LT/e2e"; mkdir -p "$EH/.gemini/antigravity-cli"   # as on a machine with agy installed
+HOME="$EH" bash "$DIR/install.sh" --yes >/dev/null 2>&1
+HOME="$EH" bash "$DIR/install.sh" --yes >/dev/null 2>&1
+{ jq -e '.files | length > 0' "$EH/.ai/install-state/last-run.json" >/dev/null 2>&1 \
+  && [ "$(jq '[.files[] | select(.action != "current")] | length' "$EH/.ai/install-state/last-run.json")" = 0 ]; } \
+  && ok "install.sh: a second --yes changes no ledgered file, and last-run.json says so" \
+  || bad "install.sh: a second --yes changes no ledgered file, and last-run.json says so"
+find "$EH" -exec ls -ld {} + 2>/dev/null | sort > "$LT/e2e.before"
+HOME="$EH" bash "$DIR/install.sh" --plan > "$LT/e2e.plan" 2>&1
+find "$EH" -exec ls -ld {} + 2>/dev/null | sort > "$LT/e2e.after"
+{ cmp -s "$LT/e2e.before" "$LT/e2e.after" && grep -q 'CURRENT  current' "$LT/e2e.plan"; } \
+  && ok "install.sh --plan classifies every ledgered file and writes nothing" \
+  || bad "install.sh --plan classifies every ledgered file and writes nothing"
+printf '\n- **My playbook rule.** Mine.\n' >> "$EH/.ai/orchestration.md"
+HOME="$EH" bash "$DIR/install.sh" --yes > "$LT/e2e.r3" 2>&1
+{ ! grep -q 'My playbook rule' "$EH/.ai/orchestration.md" \
+  && grep -q "recover: ./install.sh --resolve $EH/.ai/orchestration.md --append" "$LT/e2e.r3" \
+  && jq -e --arg p "$EH/.ai/orchestration.md" '.files[] | select(.path == $p) | .action == "replaced-custom" and (.recover | test("--append"))' \
+       "$EH/.ai/install-state/last-run.json" >/dev/null 2>&1; } \
+  && ok "install.sh --yes: an edited playbook is replaced and its recovery command is reported" \
+  || bad "install.sh --yes: an edited playbook is replaced and its recovery command is reported"
+HOME="$EH" bash "$DIR/install.sh" --resolve "$EH/.ai/orchestration.md" --append >/dev/null 2>&1
+HOME="$EH" bash "$DIR/install.sh" --resolve --append > "$LT/e2e.r4" 2>&1
+{ grep -q 'My playbook rule' "$EH/.ai/orchestration.md" && grep -q 'aigi:preserved begin' "$EH/.ai/orchestration.md" \
+  && grep -q 'Nothing to resolve' "$LT/e2e.r4"; } \
+  && ok "install.sh --resolve --append adds a replaced edit back, once" \
+  || bad "install.sh --resolve --append adds a replaced edit back, once"
+HOME="$EH" bash "$DIR/install.sh" --yes >/dev/null 2>&1
+[ "$(jq -r --arg p "$EH/.ai/orchestration.md" '.files[] | select(.path == $p) | .action' "$EH/.ai/install-state/last-run.json")" = current ] \
+  && ok "install.sh: a resolved append stays put on the next install" \
+  || bad "install.sh: a resolved append stays put on the next install"
+
+# Hook scripts are ledgered now: an edit is preserved, not a rotating .bak.*.
+printf '\n# my hook tweak\n' >> "$EH/.claude/hooks/guard-bash.sh"
+printf '#!/bin/sh\n# my own scorecard\n' > "$EH/.claude/hooks/scorecard.sh"
+HOME="$EH" bash "$DIR/install-hooks.sh" claude >/dev/null 2>&1
+{ cmp -s "$DIR/hooks/guard-bash.sh" "$EH/.claude/hooks/guard-bash.sh" && [ -x "$EH/.claude/hooks/guard-bash.sh" ] \
+  && ! ls "$EH/.claude/hooks/"guard-bash.sh.bak.* >/dev/null 2>&1 && [ ! -e "$EH/.claude/hooks/scorecard.sh" ] \
+  && grep -lq 'my hook tweak' "$EH/.ai/install-state/preserved/"* && grep -lq 'my own scorecard' "$EH/.ai/install-state/preserved/"*; } \
+  && ok "install-hooks: edited and retired hook scripts go through the ledger" \
+  || bad "install-hooks: edited and retired hook scripts go through the ledger"
+
+# E1: no terminal and no --yes is unattended, and an unattended run renders.
+NH="$LT/notty"; mkdir -p "$NH"
+HOME="$NH" AIGI_UNATTENDED=1 bash "$CUSTOMIZE" --global > "$LT/notty.out" 2>&1
+{ [ -s "$NH/AGENTS.md" ] && ! grep -q 'Aborted' "$LT/notty.out"; } \
+  && ok "customize --global: an unattended run without --yes renders instead of aborting" \
+  || bad "customize --global: an unattended run without --yes renders instead of aborting"
+
+# Uninstall: an edited role is preserved before removal, and a pointer gets
+# back the original we first displaced.
+UH2="$LT/uninst"; mkdir -p "$UH2/.codex"; printf 'my own codex notes\n' > "$UH2/.codex/AGENTS.md"
+HOME="$UH2" bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+HOME="$UH2" bash "$DIR/install-roles.sh" claude >/dev/null 2>&1
+printf '\nmy role note\n' >> "$UH2/.claude/agents/refuter.md"
+HOME="$UH2" bash "$DIR/uninstall.sh" claude codex > "$LT/uninst.out" 2>&1
+{ [ ! -e "$UH2/.claude/agents/refuter.md" ] && grep -lq 'my role note' "$UH2/.ai/install-state/preserved/"* \
+  && grep -qx 'my own codex notes' "$UH2/.codex/AGENTS.md" && grep -q 'original it had before the install' "$LT/uninst.out"; } \
+  && ok "uninstall: edited roles are preserved, and a pointer path gets its first original back" \
+  || bad "uninstall: edited roles are preserved, and a pointer path gets its first original back"
+
+# Regressions from the in-tool refuter of phases 2–3 (2026-10-18), one per
+# confirmed break.
+# 1. A checkout with only some layers must not drop the others, or delete the
+#    only saved copy of extras.local.md.
+LA="$LT/layers-a"; LB="$LT/layers-b"; LHM="$LT/layers-home"; mkdir -p "$LA" "$LB" "$LHM"
+(cd "$DIR" && git ls-files -z | xargs -0 tar -cf -) | tar -xf - -C "$LA"
+cp -R "$LA/." "$LB/"
+printf 'NAME="Layer Test"\n' > "$LA/my-context.env"; cp "$LA/my-context.env" "$LB/my-context.env"
+printf '## Mine\n\nUNIQUE-EXTRAS-LINE-42\n' > "$LA/extras.local.md"
+( unset AIGI_NO_USER_ENV; HOME="$LHM" bash "$LA/customize.sh" --global --yes ) >/dev/null 2>&1
+rm -rf "$LA"
+( unset AIGI_NO_USER_ENV; HOME="$LHM" bash "$LB/customize.sh" --global --yes ) > "$LT/layers.out" 2>&1
+{ grep -q 'UNIQUE-EXTRAS-LINE-42' "$LHM/AGENTS.md" && grep -q 'UNIQUE-EXTRAS-LINE-42' "$LHM/.ai/install-state/layers/extras.local.md" \
+  && grep -q 'has no extras.local.md' "$LT/layers.out"; } \
+  && ok "customize --global: a checkout missing one layer uses its saved copy, never deletes it" \
+  || bad "customize --global: a checkout missing one layer uses its saved copy, never deletes it"
+
+# 2. --resolve --keep must not overwrite an edit made inside the preserved block.
+lt keepblock 'printf "v2\nb\nc\nd\n" > "$HOME/s"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "L1\n" >> "$HOME/p.md"
+  AIGI_ON_CONFLICT=append pv_write playbook "$HOME/s" "$HOME/p.md"
+  awk "NR == 1 { print; print \"OUTSIDE\"; next } { print }" "$HOME/p.md" > "$HOME/p.t" && mv "$HOME/p.t" "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION"
+  awk "{ sub(/^L1$/, \"B2\"); print }" "$HOME/p.md" > "$HOME/p.t" && mv "$HOME/p.t" "$HOME/p.md"
+  pv_resolve_cmd keep "$HOME/p.md"; echo "B=$(grep -c "^B2$" "$HOME/p.md")"'
+{ grep -q 'A=replaced-custom' "$LT/keepblock/out" && grep -q 'B=1' "$LT/keepblock/out" \
+  && grep -q 'changed since it was replaced' "$LT/keepblock/out"; } \
+  && ok "ledger: --resolve --keep refuses to overwrite an edit inside the preserved block" \
+  || bad "ledger: --resolve --keep refuses to overwrite an edit inside the preserved block"
+
+# 3. Lines an install already appended aren't appended again by --resolve.
+lt noduplicate 'printf "v2\nb\nc\nd\n" > "$HOME/s"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "DOUBLE-ME\n" >> "$HOME/p.md"
+  AIGI_ON_CONFLICT=append pv_write playbook "$HOME/s" "$HOME/p.md"
+  pv_resolve_cmd append; echo "N=$(grep -c "^DOUBLE-ME$" "$HOME/p.md")"'
+grep -q 'N=1' "$LT/noduplicate/out" \
+  && ok "ledger: --resolve --append doesn't double lines an install already kept" \
+  || bad "ledger: --resolve --append doesn't double lines an install already kept"
+
+# 4. After an uninstall the settings file is still known, so a rule you add
+#    yourself isn't adopted as ours by the reinstall and removed by the next uninstall.
+SLH="$LT/sl-known"; mkdir -p "$SLH/.claude"
+SLK="$(jq -r '.permissions | to_entries[0].key' "$DIR/settings-permissions.snippet.json")"
+SLV="$(jq -r '.permissions | to_entries[0].value[0]' "$DIR/settings-permissions.snippet.json")"
+HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+HOME="$SLH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+jq --arg k "$SLK" --arg v "$SLV" '.permissions[$k] = [$v]' "$SLH/.claude/settings.json" > "$SLH/s.t" 2>/dev/null \
+  || printf '{"permissions":{"%s":["%s"]}}\n' "$SLK" "$SLV" > "$SLH/s.t"
+mv "$SLH/s.t" "$SLH/.claude/settings.json"
+HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+HOME="$SLH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+jq -e --arg k "$SLK" --arg v "$SLV" '.permissions[$k] | index($v) != null' "$SLH/.claude/settings.json" >/dev/null 2>&1 \
+  && ok "settings ledger: a rule you add after an uninstall survives reinstall + uninstall" \
+  || bad "settings ledger: a rule you add after an uninstall survives reinstall + uninstall"
+
+# 5. An uninstall hands back the original you had before THAT install.
+OH="$LT/orig-home"; mkdir -p "$OH/.claude"; printf 'ORIGINAL-A\n' > "$OH/.claude/CLAUDE.md"
+HOME="$OH" bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1; HOME="$OH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+o1="$(cat "$OH/.claude/CLAUDE.md" 2>/dev/null)"; printf 'NEWER-A2\n' > "$OH/.claude/CLAUDE.md"
+HOME="$OH" bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1; HOME="$OH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+{ [ "$o1" = ORIGINAL-A ] && grep -qx 'NEWER-A2' "$OH/.claude/CLAUDE.md"; } \
+  && ok "uninstall: a pointer gets back the file it held before the latest install" \
+  || bad "uninstall: a pointer gets back the file it held before the latest install"
+
+# 6. A command file named like a skill is saved before install-skills removes it.
+CH="$LT/cmd-home"; mkdir -p "$CH/.claude/commands"; printf 'my own ship notes\n' > "$CH/.claude/commands/ship.md"
+HOME="$CH" bash "$DIR/install-skills.sh" claude >/dev/null 2>&1
+{ [ ! -e "$CH/.claude/commands/ship.md" ] && grep -lq 'my own ship notes' "$CH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "install-skills: your command file with a skill's name is saved before it's removed" \
+  || bad "install-skills: your command file with a skill's name is saved before it's removed"
+
+# Regressions from the cross-family (agy) review of phases 2–3 (2026-10-18).
+# a. last-run.json strings escape a backslash, so a path with one stays valid JSON.
+lt jsonesc 'printf "\"%s\"\n" "$(pv_json_str "a\\b\"c")" > "$HOME/j"'
+[ "$(jq -r . "$LT/jsonesc/j" 2>/dev/null)" = 'a\b"c' ] \
+  && ok "ledger: JSON strings escape backslashes and quotes" \
+  || bad "ledger: JSON strings escape backslashes and quotes ($(cat "$LT/jsonesc/j" 2>/dev/null))"
+
+# b. --resolve --append on a playbook with a preserved block adds the edit made
+#    outside it back, and the block (carried through the replace) stays once.
+lt appendblock 'printf "v2\nb\nc\nd\n" > "$HOME/s"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "BLOCKLINE\n" >> "$HOME/p.md"
+  AIGI_ON_CONFLICT=append pv_write playbook "$HOME/s" "$HOME/p.md"
+  awk "NR == 1 { print; print \"OUTSIDE-EDIT\"; next } { print }" "$HOME/p.md" > "$HOME/p.t" && mv "$HOME/p.t" "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION O=$(grep -c "^OUTSIDE-EDIT$" "$HOME/p.md")"
+  pv_resolve_cmd append "$HOME/p.md"
+  echo "O2=$(grep -c "^OUTSIDE-EDIT$" "$HOME/p.md") B=$(grep -c "^BLOCKLINE$" "$HOME/p.md")"'
+{ grep -q 'A=replaced-custom O=0' "$LT/appendblock/out" && grep -q 'O2=1 B=1' "$LT/appendblock/out"; } \
+  && ok "ledger: --resolve --append restores an edit outside a playbook's preserved block" \
+  || bad "ledger: --resolve --append restores an edit outside a playbook's preserved block"
+
+# c. The install-policy queries read the saved layers too, so a checkout
+#    without my-context.env doesn't quietly drop your INSTALL_ON_CONFLICT.
+QHM="$LT/query-home"; mkdir -p "$QHM"
+printf 'INSTALL_ON_CONFLICT="keep"\n' > "$LB/my-context.env"
+( unset AIGI_NO_USER_ENV; HOME="$QHM" bash "$LB/customize.sh" --global --yes ) >/dev/null 2>&1
+rm -f "$LB/my-context.env"
+qv="$( unset AIGI_NO_USER_ENV; HOME="$QHM" bash "$LB/customize.sh" --on-conflict 2>"$LT/query.err" )"
+{ [ "$qv" = keep ] && [ ! -s "$LT/query.err" ]; } \
+  && ok "customize --on-conflict answers from the saved layers, quietly" \
+  || bad "customize --on-conflict answers from the saved layers, quietly (got '$qv')"
+
+# d. Where symlinks fail, ~/.codex/AGENTS.md is a copy; uninstall still knows
+#    it's ours and hands back the original.
+CXH="$LT/codex-copy"; mkdir -p "$CXH/.codex"; printf 'codex original\n' > "$CXH/.codex/AGENTS.md"
+HOME="$CXH" bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1
+rm -f "$CXH/.codex/AGENTS.md"; cp "$CXH/AGENTS.md" "$CXH/.codex/AGENTS.md"
+HOME="$CXH" bash "$DIR/uninstall.sh" codex >/dev/null 2>&1
+grep -qx 'codex original' "$CXH/.codex/AGENTS.md" \
+  && ok "uninstall: a copied Codex pointer is recognised and its original restored" \
+  || bad "uninstall: a copied Codex pointer is recognised and its original restored"
+
+# A resolve mode without --resolve is an error, not a silent full install.
+HOME="$LT/flag-home" bash "$DIR/install.sh" --keep > "$LT/flag.out" 2>&1 && fk=0 || fk=1
+{ [ "$fk" = 1 ] && grep -q 'only goes with --resolve' "$LT/flag.out" && [ ! -e "$LT/flag-home/AGENTS.md" ]; } \
+  && ok "install.sh: --keep without --resolve is refused, not ignored" \
+  || bad "install.sh: --keep without --resolve is refused, not ignored"
+rm -rf "$LT"
 
 echo ""
 echo "$pass passed, $fail failed"

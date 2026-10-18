@@ -24,8 +24,9 @@ extras.local.md   personal sections spliced in verbatim   (personal, gitignored)
 rendered files    CLAUDE.md / AGENTS.md                   (snapshots — generated)
 ```
 
-**The rendered files are snapshots — never edit them directly.** Anything you
-change there is overwritten on the next render. To change the output, edit
+**The rendered files are snapshots — never edit them directly.** A hand edit
+to `~/AGENTS.md` is caught and saved on the next install (see "When you've
+edited an installed file"), but it doesn't stay where you put it. To change the output, edit
 `template.md` (wording, which sections), `my-context.env` (your answers), or
 `extras.local.md` (personal sections the shared template can't express — e.g.
 machine-specific serving notes; spliced in after the "Output artifacts"
@@ -387,9 +388,65 @@ without erroring, so without the `.toml` files every Codex "role" is the same
 agent under a different label, and only the Cursor port carries `readonly`. No
 port pins a model, so a role runs on whatever the session is running. `uninstall.sh` removes them, backing up any you hand-tuned.
 
-`uninstall.sh` reverses the pointers: each is restored from its newest backup
-(taken when the pointer was first installed), or removed if none exists;
-`~/AGENTS.md` itself is left in place. The `lm` shim is removed
+### When you've edited an installed file
+
+The installer keeps a ledger of what it writes, in `~/.ai/install-state/`:
+`~/AGENTS.md`, roles, playbooks, `~/.ai/model-routing.md` (outside its
+generated block), hook scripts, the Antigravity wrappers,
+`~/.ai/worktree-sweep.sh`, `lm`, and the permission rules it adds to each
+tool's settings. On a re-install:
+
+- **A file still holding what the installer last wrote,** or any version this
+  repo has shipped, is updated quietly. For `~/AGENTS.md`, "shipped" means a
+  render of a recent commit with your current personal layers.
+- **A file you edited is a question, not an overwrite.** At a terminal, the run
+  leaves it alone, finishes, and then asks about every edited file at once:
+
+  ```
+  [r] replace with the new version (yours is saved)       ← Enter
+  [a] replace, then keep your added lines
+  [k] keep yours this time   [p] pin: keep yours, never ask again   [d] show the diff
+  [R/A/K] same answer for every remaining file   [x] stop — leave this and the rest as they are
+  ```
+
+  `[a]` keeps your added lines in a marked block at the end of a playbook,
+  which later installs carry forward. For `~/AGENTS.md` it moves them into
+  `extras.local.md`, where every future render includes them. Role files,
+  scripts and `model-routing.md` don't offer `[a]`. `[k]` holds until the
+  installer ships a newer version of that file, then you're asked again.
+- **Nobody at the terminal** (`--yes`, an agent's `!` line, cron): the file is
+  replaced after it's saved, unless `INSTALL_ON_CONFLICT=append|keep` in
+  `my-context.env` (or `--on-conflict=`) says otherwise. The run's last lines
+  name each replaced file with the command that recovers it, and the exit
+  code is still 0.
+- **Every replaced file is saved** in `~/.ai/install-state/preserved/`,
+  together with the version it diverged from and the one that replaced it.
+  Saved copies are never rotated away, unlike `*.bak.*` files.
+- **A symlinked destination** (say, a role managed by your dotfiles) is never
+  written through, and an `lm` that isn't ours is never replaced.
+- **A permission rule you deleted stays deleted.** One you added yourself
+  survives when the installer retires the same rule.
+
+The commands around it:
+
+| Command | What it does |
+|---|---|
+| `./install.sh --plan` | Shows what each ledgered file would get (CURRENT, OURS, SHIPPED, CUSTOM, …). Writes nothing. |
+| `./install.sh --resolve [<path>…] [--append\|--keep\|--pin\|--replace]` | Re-decides a file an earlier run replaced. No flag asks. |
+| `./install.sh --pin <path>` / `--unpin <path>` | The installer never writes a pinned file. |
+| `~/.ai/install-state/last-run.json` | What the last run did to each file, with recovery commands. Agents read this instead of the output. |
+
+`INSTALL_AI_CHECK=local` (the `lm` shim) or `INSTALL_AI_CHECK=command` with
+`INSTALL_AI_CHECK_CMD` adds an advisory check to an edited Markdown file: it
+asks a model whether your added lines are already said by the new version, and
+only ever changes which option is recommended. It's off by default; with
+`command`, your text goes wherever that command sends it.
+
+`uninstall.sh` reverses the pointers: each gets back the original file the
+first install displaced, else its newest backup, or is removed if there's
+neither; `~/AGENTS.md` itself is left in place. Ledgered files you edited are
+saved to `preserved/` before they're removed, and the state dir stays (it's
+your recovery store) unless you pass `--purge`. The `lm` shim is removed
 (marker-checked); the regenerable `~/.ai/` metadata stays.
 
 ## Notes

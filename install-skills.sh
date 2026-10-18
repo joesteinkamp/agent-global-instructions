@@ -28,6 +28,8 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/preserve.sh
+. "$DIR/lib/preserve.sh"
 SRC="$DIR/skills"
 VENDORED="$DIR/.agents/skills"
 DESIGN_SKILLS="ux-audit"
@@ -129,21 +131,29 @@ install_skills() {  # $1 = destination skills dir
 # Remove the command files earlier versions installed under these names, plus
 # their backups, so the skill is the only entry in the tool's menu.
 remove_legacy_commands() {  # $1 = commands dir
-  local dir="$1" name f bak n=0
+  local dir="$1" name f n=0
   [ -d "$dir" ] || return 0
   for name in $(core_names) $DESIGN_SKILLS; do
     if [ "$want_design" = keep ]; then
       case " $DESIGN_SKILLS " in *" $name "*) continue;; esac
     fi
+    # Through the ledger: a file named like a skill (ship.md, critique.md) may
+    # be your own command, so one we never shipped — and every old .bak.*,
+    # which held a version you'd edited — is saved before it's removed.
     for f in "$dir/$name.md" "$dir/$name.md".bak.*; do
       [ -f "$f" ] || continue
-      rm -f "$f"; n=$((n+1))
+      case "$f" in *.bak.*) pv_delete "$f" "legacy command backup" "" command || continue;;
+        *) pv_delete "$f" "legacy command" "commands/$name.md" command || continue;; esac
+      [ "$PV_ACTION" = removed ] && n=$((n+1))
     done
   done
   for name in $RETIRED; do
     f="$dir/$name.md"; [ -f "$f" ] || continue
-    bak="$(mktemp "$f.bak.XXXXXX")"; cp "$f" "$bak"; rm -f "$f"
-    echo "  removed retired /$name (backup: $bak)"
+    # A retired name is generic enough ("audit") that the file could be the
+    # user's own, so it goes through the ledger: one we never shipped is
+    # saved to install-state/preserved/ before it's removed.
+    pv_delete "$f" "retired command" "commands/$name.md" command || continue
+    [ "$PV_ACTION" = removed ] && echo "  removed retired /$name"
   done
   [ "$n" -gt 0 ] && echo "  removed $n legacy command file(s) from $dir"
   return 0
@@ -179,4 +189,6 @@ for t in "${targets[@]}"; do
       echo "  antigravity: skill install not supported here; skipped — its hooks are wired by install-hooks.sh";;
   esac
 done
+# Run on its own (not under install.sh): report what the ledger did.
+pv_finish
 echo "Done. Type / in each tool to see the skills (Codex: use \$<name>)."

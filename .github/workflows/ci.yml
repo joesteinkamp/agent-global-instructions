@@ -18,7 +18,7 @@ jobs:
 
       - name: ShellCheck
         # All scripts target bash 3.2+; lint them as bash.
-        run: shellcheck --shell=bash ./*.sh hooks/*.sh evals/*.sh
+        run: shellcheck --shell=bash ./*.sh hooks/*.sh evals/*.sh lib/*.sh
 
       - name: Smoke tests
         run: ./test.sh
@@ -32,3 +32,16 @@ jobs:
       # skill and belongs to npx skills; this hashes the whole tree and is ours.
       - name: Vendored skill integrity
         run: ./verify-skills.sh
+
+  # macOS ships bash 3.2 and BSD userland (diff, mktemp, sed, ps). The installers
+  # promise to run there, and nothing else exercises that promise. Non-blocking
+  # while it's new: its result is information until it has a green history.
+  test-macos:
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: command -v jq || brew install jq
+      - name: Smoke tests under macOS bash 3.2
+        run: /bin/bash --version | head -1 && /bin/bash ./test.sh

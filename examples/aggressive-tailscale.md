@@ -234,6 +234,12 @@ file.
   my harness from one source. Reference a
   role by name so agents behave the same everywhere; if a role I need has no
   definition yet, add it to that source rather than improvising it per session.
+- **After an install, read what it did to my files.** My harness's
+  `./install.sh` records every file it wrote, kept or replaced in
+  `~/.ai/install-state/last-run.json`. Read that rather than its scrolling
+  output. When it lists a file of mine it replaced, a file I had edited, tell
+  me which one and hand me its `recover` command; never treat the replacement
+  as harmless just because the install exited 0.
 - **Mechanics differ per tool — read `~/.ai/agent-teams.md`** before the first
   team of a session: what each tool's construct can and can't do (Claude Code
   teammates message each other, Codex subagents report only to you), how to spawn

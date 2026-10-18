@@ -18,6 +18,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$DIR/hooks"
+# shellcheck source=lib/preserve.sh
+. "$DIR/lib/preserve.sh"
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
 
 # Single source of truth for the hook scripts. Drives the copy loop AND the jq
@@ -55,20 +57,18 @@ backup_file() {  # $1 = file to back up — uses the same .bak. suffix as the ot
 }
 
 copy_scripts() {  # $1 = hooks dir
-  mkdir -p "$1"
+  pv_planning || mkdir -p "$1"
   local s
   for s in "${HOOK_SCRIPTS[@]}"; do
-    # Back up a hand-edited hook script before replacing it with the canonical one.
-    if [ -f "$1/$s.sh" ] && ! cmp -s "$SRC/$s.sh" "$1/$s.sh"; then
-      cp "$1/$s.sh" "$(mktemp "$1/$s.sh.bak.XXXXXX")"
-      echo "  backed up your edited $s.sh"
-    fi
-    cp "$SRC/$s.sh" "$1/$s.sh"; chmod +x "$1/$s.sh"
+    # Through the ledger: a hook script you edited is saved (and, attended,
+    # asked about at the end of the run) instead of a rotating .bak.*.
+    pv_write hook-script "$SRC/$s.sh" "$1/$s.sh" "hooks/$s.sh" || return 1
+    case "$PV_ACTION" in created|updated|replaced-custom) chmod +x "$1/$s.sh";; esac
   done
   for s in "${RETIRED_HOOK_SCRIPTS[@]}"; do
     [ -f "$1/$s.sh" ] || continue
-    backup_file "$1/$s.sh"; rm -f "$1/$s.sh"
-    echo "  removed retired $s.sh"
+    pv_delete "$1/$s.sh" "retired hook script" "hooks/$s.sh" hook-script || continue
+    [ "$PV_ACTION" = removed ] && echo "  removed retired $s.sh"
   done
 }
 
@@ -137,6 +137,7 @@ WIRE_AR=false; [ "$AUTONOMY_MODE" = "aggressive" ] && WIRE_AR=true
 install_claude() {
   local hd="$HOME/.claude/hooks" sf="$HOME/.claude/settings.json"
   copy_scripts "$hd"
+  pv_planning && return 0   # --plan: only the ledgered files are classified
   merge_json "$sf" "$(jq -n --arg gp "$(cmd claude "$hd" guard-paths)" --arg gb "$(cmd claude "$hd" guard-bash)" --arg fm "$(cmd claude "$hd" format-edited)" --arg lg "$(cmd claude "$hd" log-tool)" --arg qn "$(cmd claude "$hd" quality-nudge)" --arg wr "$(cmd claude "$hd" worktree-reap)" --arg lm "$(cmd claude "$hd" load-memory)" --arg pc "$(cmd claude "$hd" precompact-archive)" --arg se "$(cmd claude "$hd" log-session-end)" --arg ar "$(cmd claude "$hd" autonomy-reminder)" --argjson arw "$WIRE_AR" '{
     SessionStart: ([
       {matcher:"startup|resume|clear|compact|fork", hooks:[{type:"command",command:$lm}]}
@@ -188,6 +189,7 @@ claude_hooks_restricted() {
 install_codex() {
   local hd="$HOME/.codex/hooks" sf="$HOME/.codex/hooks.json"
   copy_scripts "$hd"
+  pv_planning && return 0   # --plan: only the ledgered files are classified
   # Codex's hooks.json uses the same PascalCase event keys and the same
   # {hookSpecificOutput:{hookEventName,additionalContext}} stdout contract as
   # Claude Code, SessionStart included — so both SessionStart hooks wire here
@@ -233,6 +235,7 @@ install_codex() {
 install_cursor() {
   local hd="$HOME/.cursor/hooks" sf="$HOME/.cursor/hooks.json"
   copy_scripts "$hd"
+  pv_planning && return 0   # --plan: only the ledgered files are classified
   # Cursor's hooks.json needs a top-level "version": 1 and uses flat
   # { "command": ... } entries (no per-entry "hooks" array). merge_json only
   # touches .hooks, so set version separately first (idempotent, no backup —
@@ -283,9 +286,14 @@ install_antigravity() {
     # Resolve the real script via $0's dir at runtime — never embed $hd/$HOME into
     # the wrapper's quoted exec line (a HOME with a space or quote would otherwise
     # break the path or inject). Only the fixed hook name is interpolated.
-    printf '#!/usr/bin/env bash\nexport HOOK_PLATFORM=antigravity\nexec "$(dirname "$0")/%s.sh"\n' "$s" > "$hd/$s.ag.sh"
-    chmod +x "$hd/$s.ag.sh"
+    # Rendered to a temp file, then installed through the ledger, so a wrapper
+    # someone edited is saved before it's replaced (it used to be overwritten).
+    local wt; wt="$(mktemp "${TMPDIR:-/tmp}/aigi_wrap.XXXXXX")"; TMPFILES+=("$wt")
+    printf '#!/usr/bin/env bash\nexport HOOK_PLATFORM=antigravity\nexec "$(dirname "$0")/%s.sh"\n' "$s" > "$wt"
+    pv_write hook-wrapper "$wt" "$hd/$s.ag.sh" || return 1
+    case "$PV_ACTION" in created|updated|replaced-custom) chmod +x "$hd/$s.ag.sh";; esac
   done
+  pv_planning && return 0   # --plan: only the ledgered files are classified
   [ -f "$hj" ] || echo '{}' > "$hj"
   local add tmp
   add="$(jq -n \
@@ -316,11 +324,15 @@ install_antigravity() {
 # path a command can rely on. Not per-tool: it is installed once per run.
 install_sweep_cli() {
   local dest="$HOME/.ai/worktree-sweep.sh"
-  mkdir -p "$HOME/.ai" 2>/dev/null || true
-  if cmp -s "$SRC/worktree-reap.sh" "$dest" 2>/dev/null; then
-    echo "  ok ~/.ai/worktree-sweep.sh (up to date)"
-  elif cp "$SRC/worktree-reap.sh" "$dest" 2>/dev/null && chmod +x "$dest" 2>/dev/null; then
-    echo "  wrote ~/.ai/worktree-sweep.sh (tool-agnostic worktree sweep CLI)"
+  pv_planning || mkdir -p "$HOME/.ai" 2>/dev/null || true
+  # Through the ledger: an edited copy is saved before it's replaced.
+  if pv_write sweep-cli "$SRC/worktree-reap.sh" "$dest" hooks/worktree-reap.sh 2>&1; then
+    case "$PV_ACTION" in
+      current) echo "  ok ~/.ai/worktree-sweep.sh (up to date)";;
+      skipped-symlink) ;;
+      created|updated|replaced-custom) chmod +x "$dest" 2>/dev/null || true
+         echo "  wrote ~/.ai/worktree-sweep.sh (tool-agnostic worktree sweep CLI)";;
+    esac
   else
     echo "  (could not write ~/.ai/worktree-sweep.sh — sweep CLI skipped)" >&2
   fi
@@ -340,4 +352,6 @@ for t in "${targets[@]}"; do
   esac
 done
 install_sweep_cli
+# Run on its own (not under install.sh): ask about anything parked, report.
+pv_finish
 echo "Done. Backups saved next to each settings file."

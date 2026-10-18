@@ -15,12 +15,26 @@
 # (Claude's @import file, Codex's symlink) is restored from its newest backup
 # (or removed if none). The rendered ~/AGENTS.md itself is LEFT IN PLACE.
 #
+# Files the install ledger tracks (roles, the lm shim, the sweep CLI) are
+# removed through it: one still holding what we installed goes quietly, one you
+# edited is saved to ~/.ai/install-state/preserved/ first. A pointer path gets
+# back the first original we displaced (install-state/orig/), not merely the
+# newest .bak.*. The state dir itself stays — it's your recovery store:
+#
+#   ./uninstall.sh --purge        # also delete ~/.ai/install-state (asks you to type "purge")
+#
 # `gemini` is accepted only to clean up artifacts from a pre-retirement install
 # (the Gemini CLI itself is no longer a supported target — see CHANGELOG).
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
+# shellcheck source=lib/preserve.sh
+. "$DIR/lib/preserve.sh"
+# Permission rules come off by provenance: only the ones settings.tsv says we
+# added (G4); a file from before the ledger falls back to the whole snippet.
+# shellcheck source=lib/settings-ledger.sh
+. "$DIR/lib/settings-ledger.sh"
 
 # Derive the hook-script set from the actual files so it can't drift from the
 # installer. HOOK_RE matches /<our-script>.sh on the dir slash.
@@ -58,15 +72,24 @@ restore_global_pointer() {  # $1 = pointer path
   if [ -L "$f" ]; then
     [ "$(readlink "$f")" = "$HOME/AGENTS.md" ] || return 0
   elif [ -f "$f" ]; then
-    { grep -qF '@~/AGENTS.md' "$f" && grep -qF 'agent-global-instructions' "$f"; } || return 0
+    # Our pointer file, or the copy install makes where symlinks fail.
+    { grep -qF '@~/AGENTS.md' "$f" && grep -qF 'agent-global-instructions' "$f"; } \
+      || cmp -s "$f" "$HOME/AGENTS.md" || return 0
   else
     return 0
   fi
+  # The first original we displaced beats the newest backup, which after a
+  # few installs is only ever one of our own old pointers (G2).
+  local orig; orig="$PV_STATE/orig/$(pv_pathid "$f")"
   # shellcheck disable=SC2012  # newest-first by mtime; names are mktemp-safe
   bak="$(ls -1t -- "$f".bak.* 2>/dev/null | head -n 1 || true)"
   if [ -f "$f" ] && [ ! -L "$f" ]; then backup_file "$f"; fi
   rm -f "$f"
-  if [ -n "$bak" ]; then
+  if [ -f "$orig" ]; then
+    # Handed back, so it's consumed: if you change this file and install
+    # again, that version becomes the original the next uninstall restores.
+    cp "$orig" "$f" && echo "  restored $f to the original it had before the install" && rm -f "$orig"
+  elif [ -n "$bak" ]; then
     cp "$bak" "$f" && echo "  restored $f from ${bak##*/}"
   else
     echo "  removed pointer $f (no prior backup to restore)"
@@ -148,19 +171,6 @@ unseed_advisor_model() {  # $1 = claude settings.json
   return 0
 }
 
-strip_permissions_json() {  # $1 = settings file  $2 = snippet file
-  [ -f "$2" ] || return 0
-  local perms; perms="$(jq '.permissions' "$2")"
-  edit_json "$1" '
-    if .permissions then
-      reduce ($add | to_entries[]) as $e (.;
-        .permissions[$e.key] = ((.permissions[$e.key] // []) - $e.value))
-      | .permissions |= with_entries(select((.value | length) > 0))
-      | if (.permissions == {}) then del(.permissions) else . end
-    else . end
-  ' --argjson add "$perms"
-}
-
 # Remove our managed permissions block from Codex's config.toml (between sentinels).
 strip_codex_block() {  # $1 = config.toml
   local f="$1"
@@ -200,12 +210,10 @@ remove_roles_dir() {  # $1 = dest dir  $2 = ext  [$3 = rendered src dir, for the
     base="$(basename "$f" .md)"
     [ "$base" = "README" ] && continue
     [ -f "$dest/$base.$ext" ] || continue
-    if [ -n "$src" ] && [ -f "$src/$base.$ext" ] && ! cmp -s "$src/$base.$ext" "$dest/$base.$ext"; then
-      backup_file "$dest/$base.$ext"
-    elif [ -z "$src" ] && [ -f "$DIR/roles/$base.$ext" ] && ! cmp -s "$DIR/roles/$base.$ext" "$dest/$base.$ext"; then
-      backup_file "$dest/$base.$ext"
-    fi
-    rm -f "$dest/$base.$ext"; n=$((n+1))
+    # Through the ledger: ours goes quietly, an edited one is preserved first.
+    if [ -n "$src" ]; then pv_delete "$dest/$base.$ext" uninstall render:roles role || continue
+    else pv_delete "$dest/$base.$ext" uninstall "roles/$base.md" role || continue; fi
+    [ "$PV_ACTION" = removed ] && n=$((n+1))
   done
   [ "$n" -gt 0 ] && echo "  removed $n role file(s) from $dest"
   return 0
@@ -219,15 +227,21 @@ remove_commands_dir() {  # $1 = dest dir
   [ -d "$dest" ] || return 0
   for d in "$DIR/skills"/*/ "$DIR/.agents/skills/ux-audit/"; do
     [ -d "$d" ] || continue
+    # Through the ledger: a command file with a skill's name may be your own,
+    # so one we never shipped (and every old .bak.*) is saved before removal.
     for f in "$dest/$(basename "$d").md" "$dest/$(basename "$d").md".bak.*; do
-      [ -f "$f" ] && { rm -f "$f"; n=$((n+1)); }
+      [ -f "$f" ] || continue
+      case "$f" in *.bak.*) pv_delete "$f" "legacy command backup" "" command || continue;;
+        *) pv_delete "$f" "legacy command" "commands/$(basename "$f")" command || continue;; esac
+      [ "$PV_ACTION" = removed ] && n=$((n+1))
     done
   done
   local retired="validate handoff flow tidy critique audit"   # space-separated; keep in sync with install-skills.sh RETIRED
   for old in $retired; do
     # Backed up first: a retired name is generic enough (e.g. "audit") that the
     # file could be the user's own, not our stale install.
-    [ -f "$dest/$old.md" ] && { backup_file "$dest/$old.md"; rm -f "$dest/$old.md"; n=$((n+1)); }
+    if [ -f "$dest/$old.md" ] && pv_delete "$dest/$old.md" "retired command" "commands/$old.md" command \
+       && [ "$PV_ACTION" = removed ]; then n=$((n+1)); fi
   done
   [ "$n" -gt 0 ] && echo "  removed $n command file(s) from $dest"
   return 0
@@ -307,10 +321,12 @@ strip_antigravity_hooks() {  # $1 = hooks.json
 }
 
 PROJECT=0
+PURGE=0
 targets=()
 for a in "$@"; do
   case "$a" in
     --project) PROJECT=1;;
+    --purge) PURGE=1;;
     claude|codex|cursor|antigravity) targets+=("$a");;
     gemini) targets+=("$a");;  # legacy cleanup only — see header comment
     *) echo "  unknown arg: $a (use: --project | claude codex cursor antigravity | gemini for legacy cleanup)" >&2; exit 1;;
@@ -335,6 +351,7 @@ if [ "$PROJECT" = 1 ]; then
       *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
     esac
   done
+  pv_finish
   echo "Done. Removed in-repo (--project) command and role files only."
   exit 0
 fi
@@ -346,7 +363,7 @@ for t in "${targets[@]}"; do
       remove_roles_dir "$HOME/.claude/agents" md
       remove_skill_links "$HOME/.claude/skills"
       strip_hooks "$HOME/.claude/settings.json"
-      strip_permissions_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
+      sl_strip_perms "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
       disable_agent_teams "$HOME/.claude/settings.json"
       unseed_advisor_model "$HOME/.claude/settings.json"
       restore_global_pointer "$HOME/.claude/CLAUDE.md"
@@ -366,7 +383,7 @@ for t in "${targets[@]}"; do
       remove_skill_links "$HOME/.cursor/skills"
       strip_hooks "$HOME/.cursor/hooks.json"
       cursor_hooks_cleanup "$HOME/.cursor/hooks.json"
-      strip_permissions_json "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json"
+      sl_strip_perms "$HOME/.cursor/cli-config.json" "$DIR/settings-permissions.cursor.snippet.json"
       ;;
     gemini)
       # Legacy cleanup only — the Gemini CLI is retired, so this strips whatever
@@ -387,7 +404,7 @@ for t in "${targets[@]}"; do
       ag_snip="$(mktemp)"; TMPFILES+=("$ag_snip")
       jq --arg h "$HOME" '.permissions |= with_entries(.value |= map(gsub("@HOME@"; $h)))' \
         "$DIR/settings-permissions.antigravity.snippet.json" > "$ag_snip" \
-        && strip_permissions_json "$HOME/.gemini/antigravity-cli/settings.json" "$ag_snip"
+        && sl_strip_perms "$HOME/.gemini/antigravity-cli/settings.json" "$ag_snip"
       ;;
     *) echo "  unknown target: $t (use: claude codex cursor antigravity | gemini for legacy cleanup)" >&2;;
   esac
@@ -397,8 +414,8 @@ done
 # ~/.ai/ registry files (clis, local-models, model-routing, playbooks) are
 # regenerable metadata and stay in place, like the roster.
 if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
-  rm -f "$HOME/.local/bin/lm"
-  echo "  removed $HOME/.local/bin/lm (local-model shim)"
+  pv_delete "$HOME/.local/bin/lm" uninstall lm shim \
+    && [ "$PV_ACTION" = removed ] && echo "  removed $HOME/.local/bin/lm (local-model shim)"
 fi
 # Same for the portable `timeout` shim (only ever installed where none existed).
 if [ -f "$HOME/.local/bin/timeout" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/timeout" 2>/dev/null; then
@@ -412,8 +429,18 @@ fi
 # rate-limit stamps in ~/.ai-logs are logs and stay, like every other log.
 if [ -f "$HOME/.ai/worktree-sweep.sh" ] \
    && grep -q 'Worktree reaper' "$HOME/.ai/worktree-sweep.sh" 2>/dev/null; then
-  rm -f "$HOME/.ai/worktree-sweep.sh"
-  echo "  removed $HOME/.ai/worktree-sweep.sh (worktree sweep CLI)"
+  pv_delete "$HOME/.ai/worktree-sweep.sh" uninstall hooks/worktree-reap.sh sweep-cli \
+    && [ "$PV_ACTION" = removed ] && echo "  removed $HOME/.ai/worktree-sweep.sh (worktree sweep CLI)"
+fi
+pv_finish
+
+# --purge: the state dir holds every edit the installer ever saved for you, so
+# deleting it is the one irreversible step here — typed confirmation only.
+if [ "$PURGE" = 1 ] && [ -d "$PV_STATE" ]; then
+  echo "This deletes $PV_STATE, including every edited file the installer saved for you in preserved/."
+  ans=""; read -r -p 'Type "purge" to confirm: ' ans </dev/tty 2>/dev/null || true
+  if [ "$ans" = purge ]; then rm -rf "$PV_STATE"; echo "  removed $PV_STATE"
+  else echo "  kept $PV_STATE (not confirmed)"; fi
 fi
 
 echo "Done. Backups saved next to each file. ~/AGENTS.md left in place;"

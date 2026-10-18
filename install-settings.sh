@@ -25,6 +25,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 1; }
+# shellcheck source=lib/settings-ledger.sh
+. "$DIR/lib/settings-ledger.sh"
 
 TMPFILES=()
 trap '[ ${#TMPFILES[@]} -gt 0 ] && rm -f "${TMPFILES[@]}" || true' EXIT
@@ -45,8 +47,9 @@ backup_file() {  # $1 = file to back up
 # only stops NEW installs from getting it — an existing settings.json keeps the
 # orphan forever, since uninstall.sh subtracts exactly what the snippet holds
 # today. So the merge subtracts these first (same idea as remove_commands_dir's
-# retired command names). Only ever list rules WE wrote; a rule the user added
-# themselves must never appear here.
+# retired command names). Only ever list rules WE wrote. A user's own copy of a
+# listed rule survives once the file has ledger rows (lib/settings-ledger.sh);
+# on a pre-ledger file it can't be told from ours and is subtracted (R13).
 CLAUDE_RETIRED_PERMS='{
   "deny": [
     "Write(.env)", "Write(.env.*)", "Write(**/.env)", "Write(**/.env.*)",
@@ -58,9 +61,6 @@ CLAUDE_RETIRED_PERMS='{
   ]
 }'
 
-# Order-preserving union of each permission array from a JSON snippet (.permissions)
-# into a JSON settings file, minus any retired rules ($4). Idempotent: a re-run
-# never duplicates a rule.
 # Turn on Claude Code's agent teams (experimental, off by default). Without this
 # the resident "default to a team" instruction degrades to ordinary subagents:
 # same parallelism and same roles, but teammates can't message each other and
@@ -102,33 +102,34 @@ seed_advisor_model() {  # $1 = claude settings.json
   return 0
 }
 
+# Order-preserving union of each permission array from a JSON snippet (.permissions)
+# into a JSON settings file, minus retired rules ($4) we added, minus rules we
+# added that the user has since deleted (lib/settings-ledger.sh records each
+# rule). Idempotent: a re-run never duplicates a rule.
 merge_perms_json() {  # $1 = settings file  $2 = snippet file  $3 = label  [$4 = retired JSON]
   # `${4:-{\}}` would keep the backslash literally ({\}), which jq --argjson
   # rejects — so default the retired-rules JSON on its own line instead.
-  local sf="$1" snippet="$2" label="$3" retired="${4:-}" perms tmp
+  local sf="$1" snippet="$2" label="$3" retired="${4:-}" perms tmp new=""
   [ -n "$retired" ] || retired='{}'
   [ -f "$snippet" ] || { echo "    no snippet at $snippet" >&2; return 1; }
+  pv_lock || return 1
   mkdir -p "$(dirname "$sf")"
-  [ -f "$sf" ] || echo '{}' > "$sf"
+  [ -f "$sf" ] || { echo '{}' > "$sf"; new=1; }
   perms="$(jq '.permissions' "$snippet")"
   tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")"; TMPFILES+=("$tmp")  # same-dir: atomic mv + valid BSD template
-  # Subtract retired rules BEFORE the union, so a rule that is both retired and
-  # currently shipped (shouldn't happen, but) ends up present rather than dropped.
-  jq --argjson add "$perms" --argjson gone "$retired" '
-    .permissions = (.permissions // {})
-    | reduce ($gone | to_entries[]) as $e (.;
-        if (.permissions[$e.key] | type) == "array"
-        then .permissions[$e.key] -= $e.value else . end)
-    | reduce ($add | to_entries[]) as $e (.;
-        .permissions[$e.key] =
-          ((.permissions[$e.key] // []) as $cur | $cur + ($e.value - $cur)))
-    | .permissions |= with_entries(select((.value | type) != "array" or (.value | length) > 0))
-  ' "$sf" > "$tmp" || { echo "    merge failed for $sf (left unchanged)" >&2; return 1; }
+  sl_merge_perms "$sf" "$perms" "$retired" "$tmp" "$new" \
+    || { echo "    merge failed for $sf (left unchanged)" >&2; return 1; }
   if cmp -s "$tmp" "$sf"; then
     echo "    $sf (permissions already current, no change)"
   else
     backup_file "$sf"; mv "$tmp" "$sf"; echo "    $label permissions merged -> $sf"
   fi
+  # Record only once the settings file is written: a crash in between leaves
+  # an added rule unrecorded (so treated as the user's), never falsely declined.
+  sl_save "$sf" "$SL_ROWS" || echo "    could not record $label rules in $SL_LEDGER" >&2
+  [ "$SL_DECLINED" -eq 0 ] \
+    || echo "    $SL_DECLINED $label rule(s) you removed stay out (recorded in $SL_LEDGER)"
+  return 0
 }
 
 install_claude_settings() {
