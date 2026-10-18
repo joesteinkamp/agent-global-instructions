@@ -3047,9 +3047,86 @@ HOME="$UH2" bash "$DIR/install-roles.sh" claude >/dev/null 2>&1
 printf '\nmy role note\n' >> "$UH2/.claude/agents/refuter.md"
 HOME="$UH2" bash "$DIR/uninstall.sh" claude codex > "$LT/uninst.out" 2>&1
 { [ ! -e "$UH2/.claude/agents/refuter.md" ] && grep -lq 'my role note' "$UH2/.ai/install-state/preserved/"* \
-  && grep -qx 'my own codex notes' "$UH2/.codex/AGENTS.md" && grep -q 'original it had before' "$LT/uninst.out"; } \
+  && grep -qx 'my own codex notes' "$UH2/.codex/AGENTS.md" && grep -q 'original it had before the install' "$LT/uninst.out"; } \
   && ok "uninstall: edited roles are preserved, and a pointer path gets its first original back" \
   || bad "uninstall: edited roles are preserved, and a pointer path gets its first original back"
+
+# Regressions from the in-tool refuter of phases 2–3 (2026-10-18), one per
+# confirmed break.
+# 1. A checkout with only some layers must not drop the others, or delete the
+#    only saved copy of extras.local.md.
+LA="$LT/layers-a"; LB="$LT/layers-b"; LHM="$LT/layers-home"; mkdir -p "$LA" "$LB" "$LHM"
+(cd "$DIR" && git ls-files -z | xargs -0 tar -cf -) | tar -xf - -C "$LA"
+cp -R "$LA/." "$LB/"
+printf 'NAME="Layer Test"\n' > "$LA/my-context.env"; cp "$LA/my-context.env" "$LB/my-context.env"
+printf '## Mine\n\nUNIQUE-EXTRAS-LINE-42\n' > "$LA/extras.local.md"
+( unset AIGI_NO_USER_ENV; HOME="$LHM" bash "$LA/customize.sh" --global --yes ) >/dev/null 2>&1
+rm -rf "$LA"
+( unset AIGI_NO_USER_ENV; HOME="$LHM" bash "$LB/customize.sh" --global --yes ) > "$LT/layers.out" 2>&1
+{ grep -q 'UNIQUE-EXTRAS-LINE-42' "$LHM/AGENTS.md" && grep -q 'UNIQUE-EXTRAS-LINE-42' "$LHM/.ai/install-state/layers/extras.local.md" \
+  && grep -q 'has no extras.local.md' "$LT/layers.out"; } \
+  && ok "customize --global: a checkout missing one layer uses its saved copy, never deletes it" \
+  || bad "customize --global: a checkout missing one layer uses its saved copy, never deletes it"
+
+# 2. --resolve --keep must not overwrite an edit made inside the preserved block.
+lt keepblock 'printf "v2\nb\nc\nd\n" > "$HOME/s"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "L1\n" >> "$HOME/p.md"
+  AIGI_ON_CONFLICT=append pv_write playbook "$HOME/s" "$HOME/p.md"
+  awk "NR == 1 { print; print \"OUTSIDE\"; next } { print }" "$HOME/p.md" > "$HOME/p.t" && mv "$HOME/p.t" "$HOME/p.md"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; echo "A=$PV_ACTION"
+  awk "{ sub(/^L1$/, \"B2\"); print }" "$HOME/p.md" > "$HOME/p.t" && mv "$HOME/p.t" "$HOME/p.md"
+  pv_resolve_cmd keep "$HOME/p.md"; echo "B=$(grep -c "^B2$" "$HOME/p.md")"'
+{ grep -q 'A=replaced-custom' "$LT/keepblock/out" && grep -q 'B=1' "$LT/keepblock/out" \
+  && grep -q 'changed since it was replaced' "$LT/keepblock/out"; } \
+  && ok "ledger: --resolve --keep refuses to overwrite an edit inside the preserved block" \
+  || bad "ledger: --resolve --keep refuses to overwrite an edit inside the preserved block"
+
+# 3. Lines an install already appended aren't appended again by --resolve.
+lt noduplicate 'printf "v2\nb\nc\nd\n" > "$HOME/s"
+  pv_write playbook "$HOME/s" "$HOME/p.md"; printf "DOUBLE-ME\n" >> "$HOME/p.md"
+  AIGI_ON_CONFLICT=append pv_write playbook "$HOME/s" "$HOME/p.md"
+  pv_resolve_cmd append; echo "N=$(grep -c "^DOUBLE-ME$" "$HOME/p.md")"'
+grep -q 'N=1' "$LT/noduplicate/out" \
+  && ok "ledger: --resolve --append doesn't double lines an install already kept" \
+  || bad "ledger: --resolve --append doesn't double lines an install already kept"
+
+# 4. After an uninstall the settings file is still known, so a rule you add
+#    yourself isn't adopted as ours by the reinstall and removed by the next uninstall.
+SLH="$LT/sl-known"; mkdir -p "$SLH/.claude"
+SLK="$(jq -r '.permissions | to_entries[0].key' "$DIR/settings-permissions.snippet.json")"
+SLV="$(jq -r '.permissions | to_entries[0].value[0]' "$DIR/settings-permissions.snippet.json")"
+HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+HOME="$SLH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+jq --arg k "$SLK" --arg v "$SLV" '.permissions[$k] = [$v]' "$SLH/.claude/settings.json" > "$SLH/s.t" 2>/dev/null \
+  || printf '{"permissions":{"%s":["%s"]}}\n' "$SLK" "$SLV" > "$SLH/s.t"
+mv "$SLH/s.t" "$SLH/.claude/settings.json"
+HOME="$SLH" bash "$DIR/install-settings.sh" claude >/dev/null 2>&1
+HOME="$SLH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+jq -e --arg k "$SLK" --arg v "$SLV" '.permissions[$k] | index($v) != null' "$SLH/.claude/settings.json" >/dev/null 2>&1 \
+  && ok "settings ledger: a rule you add after an uninstall survives reinstall + uninstall" \
+  || bad "settings ledger: a rule you add after an uninstall survives reinstall + uninstall"
+
+# 5. An uninstall hands back the original you had before THAT install.
+OH="$LT/orig-home"; mkdir -p "$OH/.claude"; printf 'ORIGINAL-A\n' > "$OH/.claude/CLAUDE.md"
+HOME="$OH" bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1; HOME="$OH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+o1="$(cat "$OH/.claude/CLAUDE.md" 2>/dev/null)"; printf 'NEWER-A2\n' > "$OH/.claude/CLAUDE.md"
+HOME="$OH" bash "$CUSTOMIZE" --global --yes >/dev/null 2>&1; HOME="$OH" bash "$DIR/uninstall.sh" claude >/dev/null 2>&1
+{ [ "$o1" = ORIGINAL-A ] && grep -qx 'NEWER-A2' "$OH/.claude/CLAUDE.md"; } \
+  && ok "uninstall: a pointer gets back the file it held before the latest install" \
+  || bad "uninstall: a pointer gets back the file it held before the latest install"
+
+# 6. A command file named like a skill is saved before install-skills removes it.
+CH="$LT/cmd-home"; mkdir -p "$CH/.claude/commands"; printf 'my own ship notes\n' > "$CH/.claude/commands/ship.md"
+HOME="$CH" bash "$DIR/install-skills.sh" claude >/dev/null 2>&1
+{ [ ! -e "$CH/.claude/commands/ship.md" ] && grep -lq 'my own ship notes' "$CH/.ai/install-state/preserved/"* 2>/dev/null; } \
+  && ok "install-skills: your command file with a skill's name is saved before it's removed" \
+  || bad "install-skills: your command file with a skill's name is saved before it's removed"
+
+# A resolve mode without --resolve is an error, not a silent full install.
+HOME="$LT/flag-home" bash "$DIR/install.sh" --keep > "$LT/flag.out" 2>&1 && fk=0 || fk=1
+{ [ "$fk" = 1 ] && grep -q 'only goes with --resolve' "$LT/flag.out" && [ ! -e "$LT/flag-home/AGENTS.md" ]; } \
+  && ok "install.sh: --keep without --resolve is refused, not ignored" \
+  || bad "install.sh: --keep without --resolve is refused, not ignored"
 rm -rf "$LT"
 
 echo ""

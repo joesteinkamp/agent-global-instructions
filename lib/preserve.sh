@@ -382,8 +382,9 @@ pv_port_blobs() {
 pv_render_blobs() {
   local repo="${PV_REPO:-${DIR:-.}}" layers="${PV_LAYERS_DIR:-${DIR:-.}}" head key cache c d f cd_
   head="$(git -C "$repo" rev-parse --short HEAD 2>/dev/null)" || return 1
-  key="$(cat "$layers"/my-context.env "$layers"/team-context.env "$layers"/extras.local.md "$layers"/mcp-rules.local 2>/dev/null \
-         | git hash-object --stdin | cut -c1-12 || true)"
+  key="$(for f in my-context.env team-context.env extras.local.md mcp-rules.local; do
+           if [ -f "$layers/$f" ]; then cat "$layers/$f"; elif [ -f "${PV_LAYERS_FALLBACK:-}/$f" ]; then cat "$PV_LAYERS_FALLBACK/$f"; fi
+         done | git hash-object --stdin | cut -c1-12 || true)"
   cd_="$(pv_cache_dir)"; cache="$cd_/.shipped-render.$head.$key"
   if [ ! -s "$cache" ]; then
     mkdir -p "$cd_" || return 1
@@ -393,7 +394,8 @@ pv_render_blobs() {
       d="$(mktemp -d "${TMPDIR:-/tmp}/aigi_render.XXXXXX")" || continue
       if git -C "$repo" archive "$c" 2>/dev/null | tar -x -C "$d" 2>/dev/null && [ -x "$d/customize.sh" ]; then
         for f in my-context.env team-context.env extras.local.md mcp-rules.local; do
-          [ -f "$layers/$f" ] && cp "$layers/$f" "$d/$f"
+          if [ -f "$layers/$f" ]; then cp "$layers/$f" "$d/$f"
+          elif [ -f "${PV_LAYERS_FALLBACK:-}/$f" ]; then cp "$PV_LAYERS_FALLBACK/$f" "$d/$f"; fi
         done
         (cd "$d" && env -i HOME="$HOME" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" ./customize.sh --print 2>/dev/null) \
           > "$d/.render" && pv_blob "$d/.render" >> "$cache.tmp.$$"
@@ -668,7 +670,9 @@ pv_do_append() {  # $1 = class  $2 = new content file  $3 = dest  $4 = rel
   if [ -n "$why" ]; then echo "  can't append to $3 ($why) — replacing instead" >&2; pv_do_replace "$@"; return; fi
   base="$(pv_base_for "$3" "$2")"
   added="$(mktemp "$AIGI_RUN_DIR/added.XXXXXX")"; pv_added "$base" "$3" "$1" > "$added"
-  pv_preserve "$3" "replaced by install" "$1" "$2" || { echo "  could not preserve $3 — left unchanged" >&2; return 1; }
+  # Not "replaced by install": your lines are already back, so --resolve has
+  # nothing to re-apply here (and appending them again would double them).
+  pv_preserve "$3" "appended by install" "$1" "$2" || { echo "  could not preserve $3 — left unchanged" >&2; return 1; }
   if [ "$1" = render ]; then
     out="$(pv_route_extras "$added")" || { echo "  $3 left unchanged (yours is saved: $PV_SAVED)" >&2; return 1; }
   else
@@ -968,8 +972,13 @@ pv_resolve_cmd() {  # $1 = mode (replace|append|keep|pin|ask)  $2.. = paths (emp
     [ -n "$class" ] && [ "$class" != - ] || class="$(pv_field "$path" 3)"
     [ "$base" = - ] || [ -z "$base" ] && base="$new"
     [ "$base" = - ] || [ -z "$base" ] && base="$path"
-    cur="$(pv_canon_blob "$path" "$class" 2>/dev/null)"
-    if [ ! -f "$path" ] || { pv_has_row "$path" && [ "$(pv_recorded "$path")" != "$cur" ]; }; then
+    # Changed since the replace? Compare the whole file with what the install
+    # wrote (<saved>.new), not just the canonical part: an edit inside a
+    # preserved or generated block is still yours and must not be overwritten.
+    if [ ! -f "$path" ]; then echo "  $path is gone — nothing to resolve (yours: $saved)" >&2; continue; fi
+    if [ -f "$new" ]; then cur="$(pv_blob "$path")"; [ "$cur" = "$(pv_blob "$new")" ] || cur=changed
+    else cur="$(pv_canon_blob "$path" "$class")"; { pv_has_row "$path" && [ "$(pv_recorded "$path")" != "$cur" ]; } && cur=changed; fi
+    if [ "$cur" = changed ]; then
       echo "  $path changed since it was replaced — resolve it by hand (yours: $saved)" >&2; continue
     fi
     ans="$mode"
@@ -985,6 +994,9 @@ pv_resolve_cmd() {  # $1 = mode (replace|append|keep|pin|ask)  $2.. = paths (emp
       replace) PV_ACTION=resolved-replace;;
       keep|pin)
         cp "$path" "$AIGI_RUN_DIR/cur.$n"
+        # What's there now is saved too, so putting yours back loses nothing.
+        pv_preserve "$path" "before --resolve --$ans" "$class" || return 1
+        PV_SAVED="$saved"
         pv_put "$saved" "$path" || return 1
         if [ "$ans" = pin ]; then pv_do_pin "$path"; PV_ACTION=resolved-pin
         else pv_mark_kept "$path" "$class" "$AIGI_RUN_DIR/cur.$n"; PV_ACTION=resolved-keep; echo "  put your version back at $path" >&2; fi;;
@@ -1001,14 +1013,16 @@ pv_resolve_cmd() {  # $1 = mode (replace|append|keep|pin|ask)  $2.. = paths (emp
         PV_ACTION=resolved-append; echo "  added your lines back to $path" >&2;;
     esac
     pv_log "$path" "$class"
-    awk -F'\t' -v OFS='\t' -v s="$saved" '$3 == s { $10 = "resolved" } { print }' "$PV_STATE/preserved.tsv" > "$PV_STATE/.preserved.tmp" \
+    # Every open entry for the path closes, so an older one can't later put
+    # back an even older version.
+    awk -F'\t' -v OFS='\t' -v p="$path" '$2 == p && $4 == "replaced by install" { $10 = "resolved" } { print }' "$PV_STATE/preserved.tsv" > "$PV_STATE/.preserved.tmp" \
       && mv "$PV_STATE/.preserved.tmp" "$PV_STATE/preserved.tsv"
   done <<EOF
 $rows
 EOF
   [ "$mode" = ask ] && exec 9<&-
   [ "$n" -gt 0 ] || echo "Nothing to resolve for: $*"
-  pv_write_last_run || true
+  # last-run.json stays the install's record; --resolve reports on stdout.
   rm -rf "$AIGI_RUN_DIR"; PV_OWN_RUN=""
   return 0
 }

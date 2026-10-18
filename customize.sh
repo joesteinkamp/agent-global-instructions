@@ -186,34 +186,34 @@ load_env() {
   done < "$file"
 }
 
-# Where the personal layers come from. Normally this checkout. A global render
-# from a checkout that has none of them (a fresh clone, a worktree) would
-# silently drop your name, extras and MCP rules from ~/AGENTS.md, so it uses
-# the copy the last global render saved in install-state/ instead, and says so
-# (PLAN-install-preservation.md R7/A6).
-LAYER_DIR="$DIR"
+# Where the personal layers come from: this checkout, file by file. A global
+# render from a checkout that lacks one (a fresh clone, a worktree, a team
+# fork that only commits team-context.env) would silently drop that layer from
+# ~/AGENTS.md, so for any layer missing here it uses the copy the last global
+# render saved in install-state/layers/, and says so (PLAN R7/A6). To retire a
+# layer for good, empty the file rather than deleting it.
 STATE_DIR="${AIGI_STATE_DIR:-$HOME/.ai/install-state}"
-has_layers() {  # $1 = dir: true when it holds at least one personal layer
-  local f; for f in my-context.env team-context.env extras.local.md mcp-rules.local; do [ -f "$1/$f" ] && return 0; done
-  return 1
+GLOBAL_RENDER=""
+if [ -z "${AIGI_NO_USER_ENV:-}" ] && { [ "${AIGI_GLOBAL_RENDER:-}" = 1 ] || [ "${1:-}" = --global ]; }; then GLOBAL_RENDER=1; fi
+layer_file() {  # $1 = layer name — prints the file to read, or nothing
+  if [ -f "$DIR/$1" ]; then printf '%s\n' "$DIR/$1"
+  elif [ -n "$GLOBAL_RENDER" ] && [ -f "$STATE_DIR/layers/$1" ]; then
+    echo "  note: $DIR has no $1 — using the copy the last install saved ($STATE_DIR/layers/$1)" >&2
+    printf '%s\n' "$STATE_DIR/layers/$1"
+  fi
 }
-if [ -z "${AIGI_NO_USER_ENV:-}" ] && { [ "${AIGI_GLOBAL_RENDER:-}" = 1 ] || [ "${1:-}" = --global ]; } \
-   && ! has_layers "$DIR" && has_layers "$STATE_DIR/layers"; then
-  LAYER_DIR="$STATE_DIR/layers"
-  echo "  note: $DIR has no personal layers — rendering with the ones the last install used ($LAYER_DIR)" >&2
-fi
-export PV_LAYERS_DIR="$LAYER_DIR"
+export PV_LAYERS_DIR="$DIR" PV_LAYERS_FALLBACK="$STATE_DIR/layers"
 
 if [ -z "${AIGI_NO_USER_ENV:-}" ]; then
   # Team baseline first (committed by a team fork), personal answers second —
   # so my-context.env overrides team-context.env key by key.
-  [ -f "$LAYER_DIR/team-context.env" ] && load_env "$LAYER_DIR/team-context.env"
-  [ -f "$LAYER_DIR/my-context.env" ] && load_env "$LAYER_DIR/my-context.env"
-  [ -f "$LAYER_DIR/mcp-rules.local" ] && MCP_RULES="$(cat "$LAYER_DIR/mcp-rules.local")"
+  _lf="$(layer_file team-context.env)"; [ -n "$_lf" ] && load_env "$_lf"
+  _lf="$(layer_file my-context.env)";   [ -n "$_lf" ] && load_env "$_lf"
+  _lf="$(layer_file mcp-rules.local)";  [ -n "$_lf" ] && MCP_RULES="$(cat "$_lf")"
   # Personal sections the shared template can't express (e.g. machine-specific
   # serving notes) — spliced in verbatim at {{EXTRAS}}, so they survive every
   # re-render instead of living as hand-edits in the rendered output.
-  [ -f "$LAYER_DIR/extras.local.md" ] && EXTRAS="$(cat "$LAYER_DIR/extras.local.md")"
+  _lf="$(layer_file extras.local.md)";  [ -n "$_lf" ] && EXTRAS="$(cat "$_lf")"
 fi
 
 # Record whether MEM_BLOCK was supplied verbatim (env or my-context.env) BEFORE
@@ -640,12 +640,14 @@ write_global() {
     *) echo "  wrote ~/AGENTS.md";;
   esac
   # Save the personal layers this render used, so a later render from a
-  # checkout without them still produces your file (see LAYER_DIR above).
-  if [ -z "$planning" ] && [ "$LAYER_DIR" = "$DIR" ] && [ -z "${AIGI_NO_USER_ENV:-}" ]; then
+  # checkout without them still produces your file (see layer_file above).
+  # A layer this checkout lacks keeps its saved copy: deleting it here would
+  # destroy the only surviving copy of your extras.
+  if [ -z "$planning" ] && [ -z "${AIGI_NO_USER_ENV:-}" ]; then
     local lf; mkdir -p "$PV_STATE/layers"
     for lf in my-context.env team-context.env extras.local.md mcp-rules.local; do
-      if [ -f "$DIR/$lf" ]; then cmp -s "$DIR/$lf" "$PV_STATE/layers/$lf" || cp -p "$DIR/$lf" "$PV_STATE/layers/$lf"
-      else rm -f "$PV_STATE/layers/$lf"; fi
+      [ -f "$DIR/$lf" ] || continue
+      cmp -s "$DIR/$lf" "$PV_STATE/layers/$lf" || cp -p "$DIR/$lf" "$PV_STATE/layers/$lf"
     done
   fi
   if [ -z "$planning" ]; then

@@ -64,6 +64,9 @@ for a in "$@"; do
   esac
 done
 [ ${#targets[@]} -eq 0 ] && targets=(claude codex cursor antigravity)
+if [ "$resolve_mode" != ask ] && [ -z "$resolve" ]; then
+  echo "--$resolve_mode only goes with --resolve (e.g. ./install.sh --resolve <path> --$resolve_mode)" >&2; exit 1
+fi
 # --pin doubles as --resolve's "put mine back and pin it" mode.
 if [ -n "$resolve" ] && [ "$pin_op" = pin ]; then
   resolve_mode=pin; [ -n "$pin_path" ] && resolve_paths+=("$pin_path"); pin_op=""

@@ -84,7 +84,9 @@ restore_global_pointer() {  # $1 = pointer path
   if [ -f "$f" ] && [ ! -L "$f" ]; then backup_file "$f"; fi
   rm -f "$f"
   if [ -f "$orig" ]; then
-    cp "$orig" "$f" && echo "  restored $f to the original it had before the first install"
+    # Handed back, so it's consumed: if you change this file and install
+    # again, that version becomes the original the next uninstall restores.
+    cp "$orig" "$f" && echo "  restored $f to the original it had before the install" && rm -f "$orig"
   elif [ -n "$bak" ]; then
     cp "$bak" "$f" && echo "  restored $f from ${bak##*/}"
   else
@@ -223,15 +225,21 @@ remove_commands_dir() {  # $1 = dest dir
   [ -d "$dest" ] || return 0
   for d in "$DIR/skills"/*/ "$DIR/.agents/skills/ux-audit/"; do
     [ -d "$d" ] || continue
+    # Through the ledger: a command file with a skill's name may be your own,
+    # so one we never shipped (and every old .bak.*) is saved before removal.
     for f in "$dest/$(basename "$d").md" "$dest/$(basename "$d").md".bak.*; do
-      [ -f "$f" ] && { rm -f "$f"; n=$((n+1)); }
+      [ -f "$f" ] || continue
+      case "$f" in *.bak.*) pv_delete "$f" "legacy command backup" "" command || continue;;
+        *) pv_delete "$f" "legacy command" "commands/$(basename "$f")" command || continue;; esac
+      [ "$PV_ACTION" = removed ] && n=$((n+1))
     done
   done
   local retired="validate handoff flow tidy critique audit"   # space-separated; keep in sync with install-skills.sh RETIRED
   for old in $retired; do
     # Backed up first: a retired name is generic enough (e.g. "audit") that the
     # file could be the user's own, not our stale install.
-    [ -f "$dest/$old.md" ] && { backup_file "$dest/$old.md"; rm -f "$dest/$old.md"; n=$((n+1)); }
+    if [ -f "$dest/$old.md" ] && pv_delete "$dest/$old.md" "retired command" "commands/$old.md" command \
+       && [ "$PV_ACTION" = removed ]; then n=$((n+1)); fi
   done
   [ "$n" -gt 0 ] && echo "  removed $n command file(s) from $dest"
   return 0

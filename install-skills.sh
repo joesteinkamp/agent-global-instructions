@@ -137,9 +137,14 @@ remove_legacy_commands() {  # $1 = commands dir
     if [ "$want_design" = keep ]; then
       case " $DESIGN_SKILLS " in *" $name "*) continue;; esac
     fi
+    # Through the ledger: a file named like a skill (ship.md, critique.md) may
+    # be your own command, so one we never shipped — and every old .bak.*,
+    # which held a version you'd edited — is saved before it's removed.
     for f in "$dir/$name.md" "$dir/$name.md".bak.*; do
       [ -f "$f" ] || continue
-      rm -f "$f"; n=$((n+1))
+      case "$f" in *.bak.*) pv_delete "$f" "legacy command backup" "" command || continue;;
+        *) pv_delete "$f" "legacy command" "commands/$name.md" command || continue;; esac
+      [ "$PV_ACTION" = removed ] && n=$((n+1))
     done
   done
   for name in $RETIRED; do

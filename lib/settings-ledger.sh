@@ -44,12 +44,15 @@ SL_JQ_DEFS='
 '
 
 # The ledger rows for one settings file, as a compact JSON array of
-# {key, value, status, date}. Malformed lines are skipped.
+# {key, value, status, date}. Malformed lines are skipped. A "known" row
+# (key and value "-") marks a file the ledger has seen even when it holds no
+# rule rows, e.g. after an uninstall, so a reinstall never treats it as
+# pre-ledger and adopts your own rules as ours.
 sl_rows() {  # $1 = settings file
   [ -f "$SL_LEDGER" ] || { echo '[]'; return 0; }
   jq -R -s -c --arg f "$1" '
     split("\n") | map(split("\t") | select(length >= 5 and .[0] == $f
-      and (.[3] == "added" or .[3] == "declined"))
+      and (.[3] == "added" or .[3] == "declined" or .[3] == "known"))
       | {key: .[1], value: .[2], status: .[3], date: .[4]})
   ' "$SL_LEDGER"
 }
@@ -100,8 +103,9 @@ SL_MERGE_JQ="$SL_JQ_DEFS"'
           $r + {status: "declined", date: $now, declined_now: true}
         else $r end ] as $snip
   | [ $rows[] | . as $r
-      | select((shipped($r.key; $r.value) or any(pairs($gone); .k == $r.key and .v == $r.value)) | not)
-      | select(has_rule($after.permissions // {}; $r.key; $r.value)) ] as $kept
+      | select($r.status == "known"
+          or (((shipped($r.key; $r.value) or any(pairs($gone); .k == $r.key and .v == $r.value)) | not)
+              and has_rule($after.permissions // {}; $r.key; $r.value))) ] as $kept
   | { settings: $after,
       declined: ([$snip[] | select(.declined_now)] | length),
       rows: ($snip + $kept | unique_by([.key, .value])
@@ -139,7 +143,9 @@ SL_STRIP_JQ="$SL_JQ_DEFS"'
         | .permissions |= with_entries(select((.value | length) > 0))
         | if (.permissions == {}) then del(.permissions) else . end
       else . end),
-      rows: [ $rows[] | . as $r | select(any($gone[]; .k == $r.key and .v == $r.value) | not) ] }
+      rows: ([ $rows[] | . as $r | select(any($gone[]; .k == $r.key and .v == $r.value) | not) ]
+             + (if $legacy then [] else [{key: "-", value: "-", status: "known", date: $now}] end)
+             | unique_by([.key, .value])) }
 '
 
 sl_strip_perms() {  # $1 = settings file  $2 = snippet file
@@ -148,7 +154,7 @@ sl_strip_perms() {  # $1 = settings file  $2 = snippet file
   [ -f "$2" ] || return 0
   pv_lock || return 1
   rows="$(sl_rows "$sf")" || return 1
-  res="$(jq -c --argjson add "$(jq '.permissions' "$2")" --argjson rows "$rows" "$SL_STRIP_JQ" "$sf")" \
+  res="$(jq -c --argjson add "$(jq '.permissions' "$2")" --argjson rows "$rows" --arg now "$(pv_now)" "$SL_STRIP_JQ" "$sf")" \
     || { echo "  edit failed for $sf (left unchanged)" >&2; return 0; }
   tmp="$(mktemp "$(dirname "$sf")/.aigi.XXXXXX")" || return 1
   TMPFILES+=("$tmp")
