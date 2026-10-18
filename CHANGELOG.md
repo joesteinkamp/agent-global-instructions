@@ -45,6 +45,25 @@ so the log reads as the project's decision history, not just a list of diffs.
   judging tier by running effort (Sonnet pinned to T2 instead); always
   shelling out for non-default models in Cursor (try the native model
   parameter first).
+- **Install ledger, phases 2–3: decide about an edit, don't only save it
+  (2026-10-18, Claude, #75).** The ask was to finish the plan so it works
+  properly. What changed: every installed file now goes through the ledger
+  (`~/AGENTS.md`, the pointer files, hook scripts, model-routing outside its
+  generated block, and old commands). When you run the installer yourself, it
+  asks about every edited file once, at the end (replace / append / keep /
+  pin), and Enter means replace. Unattended, it saves your version and then
+  replaces it, unless `--on-conflict` says otherwise. Added `--plan`,
+  `--resolve`, `--pin` and `last-run.json`, which records the recovery command
+  for each file. Appended lines to `~/AGENTS.md` move into `extras.local.md`.
+  A global render uses the saved layers when the checkout lacks one. Uninstall
+  reads the ledger, and settings track which rules the installer added. Why
+  this approach: a question in the middle of the run blocks unattended runs,
+  so the questions come in one pass at the end, and that pass gives the same
+  result as an unattended run. Considered and rejected: editing appended lines
+  into `~/AGENTS.md` (the next render would erase them); appending to roles and
+  scripts (they have no safe merge point); and putting the JSON/TOML merges in
+  `--plan` (out of scope, E3). Review: the same-model refuter's six bugs were
+  fixed, and 3 of Antigravity's 8 findings were fixed. Codex was out of quota.
 - **Install ledger, phase 1: stop silently overwriting edited files
   (2026-10-16, Claude, #75).** The ask: keep people's customizations in the
   files `install.sh` writes, and tell which existing files are safe to replace
