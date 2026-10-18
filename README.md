@@ -1,11 +1,37 @@
-# Portable AI harness
+# The AI harness for design teams
 
-**Write your AI-assistant preferences once; use them in every tool.** Claude
-Code, Codex, Antigravity, and Cursor each read their own `CLAUDE.md` /
-`AGENTS.md` instruction file — maintain them by hand and you re-teach every
-tool your name, your environment, and how you like to work, and the files
-drift out of sync. Here you edit one template, run one command, and every
-tool is regenerated in sync.
+**For designers, design engineers, and design managers.** One install gives
+every AI coding tool you use — Claude Code, Codex, Antigravity, and Cursor —
+the same instructions, the same agent roles, and the same skills, rendered from
+one template. You edit one file, run one command, and every tool is
+regenerated in sync.
+
+It is one harness for everyone on the team, engineering tooling included:
+worktrees, `/ship`, cross-vendor review and model routing come with it for a
+designer as much as for an engineer. The one thing your role changes is the
+agent team you start from — set `PERSONA` to `designer`, `design-engineer`, or
+`design-manager` and the instructions open each team with that role's lenses.
+Everything else renders the same.
+
+## Design-team skills
+
+Six skills built for design work, in Claude Code, Codex (`$<name>`), and
+Cursor. Each says which inputs and sources it found and which it didn't, and
+its main output is an HTML report:
+
+- **`/critique`** — open feedback on work in progress: what's working, what to
+  explore. `/critique --gate` reviews it against whichever briefs and
+  `guardrails/` the project has.
+- **`/figma-parity`** — a built screen against its Figma node and the tokens →
+  a drift report.
+- **`/handoff`** — a prototype → a spec engineers can build from: states,
+  tokens, edge cases, a11y.
+- **`/research-synthesis`** — notes and transcripts → themes, each backed by
+  evidence.
+- **`/one-on-one`** — 1:1 and feedback prep from your connected sources. Read
+  only.
+- **`/team-digest`** — what shipped, what's blocked, and what's next, from your
+  connected sources. Read only.
 
 ## Quick start
 
@@ -16,7 +42,7 @@ hook and settings installers).
 git clone <this repo> && cd agent-global-instructions
 cp my-context.env.example my-context.env && $EDITOR my-context.env
                                # your answers — every render and re-run reads them
-./install.sh                   # instructions + commands + hooks + settings,
+./install.sh                   # instructions + skills + roles + hooks + settings,
                                #   for all four tools: Claude, Codex, Cursor,
                                #   Antigravity (asks once; --yes skips)
 ```
@@ -33,12 +59,16 @@ left in place).
 - **Instructions** — one `template.md` rendered into every tool's instruction
   file: who you are, how you like to work, design standards (on for everyone),
   memory, artifacts.
-- **Commands** — the same slash commands in all four tools: `/ship`, `/sync`,
-  `/worktrees`, `/grill-me`, `/improve`, `/verify`, `/update-model-routing`,
-  `/ux-audit`.
+- **Skills** — the same workflow skills in Claude Code, Codex, and Cursor:
+  the six design-team skills above, plus `/ship`, `/sync`, `/worktrees`,
+  `/grill-me`, `/improve`, `/verify`, `/update-model-routing`, and `/ux-audit`.
+  The full list is in [`skills/README.md`](skills/README.md).
 - **Agent teams** — the instructions make a **team of specialized agents the
   default** for anything with more than one dimension, with the roster derived
-  from the task and a `refuter` lens on every conclusion. The roles ship as real
+  from the task, a starting set of lenses picked by your `PERSONA`, and a
+  `refuter` lens on every conclusion. A `design-manager` role (feedback
+  quality, review rigor, staffing) ships alongside the design and engineering
+  roles. The roles ship as real
   definitions in each tool's own format (`~/.claude/agents`, `~/.codex/agents`,
   `~/.cursor/agents`, `~/.gemini/config/agents`) from one canonical source, so a role behaves the same in every tool — and the
   install turns Claude Code's team construct on, since it's off by default.
@@ -77,7 +107,7 @@ All gitignored; all survive every re-render and `git pull`:
 
 | File | Holds |
 |------|-------|
-| `my-context.env` | Your answers (name, role, preview method, section toggles). Copy from `my-context.env.example`. |
+| `my-context.env` | Your answers (name, role, `PERSONA`, preview method, section toggles). Copy from `my-context.env.example`. |
 | `extras.local.md` | Personal Markdown sections the shared template can't express (e.g. machine-specific serving notes) — spliced into every render. |
 | `mcp-rules.local` | Per-MCP-server "when to use" rules; generate with `./customize.sh --scan-mcp`. |
 
@@ -97,8 +127,8 @@ This is how you bake the harness into everyone's process:
    (`./customize.sh`), and runs `./install.sh`. Personal `my-context.env`
    values override the team baseline key by key.
 
-Onboarding a new designer or knowledge worker is: clone, answer a handful of
-questions, done.
+Onboarding a new designer, design engineer, or design manager is: clone, set
+`PERSONA`, answer a handful of questions, done.
 
 ## Updating over time
 
