@@ -232,7 +232,9 @@ file.
 - **Give every agent a disjoint scope and full context.** Name the files or area
   each one owns — two agents editing one file lose work — and put everything they
   need in the spawn prompt: they inherit the project instructions, not this
-  conversation.
+  conversation. Disjoint scope includes outputs: each agent writes its scratch
+  files, builds and screenshots under its own name, and only the lead writes the
+  deliverable.
 - **The roles are real files, shared by every tool.** `~/.claude/agents/<role>.md`,
   `~/.codex/agents/<role>.toml`, `~/.cursor/agents/` and
   `~/.gemini/config/agents/` hold the same definitions, rendered and installed by

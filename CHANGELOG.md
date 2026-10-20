@@ -12,6 +12,14 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Disjoint scope covers outputs, not just inputs (2026-10-20, Claude).** The
+  ask: user requested the addition. What changed: the "Give every agent a
+  disjoint scope" rule now says each agent writes its scratch files, builds and
+  screenshots under its own name, and only the lead writes the deliverable.
+  Why: splitting up the input files alone still lets parallel agents overwrite
+  each other's outputs. Added to the existing bullet rather than a new headline,
+  so no pinned test strings changed. Rejected: a separate bullet with its own
+  headline, which would have meant a new pinned string for little gain.
 - **One review round, then check in (2026-10-19, Claude, #79).** The ask: a
   joe-bot build ran three refuter rounds unasked. What changed: a rule to stop
   after the first round and report what's left and what another round would
