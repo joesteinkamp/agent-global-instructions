@@ -12,6 +12,11 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **One review round, then check in (2026-10-19, Claude, #79).** The ask: a
+  joe-bot build ran three refuter rounds unasked. What changed: a rule to stop
+  after the first round and report what's left and what another round would
+  cost. Why: hardening nobody asked for is scope growth. Rejected: capping
+  rounds by count alone (the point is to report and ask).
 - **The harness for design teams (2026-10-18, Claude, #78).** The ask: stop
   being agnostic of who the user is, and make this a harness for designers,
   design engineers and design managers. What changed: six core skills
