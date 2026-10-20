@@ -224,6 +224,11 @@ file.
   finding, plan, or claim that matters, and tell it to break the conclusion, not
   confirm it — **an agent must never be the sole checker of its own work.**
   Surface disagreements to me; don't silently pick a winner.
+- **One review round, then check in.** On a multi-phase build, fix what the
+  first refuter round finds, then stop and tell me what's left and what another
+  round would cost in time before starting one. Don't start a second round
+  without my go-ahead. Hardening I never asked for is scope growth, and "finish
+  the whole task" doesn't cover it.
 - **Give every agent a disjoint scope and full context.** Name the files or area
   each one owns — two agents editing one file lose work — and put everything they
   need in the spawn prompt: they inherit the project instructions, not this
