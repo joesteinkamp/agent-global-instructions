@@ -108,27 +108,27 @@ note_conflict() {  # $1 = path  $2 = what it is
   pv_log "$1" skill
 }
 
-link_skill() {  # $1 = source dir  $2 = destination skills dir
+link_skill() {  # $1 = source dir  $2 = destination skills dir; returns 1 on a conflict
   local src="${1%/}" dest="$2" name; name="$(basename "$src")"
   valid_name "$name" || return 0
   mkdir -p "$dest"
   if is_legacy_port "$dest/$name"; then
     rm -rf "${dest:?}/$name"; echo "  replaced copied $name skill with a link"
   elif [ -L "$dest/$name" ] && ! is_our_skill_link "$dest/$name"; then
-    note_conflict "$dest/$name" "is a symlink this repo did not create"; return 0
+    note_conflict "$dest/$name" "is a symlink this repo did not create"; return 1
   elif [ -e "$dest/$name" ] && [ ! -L "$dest/$name" ]; then
-    note_conflict "$dest/$name" "is a real file or directory, not a link"; return 0
+    note_conflict "$dest/$name" "is a real file or directory, not a link"; return 1
   fi
   ln -sfn "$src" "$dest/$name"
 }
 
 install_skills() {  # $1 = destination skills dir
   local dest="$1" name n=0 link
-  for name in $(core_names); do link_skill "$SRC/$name" "$dest"; n=$((n+1)); done
+  for name in $(core_names); do link_skill "$SRC/$name" "$dest" && n=$((n+1)); done
   for name in $DESIGN_SKILLS; do
     [ -d "$VENDORED/$name" ] || continue
     case "$want_design" in
-      1) link_skill "$VENDORED/$name" "$dest"; n=$((n+1));;
+      1) link_skill "$VENDORED/$name" "$dest" && n=$((n+1));;
       0) if is_our_skill_link "$dest/$name"; then rm -f "$dest/$name"; echo "  removed $name (design group off)"; fi;;
     esac
   done
