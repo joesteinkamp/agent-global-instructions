@@ -3375,7 +3375,7 @@ for ct_pair in '.|.' 'account|.accounts[0]' 'model|.models[0]' 'reach|.models[0]
   else ct_req="$(jq -r --arg d "$ct_def" '."$defs"[$d].required[]' "$ct_sch")"; fi
   [ -n "$ct_req" ] || ct_drift="$ct_drift no-required-list:$ct_def"
   for ct_key in $ct_req; do
-    jq --arg k "$ct_key" "del($ct_path[\$k])" "$CF/valid.json" > "$LT/ct-drift.json"
+    jq --arg k "$ct_key" "del(${ct_path}[\$k])" "$CF/valid.json" > "$LT/ct-drift.json"
     "$CK" "$LT/ct-drift.json" >/dev/null 2>&1 && ct_drift="$ct_drift $ct_def.$ct_key"
   done
 done
