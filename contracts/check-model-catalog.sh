@@ -17,11 +17,14 @@
 #
 # With a routing markdown file, the "## Model tiers" table and the catalog must
 # describe the same models: every table row is in the catalog and every catalog
-# model is in the table, in the same order, with the same tier, family and
-# routable/pinned flags, and each structured reach equals what the row's
-# "Reachable via" commands encode. The table's tier cell may carry a note
+# model is in the table, in the same order, with the same tier, family,
+# routable/pinned flags and prices, and each structured reach equals what the
+# row's "Reachable via" commands encode. The table's tier cell may carry a note
 # ("T2 (pinned by user)", "T3 at most"); its first word is the tier. The rules
-# for reading a command prefix (never executed, only read):
+# for reading a row (commands are never executed, only read):
+#   price    a "$/Mtok in/out" cell starting "<in> / <out>" (numbers, an
+#            optional $, anything after them ignored, such as a billing pool)
+#            -> priceIn, priceOut. Any other cell ("—", a pool name) -> null, null.
 #   cli      the first word.
 #   model    the word after --model or -m, quotes stripped; when it ends in a
 #            -<a|b|c> or -<lvl> placeholder, the slug without that ending.
@@ -33,7 +36,13 @@
 #   pinned   true when the tier cell says "pinned".
 # A command with no --model or -m cannot be checked and is an error.
 #
-# Exit: 0 valid, 1 invalid (every problem is printed to stderr), 2 bad usage.
+# Efforts the row leaves to a placeholder (codex-config, a -<lvl> suffix) can't
+# be compared. They are not claimed as matching: each is printed on an
+# "unchecked:" line after the ok line, with the variants it would launch, for a
+# person to review in the catalog.
+#
+# Exit: 0 valid (stdout: the ok line, then any unchecked: lines), 1 invalid
+# (every problem is printed to stderr), 2 bad usage.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -175,28 +184,34 @@ if [ -n "$errors" ]; then
 fi
 
 # The markdown table, when given: the same models, in the same order, with the
-# same routing-significant fields.
+# same fields wherever the table spells them out; the rest are listed as unchecked.
 if [ -n "$ROUTING" ]; then
   # Rows of the "## Model tiers" table as name<TAB>family<TAB>tier cell<TAB>
-  # reachable-via cell. An escaped pipe (\|) inside a cell is text, not a column
+  # price cell<TAB>reachable-via cell. An escaped pipe (\|) inside a cell is text, not a column
   # break, so it is protected while the row is split and restored after.
   table="$(awk '
     /^## /          { in_tiers = ($0 ~ /^## Model tiers[[:space:]]*$/); next }
     in_tiers && /^\|/ {
       line = $0; gsub(/\\\|/, "\001", line)
       n = split(line, f, "|")
-      name = f[2]; fam = f[3]; tier = f[4]; reach = f[6]
+      name = f[2]; fam = f[3]; tier = f[4]; price = f[5]; reach = f[6]
       gsub(/`/, "", name)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", name); gsub(/^[[:space:]]+|[[:space:]]+$/, "", fam)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", tier); gsub(/\001/, "|", reach)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", tier); gsub(/^[[:space:]]+|[[:space:]]+$/, "", price)
+      gsub(/\001/, "|", price); gsub(/\001/, "|", reach)
       if (name == "Model" || name ~ /^-+$/ || name == "") next
-      printf "%s\t%s\t%s\t%s\n", name, fam, tier, reach
+      printf "%s\t%s\t%s\t%s\t%s\n", name, fam, tier, price, reach
     }' "$ROUTING")"
   if [ -z "$table" ]; then
     printf 'error: %s has no rows under "## Model tiers"\n' "$ROUTING" >&2; exit 1
   fi
-  merrors="$(printf '%s\n' "$table" | jq -R -s -r --slurpfile cat "$CATALOG" '
+  # Each finding is one line: "E:" an error, "U:" a field the table cannot check.
+  mout="$(printf '%s\n' "$table" | jq -R -s -r --slurpfile cat "$CATALOG" '
     def trim: sub("^\\s+"; "") | sub("\\s+$"; "");
+    # A "$/Mtok in/out" cell -> [in, out]: numbers when it starts "<in> / <out>", else nulls.
+    def prices:
+      (trim | capture("^\\$?(?<i>[0-9]+(\\.[0-9]+)?)\\s*/\\s*\\$?(?<o>[0-9]+(\\.[0-9]+)?)") // null) as $p
+      | if $p == null then [null, null] else [($p.i | tonumber), ($p.o | tonumber)] end;
     # One backticked command prefix -> what it encodes. Read, never run.
     def parse:
       (gsub("\\s+"; " ") | split(" ") | map(select(length > 0))) as $t
@@ -214,24 +229,28 @@ if [ -n "$ROUTING" ]; then
     ($cat[0].models) as $models
     | [split("\n")[] | select(length > 0) | split("\t")
        | {name: .[0], family: .[1], tier: ((.[2] // "") | split(" ")[0]), tiercell: (.[2] // ""),
-          cmds: [(.[3] // "") | match("`([^`]*)`"; "g") | .captures[0].string]}] as $rows
+          price: (.[3] // ""), prices: ((.[3] // "") | prices),
+          cmds: [(.[4] // "") | match("`([^`]*)`"; "g") | .captures[0].string]}] as $rows
     | ($models | map(.name | gsub("`"; ""))) as $cn
     | ($rows | map(.name)) as $rn
-    | ($cn | map(select(. as $n | $rn | index($n) | not))
+    | (($cn | map(select(. as $n | $rn | index($n) | not))
        | map("\(.): in the catalog but not in the \"## Model tiers\" table") | .[]),
       ($rn | map(select(. as $n | $cn | index($n) | not))
        | map("\(.): in the \"## Model tiers\" table but not in the catalog") | .[]),
       (($cn | map(select(. as $n | $rn | index($n)))) as $ca | ($rn | map(select(. as $n | $cn | index($n)))) as $ra
-       | if $ca != $ra then "order differs: the catalog lists \($ca | join(", ")) but the table lists \($ra | join(", "))" else empty end),
+       | if $ca != $ra then "order differs: the catalog lists \($ca | join(", ")) but the table lists \($ra | join(", "))" else empty end)
+      | "E:" + .),
       ($models[] | . as $m | ($m.name | gsub("`"; "")) as $n
        | ($rows | map(select(.name == $n)) | .[0]) as $r
        | if $r == null then empty else
-           (if $m.tier != $r.tier then "\($n): catalog says \($m.tier), the table says \($r.tier)" else empty end),
+           ((if $m.tier != $r.tier then "\($n): catalog says \($m.tier), the table says \($r.tier)" else empty end),
            (if $m.family != $r.family then "\($n): catalog says family \($m.family | tojson), the table says \($r.family | tojson)" else empty end),
-           (($r.tiercell | test("at most")) or $r.family == "varies") as $nr
-           | (if $m.routable != ($nr | not) then "\($n): catalog says routable \($m.routable), the table implies \($nr | not)" else empty end),
+           ((($r.tiercell | test("at most")) or $r.family == "varies") as $nr
+            | if $m.routable != ($nr | not) then "\($n): catalog says routable \($m.routable), the table implies \($nr | not)" else empty end),
            (($r.tiercell | test("pinned")) as $pn
             | if $m.pinned != $pn then "\($n): catalog says pinned \($m.pinned), the table says \($pn)" else empty end),
+           (if [$m.priceIn, $m.priceOut] != $r.prices
+            then "\($n): catalog says price in/out \([$m.priceIn, $m.priceOut] | tojson), the table says \($r.price | tojson) (read as \($r.prices | tojson))" else empty end),
            (($r.cmds | map(parse)) as $want
             | if ($r.cmds | length) == 0 then "\($n): the table row has no backticked command"
               elif ($m.reach | length) != ($want | length)
@@ -245,9 +264,22 @@ if [ -n "$ROUTING" ]; then
                    (if $w.model != null and $g.model != $w.model then "\($rp).model: catalog says \($g.model | tojson), the table command says \($w.model | tojson)" else empty end),
                    (if $w.style != null and $g.effortStyle != $w.style then "\($rp).effortStyle: catalog says \($g.effortStyle | tojson), the table command says \($w.style | tojson)" else empty end),
                    (if $w.efforts != null and $g.efforts != $w.efforts then "\($rp).efforts: catalog says \($g.efforts | tojson), the table command says \($w.efforts | tojson)" else empty end))
+              end) | "E:" + .),
+           # Efforts the row leaves to a placeholder: listed, never claimed as matching.
+           (($r.cmds | map(parse)) as $want
+            | if ($m.reach | length) != ($want | length) then empty else
+                ([range(0; $want | length)][] | . as $i | $want[$i] as $w | $m.reach[$i] as $g
+                 | select($w.model != null and $w.efforts == null)
+                 | (if $w.style == "codex-config" then "model_reasoning_effort=<lvl>" else "-<lvl>" end) as $ph
+                 | (if ($g.efforts | length) == 0 then "no listed effort"
+                    elif $g.effortStyle == "suffix" then ($g.efforts | map($g.model + "-" + .) | join(", "))
+                    else $g.model + " at " + ($g.efforts | join(", ")) end) as $launch
+                 | "U:\($n) reach[\($i)] (\($g.cli), \($ph) in the table): efforts \($g.efforts | tojson), launches \($launch)")
               end)
          end)
   ')"
+  merrors="$(printf '%s\n' "$mout" | sed -n 's/^E://p')"
+  unchecked="$(printf '%s\n' "$mout" | sed -n 's/^U:/unchecked: /p')"
   if [ -n "$merrors" ]; then
     printf 'error: %s disagrees with %s\n' "$CATALOG" "$ROUTING" >&2
     printf '%s\n' "$merrors" | sed 's/^/  /' >&2
@@ -255,4 +287,15 @@ if [ -n "$ROUTING" ]; then
   fi
 fi
 
-echo "ok: $CATALOG ($(jq '.models | length' "$CATALOG") models)$([ -n "$ROUTING" ] && echo ", matches $ROUTING")"
+summary="ok: $CATALOG ($(jq '.models | length' "$CATALOG") models)"
+if [ -n "$ROUTING" ]; then
+  summary="$summary, matches $ROUTING"
+  n="$(printf '%s' "$unchecked" | grep -c '^unchecked: ' || true)"
+  if [ "$n" = 1 ]; then
+    summary="$summary, except 1 effort list the table leaves to a placeholder (the unchecked: line below; review it in the catalog)"
+  elif [ "$n" -gt 1 ]; then
+    summary="$summary, except $n effort lists the table leaves to a placeholder (the unchecked: lines below; review them in the catalog)"
+  fi
+fi
+echo "$summary"
+[ -z "${unchecked:-}" ] || printf '%s\n' "$unchecked"

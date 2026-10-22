@@ -24,12 +24,20 @@ and the catalog to describe the same models: every row in the catalog and every
 catalog model in the table, in the same order, with the same tier, family and
 `routable`/`pinned` flags (`routable` is false when the tier cell says "at most"
 or the family is "varies"; `pinned` is true when the tier cell says "pinned"),
-and each `reach` entry equal to what the row's backticked commands encode: `cli`
-is the first word, `model` the word after `--model` or `-m` (without a trailing
-`-<low|medium|high>` placeholder), and `effortStyle`/`efforts` come from
-`--effort` (flag), `-c model_reasoning_effort=` (codex-config), a `-<…>` slug
-ending (suffix, with those levels), or nothing (none). The commands are read,
-never run.
+the same `priceIn`/`priceOut` (a price cell starting `<in> / <out>` gives those
+numbers; any other cell, such as `—` or a billing pool, means `null`), and each
+`reach` entry equal to what the row's backticked commands encode: `cli` is the
+first word, `model` the word after `--model` or `-m` (without a trailing
+`-<low|medium|high>` or `-<lvl>` placeholder), and `effortStyle`/`efforts` come
+from `--effort` (flag), `-c model_reasoning_effort=` (codex-config), a `-<…>`
+slug ending (suffix, with those levels), or nothing (none). The commands are
+read, never run.
+
+Some efforts can't be checked against the table: the levels behind
+`model_reasoning_effort=<lvl>` and a `-<lvl>` suffix aren't written in the row.
+The validator doesn't claim those match. After its `ok:` line it prints each
+one on an `unchecked:` line with the variants it would launch, so a person
+reviews them in the catalog.
 
 Rules for a reader of the catalog:
 

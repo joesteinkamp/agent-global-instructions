@@ -111,7 +111,9 @@ account only.
      plus a `pinReason` string, otherwise `pinned: false, pinReason: null`.
      `routable` is `false` when the tier cell says "at most" or the family is
      `varies` (auto-style rows), `true` otherwise. `priceIn`/`priceOut` are
-     $/Mtok numbers, `null` where the row has `—` or only a billing pool.
+     $/Mtok numbers, `null` where the row has `—` or only a billing pool. The
+     validator compares them with the row, so write a known price cell as
+     `<in> / <out>` first (a billing pool note may follow it).
      `reach` has one entry per backticked command prefix in the row's
      "Reachable via" cell, same order, read with these rules (the validator
      applies the same ones, so write the commands to fit them): `cli` is the
@@ -120,7 +122,10 @@ account only.
      must carry one; `effortStyle`/`efforts` are `flag`/`[]` for `--effort`,
      `codex-config` for `-c model_reasoning_effort=<lvl>` (list the levels that
      apply), `suffix` for a slug ending `-<a|b|c>` (efforts `[a,b,c]`; for
-     `-<lvl>` list the levels that apply), and `none`/`[]` otherwise. `command`
+     `-<lvl>` list the levels that apply), and `none`/`[]` otherwise. The
+     table can't carry the levels behind `model_reasoning_effort=<lvl>` or a
+     `-<lvl>` suffix, so the validator can't check them: it prints each one on
+     an `unchecked:` line, and they reach approval only through step 10. `command`
      is the row's prefix text, for people: nothing may run it. `evidence` is the
      row's evidence cell. Stay within the schema's size limits (name and slug
      200 characters, family 80, 50 reach entries, 20 efforts, 500 models).
@@ -146,9 +151,13 @@ account only.
 10. **Show the diff and ask.** `diff -u ~/.ai/model-routing.prev.md
    ~/.ai/model-routing.md`, plus one line per section on what moved and why, and
    every model whose reachability changed. For the catalog, show the validator's
-   `ok:` line and, if `~/.ai/model-catalog.json` exists,
+   whole output, its `ok:` line and every `unchecked:` line, and, if
+   `~/.ai/model-catalog.json` exists,
    `diff -u ~/.ai/model-catalog.json ~/.ai/model-catalog.next.json` (otherwise
-   say it is new and show the model count). On approval, delete the `.prev`
+   say it is new and show the model count). Every time, including on first
+   publication, also show each effort list behind a suffix or `codex-config`
+   reach, since those pick the exact variant that launches:
+   `jq -r '.models[] | .name as $n | .reach[] | select(.effortStyle == "suffix" or .effortStyle == "codex-config") | "\($n): \(.cli) \(.model) \(.effortStyle) \(.efforts)"' ~/.ai/model-catalog.next.json`. On approval, delete the `.prev`
    snapshot and `mv ~/.ai/model-catalog.next.json ~/.ai/model-catalog.json`. On
    rejection, `mv ~/.ai/model-routing.prev.md ~/.ai/model-routing.md`, delete
    `~/.ai/model-catalog.next.json` (the published catalog is untouched), and
