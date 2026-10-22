@@ -3467,7 +3467,9 @@ ct_mut "a duplicate model name is rejected" '.models[1].name = .models[0].name' 
 ct_mut "a pinned model without a reason is rejected" '.models[0].pinned = true' 'a pinned model needs a reason string'
 ct_mut "a routable model with no reach is rejected" '.models[0].reach = []' 'a routable model needs at least one way to reach it'
 ct_mut "a negative price is rejected" '.models[0].priceIn = -1' 'priceIn: must not be negative'
-# Markdown parity covers every field that drives routing, in both directions.
+# Markdown parity covers every field the table spells out, in both directions:
+# tier, family, routable/pinned, prices, and each reach. Efforts left to a
+# placeholder are reported as unchecked (below), never claimed as matching.
 ct_md() {  # <desc> <jq program on the catalog, or - for none> <sed/awk-free md edit: shell snippet or -> <expected fragment>
   local cat="$CF/valid.json" md="$CF/valid.routing.md" out rc
   if [ "$2" != - ]; then jq "$2" "$CF/valid.json" > "$LT/ct-md.json"; cat="$LT/ct-md.json"; fi
@@ -3490,6 +3492,35 @@ ct_md "a catalog model missing from the table" - 'grep -v "^| Sample Open 3 "' '
 ct_md "reordered catalog models" '.models |= ([.[1], .[0]] + .[2:])' - 'order differs'
 ct_md "reordered table rows" - 'awk '"'"'/^\| Example Large 1 /{a=$0;next} /^\| Sample Reasoner 2 /{print;print a;next} {print}'"'"'' 'order differs'
 ct_md "a table command with no --model" - 'sed "s/ --model example-local-7b//"' 'the table command has no --model or -m'
+# Prices drive cost-ordered routing, so the "$/Mtok in/out" cell and priceIn/priceOut
+# must agree in both directions; a change to prices alone must fail.
+ct_md "a changed priceOut alone (the cost ordering swap)" '.models[0].priceOut = 999999 | .models[1].priceOut = 0' - 'Example Large 1: catalog says price in/out [4,999999], the table says "4 / 20"'
+ct_md "a changed priceIn alone" '.models[1].priceIn = 11' - 'Sample Reasoner 2: catalog says price in/out [11,50], the table says "10 / 50"'
+ct_md "a known price turned unknown" '.models[0].priceIn = null' - 'Example Large 1: catalog says price in/out [null,20]'
+ct_md "an unknown price turned known" '.models[3].priceIn = 1 | .models[3].priceOut = 2' - 'Sample Open 3: catalog says price in/out [1,2], the table says "—"'
+ct_md "a free row turned unknown" '.models[4].priceIn = null | .models[4].priceOut = null' - 'Example Local 7B: catalog says price in/out [null,null], the table says "0 / 0"'
+ct_md "a table price edited, catalog unchanged" - 'sed "s#| 4 / 20 |#| 5 / 20 |#"' 'Example Large 1: catalog says price in/out [4,20], the table says "5 / 20"'
+ct_md "a table price dropped, catalog unchanged" - 'sed "s#| 10 / 50 |#| — |#"' 'Sample Reasoner 2: catalog says price in/out [10,50], the table says "—"'
+# Success-path parity: exit 0, the fragment present and, when given, another absent.
+ct_mdok() {  # <desc> <jq program or -> <md edit or -> <present fragment> [absent fragment]
+  local cat="$CF/valid.json" md="$CF/valid.routing.md" out rc
+  if [ "$2" != - ]; then jq "$2" "$CF/valid.json" > "$LT/ct-md.json"; cat="$LT/ct-md.json"; fi
+  if [ "$3" != - ]; then eval "$3" < "$CF/valid.routing.md" > "$LT/ct-md.md"; md="$LT/ct-md.md"; fi
+  out="$("$CK" "$cat" "$md" 2>&1)"; rc=$?
+  { [ "$rc" = 0 ] && printf '%s\n' "$out" | grep -qF -- "$4" \
+      && { [ -z "${5:-}" ] || ! printf '%s\n' "$out" | grep -qF -- "$5"; }; } \
+    && ok "check-model-catalog markdown parity: $1" || bad "check-model-catalog markdown parity: $1 (rc=$rc: $out)"
+}
+ct_mdok "a price cell with \$, decimals and a billing pool note is read" '.models[0].priceIn = 0.25 | .models[0].priceOut = 1.5' 'sed "s#| 4 / 20 |#| \$0.25 / \$1.50 (ExamplePool) |#"' 'matches '
+# Efforts the table leaves to a placeholder (codex -c model_reasoning_effort=<lvl>,
+# a -<lvl> slug suffix) cannot be compared; the validator lists them instead of
+# claiming the whole catalog matches.
+ct_mdok "a codex effort list the table cannot spell out is reported unchecked" - - \
+  'unchecked: Sample Reasoner 2 reach[0] (codex, model_reasoning_effort=<lvl> in the table): efforts ["low","medium","high","xhigh"]'
+ct_mdok "the ok line counts the unchecked effort lists" - - 'except 1 effort list the table leaves to a placeholder'
+ct_mdok "a -<lvl> suffix row reports the variants it would launch" '.models[0].reach[1].efforts = ["high"]' \
+  'sed "s/example-large-1-<[^>]*>/example-large-1-<lvl>/"' 'unchecked: Example Large 1 reach[1] (agent, -<lvl> in the table): efforts ["high"], launches example-large-1-high'
+ct_mdok "a table with no placeholders reports nothing unchecked" 'del(.models[1])' 'grep -v "^| Sample Reasoner 2 "' 'matches ' 'unchecked'
 # Published limits: the boundary passes, one past it fails.
 ct_lim() {  # <desc> <jq program> <pass|fail> <fragment>
   local out rc
@@ -3554,7 +3585,9 @@ UMR="$(tr '\n' ' ' < "$DIR/skills/update-model-routing/SKILL.md" | tr -s ' ')"
   && printf '%s' "$UMR" | grep -qF 'contracts/check-model-catalog.sh ~/.ai/model-catalog.next.json' \
   && printf '%s' "$UMR" | grep -qF 'mv ~/.ai/model-catalog.next.json ~/.ai/model-catalog.json' \
   && printf '%s' "$UMR" | grep -qF 'delete `~/.ai/model-catalog.next.json`' \
-  && printf '%s' "$UMR" | grep -qF 'Never write `model-catalog*.json` inside a repo checkout'; } \
+  && printf '%s' "$UMR" | grep -qF 'Never write `model-catalog*.json` inside a repo checkout' \
+  && printf '%s' "$UMR" | grep -qF 'every `unchecked:` line' \
+  && printf '%s' "$UMR" | grep -qF 'including on first publication'; } \
   && ok "update-model-routing stages the catalog, validates it, publishes on approval and deletes it on rejection" \
   || bad "update-model-routing stages the catalog, validates it, publishes on approval and deletes it on rejection"
 
