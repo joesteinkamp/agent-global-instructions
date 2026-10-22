@@ -3311,11 +3311,66 @@ jq -e '.type == "object" and (.required | index("schemaVersion")) and .propertie
   "$DIR/contracts/model-catalog-v1.schema.json" >/dev/null 2>&1 \
   && ok "contracts: the schema is valid JSON and pins schemaVersion 1" \
   || bad "contracts: the schema is valid JSON and pins schemaVersion 1"
-# Fixtures are fictional: every model in a catalog fixture is named Example/Sample.
-ct_real="$(jq -r '.models[].name' "$CF"/*.json 2>/dev/null | grep -vE '^(Example|Sample) ' || true)"
-[ -z "$ct_real" ] \
-  && ok "contracts/fixtures: every model name is fictional (Example/Sample ...)" \
-  || bad "contracts/fixtures: every model name is fictional (found: $ct_real)"
+# Fixtures: an explicit inventory, and a TRIPWIRE for private-looking content. The
+# tripwire is a denylist plus name/slug/host allowlists over every string a fixture
+# holds; it catches careless pastes (a home path, a real host, an email, an opaque
+# token, an internal-looking name). It cannot prove a fixture holds no private
+# data, so a new fixture still needs a person to read every field.
+ct_inv="$(cd "$CF" && find . -type f | sed 's|^\./||' | sort | tr '\n' ' ')"
+[ "$ct_inv" = "invalid-bad-tier.json invalid-missing-field.json invalid-routing-mismatch.md invalid-wrong-type.json valid.json valid.routing.md " ] \
+  && ok "contracts/fixtures: exactly the expected fixture files are present" \
+  || bad "contracts/fixtures: exactly the expected fixture files are present (found: $ct_inv)"
+# ct_tripwire <file>: prints every finding; empty when the file passes.
+ct_tripwire() {
+  local f="$1" strings
+  case "$f" in
+    *.json)
+      strings="$(jq -r '[.. | strings] | .[]' "$f" 2>/dev/null)"
+      jq -r '
+        def bad($what; $v): "\($what): \($v | tojson)";
+        ((.models // [])[] | (.name | select(test("^(Example|Sample) ") | not) | bad("model name"; .)),
+                             (.family | select(test("^(Example|Sample)") or . == "varies" | not) | bad("family"; .)),
+                             (.reach[]? | (.model | select(test("^((example|sample)-[a-z0-9.-]+|large|medium|auto)$") | not) | bad("reach model"; .)),
+                                          (.cli | select(IN("claude","codex","agent","agy","lm") | not) | bad("reach cli"; .)))),
+        ((.accounts // [])[] | .cli | select(IN("claude","codex","agent","agy","lm") | not) | bad("account cli"; .)),
+        (((.unreachable // []) + (.notRouted // []))[] | .name | select(test("^(Example|Sample) ") | not) | bad("listed name"; .)),
+        ((.sources // [])[] | .name | select(test("^Example ") | not) | bad("source name"; .))' "$f" 2>/dev/null;;
+    *) strings="$(cat "$f")";;
+  esac
+  printf '%s\n' "$strings" | grep -E '(/Users/|/home/|/root/|[A-Za-z]:\\|~/|\\\\[A-Za-z])' | sed 's/^/home path: /' || true
+  printf '%s\n' "$strings" | grep -E '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' | sed 's/^/email: /' || true
+  printf '%s\n' "$strings" | grep -oE 'https?://[^ )"]+' | grep -vE '^https?://([a-z0-9-]+\.)*example\.(com|org)(/|$)' | sed 's/^/url: /' || true
+  printf '%s\n' "$strings" | sed -E 's/example\.(com|org)//g' | grep -E '[A-Za-z0-9-]+\.(com|net|org|io|ai|dev|app|cloud|internal|corp|local|co|gov|edu)([^A-Za-z]|$)' | sed 's/^/host: /' || true
+  printf '%s\n' "$strings" | grep -E '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | sed 's/^/ip: /' || true
+  printf '%s\n' "$strings" | grep -E '[A-Za-z0-9+/_=-]{32,}' | sed 's/^/opaque token: /' || true
+  printf '%s\n' "$strings" | grep -E '[A-Z]{3,}_[A-Z0-9_]+' | sed 's/^/marker: /' || true
+}
+ct_found=""
+for ct_f in "$CF"/*; do ct_r="$(ct_tripwire "$ct_f")"; [ -z "$ct_r" ] || ct_found="$ct_found $(basename "$ct_f"): $ct_r"; done
+[ -z "$ct_found" ] \
+  && ok "contracts/fixtures: the tripwire passes over every string in every fixture, markdown included" \
+  || bad "contracts/fixtures: the tripwire fired:$ct_found"
+# Sentinels: a private-looking string in each kind of free-text field must fire it.
+ct_sentinel() {  # <desc> <jq program>
+  local f="$LT/ct-sentinel.json" r
+  jq "$2" "$CF/valid.json" > "$f"; r="$(ct_tripwire "$f")"
+  [ -n "$r" ] && ok "tripwire: $1" || bad "tripwire: $1 (it did not fire)"
+}
+ct_sentinel "a home path in an account note" '.accounts[0].note = "token kept in /Users/jane/work/notes"'
+ct_sentinel "a real-looking host in evidence" '.models[0].evidence = "from https://wiki.internal.acme.net/page"'
+ct_sentinel "a bare internal host in a vendorByTask field" '.vendorByTask[0].evidence = "see wiki.acme.corp for the plan"'
+ct_sentinel "an email in a command" '.models[0].reach[0].command = "claude --user jane@acme.com"'
+ct_sentinel "a marker-style secret in an unreachable reason" '.unreachable[0].reason = "PRIVATE_SENTINEL_VALUE"'
+ct_sentinel "an IP address in a source url" '.sources[0].url = "https://example.com/x?host=10.20.30.40"'
+ct_sentinel "a non-example source url" '.sources[0].url = "https://research.acme.net/board"'
+ct_sentinel "an opaque token in a notRouted reason" '.notRouted[0].reason = "key sk0123456789abcdef0123456789abcdef0123"'
+ct_sentinel "a real-looking model name" '.models[0].name = "Acme Large 1"'
+ct_sentinel "a real-looking family" '.models[0].family = "Acme"'
+ct_sentinel "a real-looking reach slug" '.models[0].reach[0].model = "acme-large-1"'
+ct_sentinel "a real-looking source name" '.sources[0].name = "Acme Internal Board"'
+printf '%s\n' '| Example Large 1 | ExampleLab | T1 | 4 / 20 | `claude -p --model large` | notes at /Users/jane/x |' > "$LT/ct-sentinel.md"
+[ -n "$(ct_tripwire "$LT/ct-sentinel.md")" ] \
+  && ok "tripwire: a home path in the fixture markdown" || bad "tripwire: a home path in the fixture markdown (it did not fire)"
 ct_out="$("$CK" "$CF/valid.json" 2>&1)"; ct_rc=$?
 { [ "$ct_rc" = 0 ] && printf '%s\n' "$ct_out" | grep -q '^ok: '; } \
   && ok "check-model-catalog: the valid fixture passes" \
@@ -3354,6 +3409,57 @@ ct_mut "a duplicate model name is rejected" '.models[1].name = .models[0].name' 
 ct_mut "a pinned model without a reason is rejected" '.models[0].pinned = true' 'a pinned model needs a reason string'
 ct_mut "a routable model with no reach is rejected" '.models[0].reach = []' 'a routable model needs at least one way to reach it'
 ct_mut "a negative price is rejected" '.models[0].priceIn = -1' 'priceIn: must not be negative'
+# Markdown parity covers every field that drives routing, in both directions.
+ct_md() {  # <desc> <jq program on the catalog, or - for none> <sed/awk-free md edit: shell snippet or -> <expected fragment>
+  local cat="$CF/valid.json" md="$CF/valid.routing.md" out rc
+  if [ "$2" != - ]; then jq "$2" "$CF/valid.json" > "$LT/ct-md.json"; cat="$LT/ct-md.json"; fi
+  if [ "$3" != - ]; then eval "$3" < "$CF/valid.routing.md" > "$LT/ct-md.md"; md="$LT/ct-md.md"; fi
+  out="$("$CK" "$cat" "$md" 2>&1)"; rc=$?
+  { [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -qF -- "$4"; } \
+    && ok "check-model-catalog markdown parity: $1" || bad "check-model-catalog markdown parity: $1 (rc=$rc: $out)"
+}
+ct_md "a changed model slug" '.models[0].reach[0].model = "haiku"' - 'reach[0].model: catalog says "haiku", the table command says "large"'
+ct_md "a changed CLI" '.models[0].reach[0].cli = "codex"' - 'reach[0].cli: catalog says "codex"'
+ct_md "a changed family" '.models[0].family = "OtherLab"' - 'catalog says family "OtherLab", the table says "ExampleLab"'
+ct_md "a changed routable flag (auto-style row marked routable)" '.models[5].routable = true' - 'Example Auto: catalog says routable true'
+ct_md "a changed routable flag (ordinary row marked unroutable)" '.models[0].routable = false' - 'Example Large 1: catalog says routable false'
+ct_md "a changed pinned flag" '.models[2].pinned = false | .models[2].pinReason = null' - 'catalog says pinned false, the table says true'
+ct_md "a changed effort style" '.models[0].reach[1].effortStyle = "none"' - 'reach[1].effortStyle: catalog says "none", the table command says "suffix"'
+ct_md "changed suffix efforts" '.models[0].reach[1].efforts = ["low","high"]' - 'reach[1].efforts: catalog says ["low","high"]'
+ct_md "a dropped reach entry" '.models[0].reach |= .[0:1]' - 'catalog has 1 reach entries, the table row has 2 commands'
+ct_md "a model missing from the catalog" 'del(.models[3])' - 'Sample Open 3: in the "## Model tiers" table but not in the catalog'
+ct_md "a catalog model missing from the table" - 'grep -v "^| Sample Open 3 "' 'Sample Open 3: in the catalog but not in the "## Model tiers" table'
+ct_md "reordered catalog models" '.models |= ([.[1], .[0]] + .[2:])' - 'order differs'
+ct_md "reordered table rows" - 'awk '"'"'/^\| Example Large 1 /{a=$0;next} /^\| Sample Reasoner 2 /{print;print a;next} {print}'"'"'' 'order differs'
+ct_md "a table command with no --model" - 'sed "s/ --model example-local-7b//"' 'the table command has no --model or -m'
+# Published limits: the boundary passes, one past it fails.
+ct_lim() {  # <desc> <jq program> <pass|fail> <fragment>
+  local out rc
+  jq "$2" "$CF/valid.json" > "$LT/ct-lim.json"
+  out="$("$CK" "$LT/ct-lim.json" 2>&1)"; rc=$?
+  if [ "$3" = pass ]; then
+    [ "$rc" = 0 ] && ok "check-model-catalog limit: $1" || bad "check-model-catalog limit: $1 (rc=$rc: $out)"
+  else
+    { [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -qF -- "$4"; } && ok "check-model-catalog limit: $1" || bad "check-model-catalog limit: $1 (rc=$rc: $out)"
+  fi
+}
+ct_lim "a 200-character model name is accepted" '.models[0].name = ("N" * 200)' pass
+ct_lim "a 201-character model name is rejected" '.models[0].name = ("N" * 201)' fail 'models[0].name: 201 characters, the limit is 200'
+ct_lim "a 200-character reach slug is accepted" '.models[0].reach[0].model = ("s" * 200)' pass
+ct_lim "a 201-character reach slug is rejected" '.models[0].reach[0].model = ("s" * 201)' fail 'reach[0].model: 201 characters, the limit is 200'
+ct_lim "an 80-character family is accepted" '.models[0].family = ("F" * 80)' pass
+ct_lim "an 81-character family is rejected" '.models[0].family = ("F" * 81)' fail 'models[0].family: 81 characters, the limit is 80'
+ct_lim "50 reach entries are accepted" '.models[0].reach = [range(0; 50) | {cli:"claude",model:"large",effortStyle:"flag",efforts:[],command:"c"}]' pass
+ct_lim "51 reach entries are rejected" '.models[0].reach = [range(0; 51) | {cli:"claude",model:"large",effortStyle:"flag",efforts:[],command:"c"}]' fail 'models[0].reach: 51 entries, the limit is 50'
+ct_lim "20 efforts are accepted" '.models[0].reach[1].efforts = [range(0; 20) | "e\(.)"]' pass
+ct_lim "21 efforts are rejected" '.models[0].reach[1].efforts = [range(0; 21) | "e\(.)"]' fail 'reach[1].efforts: 21 entries, the limit is 20'
+ct_lim "500 models are accepted" '.models = [range(0; 500) | {name:"Example M\(.)",family:"ExampleLab",tier:"T3",pinned:false,pinReason:null,routable:true,priceIn:null,priceOut:null,reach:[{cli:"claude",model:"large",effortStyle:"flag",efforts:[],command:"c"}],evidence:"e"}]' pass
+ct_lim "501 models are rejected" '.models = [range(0; 501) | {name:"Example M\(.)",family:"ExampleLab",tier:"T3",pinned:false,pinReason:null,routable:true,priceIn:null,priceOut:null,reach:[{cli:"claude",model:"large",effortStyle:"flag",efforts:[],command:"c"}],evidence:"e"}]' fail 'catalog.models: 501 entries, the limit is 500'
+jq -e '.properties.models.maxItems == 500 and ."$defs".model.properties.name.maxLength == 200 and ."$defs".model.properties.family.maxLength == 80
+       and ."$defs".model.properties.reach.maxItems == 50 and ."$defs".reach.properties.model.maxLength == 200 and ."$defs".reach.properties.efforts.maxItems == 20' \
+  "$DIR/contracts/model-catalog-v1.schema.json" >/dev/null 2>&1 \
+  && ok "contracts: the schema publishes the same limits the validator enforces" \
+  || bad "contracts: the schema publishes the same limits the validator enforces"
 jq '.futureField = 1 | .models[0].futureField = {} | .accounts[0].cli = "some-new-cli"' "$CF/valid.json" > "$LT/ct-extra.json"
 "$CK" "$LT/ct-extra.json" >/dev/null 2>&1 \
   && ok "check-model-catalog: unknown fields and an unknown cli value are accepted" \
