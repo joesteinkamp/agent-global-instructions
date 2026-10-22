@@ -1,18 +1,35 @@
 # contracts
 
 Published file formats other tools may read. This directory holds the schema,
-its validator and fictional fixtures, and nothing else (`test.sh` enforces
-that).
+its validator and fictional fixtures, and nothing else (`test.sh` pins the file
+list).
 
 | File | What it is |
 |---|---|
 | `model-catalog-v1.schema.json` | JSON Schema for `~/.ai/model-catalog.json`, which `/update-model-routing` writes beside `~/.ai/model-routing.md`. |
-| `check-model-catalog.sh` | bash + jq validator. `check-model-catalog.sh <catalog.json> [routing.md]`; with the markdown it also checks every catalog model is in the `## Model tiers` table under the same tier. Exit 0 valid, 1 invalid, 2 bad usage. |
-| `fixtures/` | Made-up data only (models named "Example …", "Sample …"). A valid catalog and its matching table, plus deliberately broken ones. |
+| `check-model-catalog.sh` | bash + jq validator. `check-model-catalog.sh <catalog.json> [routing.md]`. Checks fields, types, enums and the size limits below; with the markdown it also checks the table and the catalog agree (see below). Exit 0 valid, 1 invalid, 2 bad usage. |
+| `fixtures/` | Made-up data (models named "Example …", "Sample …"): a valid catalog and its matching table, plus deliberately broken ones. `test.sh` runs a tripwire over every string in them (home paths, real-looking hosts, emails, opaque tokens, non-fictional names); it catches careless pastes and cannot prove a fixture holds no private data, so read every field of a new fixture before adding it. |
 
 The catalog lives only on the machine, at `~/.ai/model-catalog.json` (staged as
 `~/.ai/model-catalog.next.json` until you approve it). It is never written into
 a checkout.
+
+Size limits, published in the schema and enforced by the validator, so a reader
+that applies the same caps never silently drops part of a valid catalog: model
+name and reach `model` slug up to 200 characters, `family` up to 80, up to 500
+models, 50 `reach` entries per model, 20 `efforts` per reach entry.
+
+With a routing markdown file the validator requires the `## Model tiers` table
+and the catalog to describe the same models: every row in the catalog and every
+catalog model in the table, in the same order, with the same tier, family and
+`routable`/`pinned` flags (`routable` is false when the tier cell says "at most"
+or the family is "varies"; `pinned` is true when the tier cell says "pinned"),
+and each `reach` entry equal to what the row's backticked commands encode: `cli`
+is the first word, `model` the word after `--model` or `-m` (without a trailing
+`-<low|medium|high>` placeholder), and `effortStyle`/`efforts` come from
+`--effort` (flag), `-c model_reasoning_effort=` (codex-config), a `-<…>` slug
+ending (suffix, with those levels), or nothing (none). The commands are read,
+never run.
 
 Rules for a reader of the catalog:
 

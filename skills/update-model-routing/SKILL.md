@@ -105,19 +105,25 @@ account only.
      `cli` is `claude`, `codex`, `agent` (Cursor), `agy` or `lm`. Local models
      stay in `~/.ai/model-routing.local.md`, not in `models`, so add them only as
      an `lm` account note.
-   - `models`: one entry per table row, **in table order** (T1, then T2, then
-     T3). `name`, `family` as in the row. `tier` is the bare `T1`/`T2`/`T3`;
-     "(pinned by user)" becomes `pinned: true` plus a `pinReason` string,
-     otherwise `pinned: false, pinReason: null`. "T3 at most" and other
-     auto-style rows get tier `T3` and `routable: false`. `priceIn`/`priceOut`
-     are $/Mtok numbers, `null` where the row has `—` or only a billing pool.
-     `reach` has one entry per command prefix in the row's "Reachable via" cell,
-     same order: `cli` the CLI binary, `model` the slug passed to it,
-     `effortStyle` (`flag` for `claude --effort`, `codex-config` for
-     `-c model_reasoning_effort=`, `suffix` when the effort is in the slug,
-     `none` when there is no effort), `efforts` the levels that apply (`[]` for
-     `flag` or `none`), and `command` the row's prefix text verbatim. `command`
-     is for people: nothing may run it. `evidence` is the row's evidence cell.
+   - `models`: one entry per table row, **every row, in table order** (T1, then
+     T2, then T3). `name`, `family` as in the row. `tier` is the bare
+     `T1`/`T2`/`T3`; a row whose tier cell says "pinned" becomes `pinned: true`
+     plus a `pinReason` string, otherwise `pinned: false, pinReason: null`.
+     `routable` is `false` when the tier cell says "at most" or the family is
+     `varies` (auto-style rows), `true` otherwise. `priceIn`/`priceOut` are
+     $/Mtok numbers, `null` where the row has `—` or only a billing pool.
+     `reach` has one entry per backticked command prefix in the row's
+     "Reachable via" cell, same order, read with these rules (the validator
+     applies the same ones, so write the commands to fit them): `cli` is the
+     command's first word; `model` is the word after `--model` or `-m`, minus a
+     trailing `-<low|medium|high>` or `-<lvl>` placeholder, so every command
+     must carry one; `effortStyle`/`efforts` are `flag`/`[]` for `--effort`,
+     `codex-config` for `-c model_reasoning_effort=<lvl>` (list the levels that
+     apply), `suffix` for a slug ending `-<a|b|c>` (efforts `[a,b,c]`; for
+     `-<lvl>` list the levels that apply), and `none`/`[]` otherwise. `command`
+     is the row's prefix text, for people: nothing may run it. `evidence` is the
+     row's evidence cell. Stay within the schema's size limits (name and slug
+     200 characters, family 80, 50 reach entries, 20 efforts, 500 models).
    - `unreachable`: the "Listed but not reachable" models with their reasons.
      Models whose reachability is still unknown go here too, with a reason that
      starts `unknown:`, because nothing may route to them yet.

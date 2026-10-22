@@ -10,9 +10,28 @@
 # carries a reason and an unpinned one does not, and a routable model has at
 # least one way to reach it.
 #
-# With a routing markdown file, every catalog model must also appear in its
-# "## Model tiers" table, under the same tier. The table's tier cell may carry a
-# note ("T2 (pinned by user)", "T3 at most"); its first word is the tier.
+# It enforces the size limits the schema publishes (name and model slug 200
+# characters, family 80, 50 reach entries per model, 20 efforts per reach, 500
+# models), read from the schema, so a catalog it accepts is never silently cut
+# short by a reader that applies the same limits.
+#
+# With a routing markdown file, the "## Model tiers" table and the catalog must
+# describe the same models: every table row is in the catalog and every catalog
+# model is in the table, in the same order, with the same tier, family and
+# routable/pinned flags, and each structured reach equals what the row's
+# "Reachable via" commands encode. The table's tier cell may carry a note
+# ("T2 (pinned by user)", "T3 at most"); its first word is the tier. The rules
+# for reading a command prefix (never executed, only read):
+#   cli      the first word.
+#   model    the word after --model or -m, quotes stripped; when it ends in a
+#            -<a|b|c> or -<lvl> placeholder, the slug without that ending.
+#   effort   --effort            -> effortStyle flag, efforts []
+#            -c model_reasoning_effort=  -> codex-config (levels not in the row)
+#            slug ending -<a|b|c> -> suffix, efforts [a,b,c] (-<lvl>: not in the row)
+#            otherwise            -> none, efforts []
+#   routable false when the tier cell says "at most" or the family is "varies".
+#   pinned   true when the tier cell says "pinned".
+# A command with no --model or -m cannot be checked and is an error.
 #
 # Exit: 0 valid, 1 invalid (every problem is printed to stderr), 2 bad usage.
 set -euo pipefail
@@ -32,7 +51,14 @@ if ! jq -e . "$CATALOG" >/dev/null 2>&1; then
   echo "error: $CATALOG is not valid JSON" >&2; exit 1
 fi
 
-errors="$(jq -r --argjson tiers "$(jq -c '."$defs".tier.enum' "$SCHEMA")" \
+lim="$(jq -c '{nameMax: ."$defs".model.properties.name.maxLength, slugMax: ."$defs".reach.properties.model.maxLength,
+  familyMax: ."$defs".model.properties.family.maxLength, reachMax: ."$defs".model.properties.reach.maxItems,
+  effMax: ."$defs".reach.properties.efforts.maxItems, modelsMax: .properties.models.maxItems}' "$SCHEMA")"
+for k in nameMax slugMax familyMax reachMax effMax modelsMax; do
+  [ "$(printf '%s' "$lim" | jq ".$k | type")" = '"number"' ] || { echo "schema is missing the published limit $k: $SCHEMA" >&2; exit 2; }
+done
+
+errors="$(jq -r --argjson lim "$lim" --argjson tiers "$(jq -c '."$defs".tier.enum' "$SCHEMA")" \
               --argjson styles "$(jq -c '."$defs".effortStyle.enum' "$SCHEMA")" '
   def tname: if . == null then "null" else type end;
   # field($obj; $key; $path; [types]): present, and one of the types.
@@ -55,6 +81,12 @@ errors="$(jq -r --argjson tiers "$(jq -c '."$defs".tier.enum' "$SCHEMA")" \
     if ($o | type) == "object" and ($o[$k] | type) == "string" and ($allowed | index($o[$k])) == null
     then "\($path).\($k): \($o[$k] | tojson) is not one of \($allowed | join("|"))" else empty end;
   def arr($o; $k; $path): field($o; $k; $path; ["array"]);
+  def maxlen($o; $k; $path; $n):
+    if ($o | type) == "object" and ($o[$k] | type) == "string" and ($o[$k] | length) > $n
+    then "\($path).\($k): \($o[$k] | length) characters, the limit is \($n)" else empty end;
+  def maxitems($o; $k; $path; $n):
+    if ($o | type) == "object" and ($o[$k] | type) == "array" and ($o[$k] | length) > $n
+    then "\($path).\($k): \($o[$k] | length) entries, the limit is \($n)" else empty end;
   def tierrank: {"T1": 1, "T2": 2, "T3": 3}[.] // 9;
 
   . as $c
@@ -65,6 +97,7 @@ errors="$(jq -r --argjson tiers "$(jq -c '."$defs".tier.enum' "$SCHEMA")" \
        elif $c.schemaVersion != 1 then "schemaVersion: expected 1, got \($c.schemaVersion | tojson)"
        else empty end),
       datef($c; "generatedAt"; "catalog"),
+      maxitems($c; "models"; "catalog"; $lim.modelsMax),
       arr($c; "accounts"; "catalog"), arr($c; "models"; "catalog"), arr($c; "unreachable"; "catalog"),
       arr($c; "notRouted"; "catalog"), arr($c; "vendorByTask"; "catalog"), arr($c; "sources"; "catalog"),
       (if ($c.accounts | type) == "array" then
@@ -75,8 +108,8 @@ errors="$(jq -r --argjson tiers "$(jq -c '."$defs".tier.enum' "$SCHEMA")" \
       (if ($c.models | type) == "array" then
          ($c.models | to_entries[] | "models[\(.key)]" as $p | .value as $m
           | (if ($m | type) != "object" then "\($p): expected an object" else
-               str($m; "name"; $p), nonempty($m; "name"; $p),
-               str($m; "family"; $p), nonempty($m; "family"; $p),
+               str($m; "name"; $p), nonempty($m; "name"; $p), maxlen($m; "name"; $p; $lim.nameMax),
+               str($m; "family"; $p), nonempty($m; "family"; $p), maxlen($m; "family"; $p; $lim.familyMax),
                str($m; "tier"; $p), enumf($m; "tier"; $p; $tiers),
                field($m; "pinned"; $p; ["boolean"]),
                field($m; "pinReason"; $p; ["string", "null"]),
@@ -86,7 +119,7 @@ errors="$(jq -r --argjson tiers "$(jq -c '."$defs".tier.enum' "$SCHEMA")" \
                (if ($m.priceIn | type) == "number" and $m.priceIn < 0 then "\($p).priceIn: must not be negative" else empty end),
                (if ($m.priceOut | type) == "number" and $m.priceOut < 0 then "\($p).priceOut: must not be negative" else empty end),
                str($m; "evidence"; $p),
-               arr($m; "reach"; $p),
+               arr($m; "reach"; $p), maxitems($m; "reach"; $p; $lim.reachMax),
                (if $m.pinned == true and (($m.pinReason | type) != "string" or $m.pinReason == "")
                 then "\($p).pinReason: a pinned model needs a reason string" else empty end),
                (if $m.pinned == false and $m.pinReason != null
@@ -97,9 +130,9 @@ errors="$(jq -r --argjson tiers "$(jq -c '."$defs".tier.enum' "$SCHEMA")" \
                   ($m.reach | to_entries[] | "\($p).reach[\(.key)]" as $rp | .value as $r
                    | (if ($r | type) != "object" then "\($rp): expected an object" else
                         str($r; "cli"; $rp), nonempty($r; "cli"; $rp),
-                        str($r; "model"; $rp), nonempty($r; "model"; $rp),
+                        str($r; "model"; $rp), nonempty($r; "model"; $rp), maxlen($r; "model"; $rp; $lim.slugMax),
                         str($r; "effortStyle"; $rp), enumf($r; "effortStyle"; $rp; $styles),
-                        field($r; "efforts"; $rp; ["array"]),
+                        field($r; "efforts"; $rp; ["array"]), maxitems($r; "efforts"; $rp; $lim.effMax),
                         (if ($r.efforts | type) == "array" and ($r.efforts | any(type != "string" or . == ""))
                          then "\($rp).efforts: every entry must be a non-empty string" else empty end),
                         str($r; "command"; $rp)
@@ -141,37 +174,83 @@ if [ -n "$errors" ]; then
   exit 1
 fi
 
-# The markdown table, when given: name and tier must agree.
+# The markdown table, when given: the same models, in the same order, with the
+# same routing-significant fields.
 if [ -n "$ROUTING" ]; then
-  # Rows of the "## Model tiers" table as "name<TAB>tier". Backticks around a
-  # name are formatting, not part of it.
-  table="$(awk -F'|' '
+  # Rows of the "## Model tiers" table as name<TAB>family<TAB>tier cell<TAB>
+  # reachable-via cell. An escaped pipe (\|) inside a cell is text, not a column
+  # break, so it is protected while the row is split and restored after.
+  table="$(awk '
     /^## /          { in_tiers = ($0 ~ /^## Model tiers[[:space:]]*$/); next }
     in_tiers && /^\|/ {
-      name = $2; tier = $4
-      gsub(/`/, "", name); gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", tier); sub(/[[:space:]].*$/, "", tier)
+      line = $0; gsub(/\\\|/, "\001", line)
+      n = split(line, f, "|")
+      name = f[2]; fam = f[3]; tier = f[4]; reach = f[6]
+      gsub(/`/, "", name)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", name); gsub(/^[[:space:]]+|[[:space:]]+$/, "", fam)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", tier); gsub(/\001/, "|", reach)
       if (name == "Model" || name ~ /^-+$/ || name == "") next
-      printf "%s\t%s\n", name, tier
+      printf "%s\t%s\t%s\t%s\n", name, fam, tier, reach
     }' "$ROUTING")"
   if [ -z "$table" ]; then
     printf 'error: %s has no rows under "## Model tiers"\n' "$ROUTING" >&2; exit 1
   fi
-  merrors=""
-  while IFS="$(printf '\t')" read -r name tier; do
-    row_tier="$(printf '%s\n' "$table" | awk -F'\t' -v n="$name" '$1 == n { print $2; exit }')"
-    if [ -z "$row_tier" ]; then
-      merrors="$merrors  $name: in the catalog but not in the \"## Model tiers\" table of $ROUTING
-"
-    elif [ "$row_tier" != "$tier" ]; then
-      merrors="$merrors  $name: catalog says $tier, the table says $row_tier
-"
-    fi
-  done <<EOF2
-$(jq -r '.models[] | [(.name | gsub("`"; "")), .tier] | @tsv' "$CATALOG")
-EOF2
+  merrors="$(printf '%s\n' "$table" | jq -R -s -r --slurpfile cat "$CATALOG" '
+    def trim: sub("^\\s+"; "") | sub("\\s+$"; "");
+    # One backticked command prefix -> what it encodes. Read, never run.
+    def parse:
+      (gsub("\\s+"; " ") | split(" ") | map(select(length > 0))) as $t
+      | ([range(0; $t | length)] | map(select($t[.] == "--model" or $t[.] == "-m")) | .[0]) as $mi
+      | (if $mi == null then null else ($t[$mi + 1] // null) end) as $raw
+      | (if $raw == null then null else ($raw | gsub("^\""; "") | gsub("\"$"; "")) end) as $slug
+      | (. as $cmd | {cli: $t[0]}
+         + (if $slug == null then {model: null, style: null, efforts: null}
+            elif ($cmd | test("--effort")) then {model: $slug, style: "flag", efforts: []}
+            elif ($cmd | test("model_reasoning_effort=")) then {model: $slug, style: "codex-config", efforts: null}
+            elif ($slug | test("-<[^>]*>$")) then
+              ($slug | capture("^(?<b>.*)-<(?<a>[^>]*)>$")) as $m
+              | {model: $m.b, style: "suffix", efforts: (if $m.a == "lvl" then null else ($m.a | split("|")) end)}
+            else {model: $slug, style: "none", efforts: []} end));
+    ($cat[0].models) as $models
+    | [split("\n")[] | select(length > 0) | split("\t")
+       | {name: .[0], family: .[1], tier: ((.[2] // "") | split(" ")[0]), tiercell: (.[2] // ""),
+          cmds: [(.[3] // "") | match("`([^`]*)`"; "g") | .captures[0].string]}] as $rows
+    | ($models | map(.name | gsub("`"; ""))) as $cn
+    | ($rows | map(.name)) as $rn
+    | ($cn | map(select(. as $n | $rn | index($n) | not))
+       | map("\(.): in the catalog but not in the \"## Model tiers\" table") | .[]),
+      ($rn | map(select(. as $n | $cn | index($n) | not))
+       | map("\(.): in the \"## Model tiers\" table but not in the catalog") | .[]),
+      (($cn | map(select(. as $n | $rn | index($n)))) as $ca | ($rn | map(select(. as $n | $cn | index($n)))) as $ra
+       | if $ca != $ra then "order differs: the catalog lists \($ca | join(", ")) but the table lists \($ra | join(", "))" else empty end),
+      ($models[] | . as $m | ($m.name | gsub("`"; "")) as $n
+       | ($rows | map(select(.name == $n)) | .[0]) as $r
+       | if $r == null then empty else
+           (if $m.tier != $r.tier then "\($n): catalog says \($m.tier), the table says \($r.tier)" else empty end),
+           (if $m.family != $r.family then "\($n): catalog says family \($m.family | tojson), the table says \($r.family | tojson)" else empty end),
+           (($r.tiercell | test("at most")) or $r.family == "varies") as $nr
+           | (if $m.routable != ($nr | not) then "\($n): catalog says routable \($m.routable), the table implies \($nr | not)" else empty end),
+           (($r.tiercell | test("pinned")) as $pn
+            | if $m.pinned != $pn then "\($n): catalog says pinned \($m.pinned), the table says \($pn)" else empty end),
+           (($r.cmds | map(parse)) as $want
+            | if ($r.cmds | length) == 0 then "\($n): the table row has no backticked command"
+              elif ($m.reach | length) != ($want | length)
+              then "\($n): catalog has \($m.reach | length) reach entries, the table row has \($want | length) commands"
+              else
+                ([range(0; $want | length)][] | . as $i | $want[$i] as $w | $m.reach[$i] as $g
+                 | "\($n) reach[\($i)]" as $rp
+                 | (if $w.model == null then "\($rp): the table command has no --model or -m, so its slug cannot be checked"
+                    else empty end),
+                   (if $g.cli != $w.cli then "\($rp).cli: catalog says \($g.cli | tojson), the table command says \($w.cli | tojson)" else empty end),
+                   (if $w.model != null and $g.model != $w.model then "\($rp).model: catalog says \($g.model | tojson), the table command says \($w.model | tojson)" else empty end),
+                   (if $w.style != null and $g.effortStyle != $w.style then "\($rp).effortStyle: catalog says \($g.effortStyle | tojson), the table command says \($w.style | tojson)" else empty end),
+                   (if $w.efforts != null and $g.efforts != $w.efforts then "\($rp).efforts: catalog says \($g.efforts | tojson), the table command says \($w.efforts | tojson)" else empty end))
+              end)
+         end)
+  ')"
   if [ -n "$merrors" ]; then
-    printf 'error: %s disagrees with %s\n%s' "$CATALOG" "$ROUTING" "$merrors" >&2
+    printf 'error: %s disagrees with %s\n' "$CATALOG" "$ROUTING" >&2
+    printf '%s\n' "$merrors" | sed 's/^/  /' >&2
     exit 1
   fi
 fi

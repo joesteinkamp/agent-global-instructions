@@ -134,7 +134,7 @@
           "model": "example-local-7b",
           "effortStyle": "none",
           "efforts": [],
-          "command": "lm -p \"...\""
+          "command": "lm -p \"<prompt>\" --model example-local-7b"
         }
       ],
       "evidence": "Board C 30; measured 40 tok/s with lm bench — Board C, 2030-01-15"
