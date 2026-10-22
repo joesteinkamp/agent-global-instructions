@@ -3280,6 +3280,16 @@ HOME="$SC" bash "$DIR/uninstall.sh" claude codex cursor >/dev/null 2>&1
 { [ -f "$SC/.claude/skills/ship/SKILL.md" ] && [ -L "$SC/.codex/skills/sync" ] && [ -L "$SC/.cursor/skills/verify" ]; } \
   && ok "uninstall: a conflicting skill name is left exactly as it was" \
   || bad "uninstall: a conflicting skill name is left exactly as it was"
+# Through install.sh the conflict lands in the run's closing summary, after the last layer.
+SCI="$LT/skill-conflict-installsh"; rm -rf "$SCI"; mkdir -p "$SCI/.claude/skills/ship"
+printf 'my own ship skill\n' > "$SCI/.claude/skills/ship/SKILL.md"
+HOME="$SCI" bash "$DIR/install.sh" --yes claude > "$SCI/out" 2>&1
+{ grep -qF "  conflict: $SCI/.claude/skills/ship " "$SCI/out" \
+  && [ "$(grep -n '^Skill name conflicts: 1 skill(s)' "$SCI/out" | tail -1 | cut -d: -f1)" -gt "$(grep -n '^== settings' "$SCI/out" | tail -1 | cut -d: -f1)" ] \
+  && [ "$(cat "$SCI/.claude/skills/ship/SKILL.md")" = 'my own ship skill' ] \
+  && jq -e '[.files[] | select(.action == "conflict")] | length == 1' "$SCI/.ai/install-state/last-run.json" >/dev/null 2>&1; } \
+  && ok "install.sh: a skill-name conflict is in the closing summary (after the last layer) and last-run.json" \
+  || bad "install.sh: a skill-name conflict is in the closing summary (after the last layer) and last-run.json"
 SCC="$LT/skill-clean"; rm -rf "$SCC"; mkdir -p "$SCC"
 HOME="$SCC" bash "$DIR/install-skills.sh" --no-design claude > "$SCC/out" 2>&1
 { ! grep -q 'conflict' "$SCC/out"; } \
@@ -3353,6 +3363,27 @@ printf 'not json {' > "$LT/ct-bad.json"
 [ "$ct_rc" = 1 ] && ok "check-model-catalog: a file that is not JSON fails" || bad "check-model-catalog: a file that is not JSON fails (rc=$ct_rc)"
 "$CK" >/dev/null 2>&1; ct_rc=$?
 [ "$ct_rc" = 2 ] && ok "check-model-catalog: no argument is a usage error (exit 2)" || bad "check-model-catalog: no argument is a usage error (rc=$ct_rc)"
+# Drift guard: the validator hand-codes what the schema declares. Every field the
+# schema marks required must make the validator fail when it is deleted, and every
+# $ref must resolve.
+ct_sch="$DIR/contracts/model-catalog-v1.schema.json"
+ct_drift=""
+for ct_pair in '.|.' 'account|.accounts[0]' 'model|.models[0]' 'reach|.models[0].reach[0]' \
+               'nameReason|.unreachable[0]' 'vendorTask|.vendorByTask[0]' 'source|.sources[0]'; do
+  ct_def="${ct_pair%%|*}"; ct_path="${ct_pair#*|}"
+  if [ "$ct_def" = . ]; then ct_req="$(jq -r '.required[]' "$ct_sch")"
+  else ct_req="$(jq -r --arg d "$ct_def" '."$defs"[$d].required[]' "$ct_sch")"; fi
+  [ -n "$ct_req" ] || ct_drift="$ct_drift no-required-list:$ct_def"
+  for ct_key in $ct_req; do
+    jq --arg k "$ct_key" "del($ct_path[\$k])" "$CF/valid.json" > "$LT/ct-drift.json"
+    "$CK" "$LT/ct-drift.json" >/dev/null 2>&1 && ct_drift="$ct_drift $ct_def.$ct_key"
+  done
+done
+[ -z "$ct_drift" ] \
+  && ok "contracts: deleting any field the schema requires makes the validator fail" \
+  || bad "contracts: the validator accepts a catalog missing:$ct_drift"
+ct_refs="$(jq -r '[.. | ."$ref"? // empty] | unique[]' "$ct_sch" | sed 's|^#/\$defs/||' | while read -r r; do jq -e --arg r "$r" '."$defs" | has($r)' "$ct_sch" >/dev/null 2>&1 || echo "$r"; done)"
+[ -z "$ct_refs" ] && ok "contracts: every \$ref in the schema resolves" || bad "contracts: unresolved \$ref: $ct_refs"
 # The skill that writes the catalog stages it, validates it, and publishes only on approval.
 UMR="$(tr '\n' ' ' < "$DIR/skills/update-model-routing/SKILL.md" | tr -s ' ')"
 { printf '%s' "$UMR" | grep -qF 'Stage the machine-readable catalog' \
