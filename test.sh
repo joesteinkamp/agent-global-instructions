@@ -3286,6 +3286,83 @@ HOME="$SCC" bash "$DIR/install-skills.sh" --no-design claude > "$SCC/out" 2>&1
   && ok "install-skills: a clean install reports no conflicts" \
   || bad "install-skills: a clean install reports no conflicts"
 
+# ---- the published model catalog (contracts/) -----------------------------------
+# contracts/ holds a format other tools may read, so it holds the schema, its
+# validator, an optional README and fictional fixtures — nothing else, and
+# nothing machine-specific.
+CK="$DIR/contracts/check-model-catalog.sh"; CF="$DIR/contracts/fixtures"
+ct_extra="$(cd "$DIR/contracts" 2>/dev/null && find . -mindepth 1 \( -type f -o -type l \) \
+  ! -path './fixtures/*' ! -name model-catalog-v1.schema.json ! -name check-model-catalog.sh ! -name README.md | sort)"
+ct_dirs="$(cd "$DIR/contracts" 2>/dev/null && find . -mindepth 1 -type d ! -path './fixtures' ! -path './fixtures/*' | sort)"
+{ [ -f "$DIR/contracts/model-catalog-v1.schema.json" ] && [ -x "$CK" ] && [ -d "$CF" ] && [ -z "$ct_extra" ] && [ -z "$ct_dirs" ]; } \
+  && ok "contracts/ holds only the schema, the validator, a README and fixtures" \
+  || bad "contracts/ holds only the schema, the validator, a README and fixtures (unexpected: $ct_extra $ct_dirs)"
+jq -e '.type == "object" and (.required | index("schemaVersion")) and .properties.schemaVersion.const == 1' \
+  "$DIR/contracts/model-catalog-v1.schema.json" >/dev/null 2>&1 \
+  && ok "contracts: the schema is valid JSON and pins schemaVersion 1" \
+  || bad "contracts: the schema is valid JSON and pins schemaVersion 1"
+# Fixtures are fictional: every model in a catalog fixture is named Example/Sample.
+ct_real="$(jq -r '.models[].name' "$CF"/*.json 2>/dev/null | grep -vE '^(Example|Sample) ' || true)"
+[ -z "$ct_real" ] \
+  && ok "contracts/fixtures: every model name is fictional (Example/Sample ...)" \
+  || bad "contracts/fixtures: every model name is fictional (found: $ct_real)"
+ct_out="$("$CK" "$CF/valid.json" 2>&1)"; ct_rc=$?
+{ [ "$ct_rc" = 0 ] && printf '%s\n' "$ct_out" | grep -q '^ok: '; } \
+  && ok "check-model-catalog: the valid fixture passes" \
+  || bad "check-model-catalog: the valid fixture passes ($ct_out)"
+ct_out="$("$CK" "$CF/valid.json" "$CF/valid.routing.md" 2>&1)"; ct_rc=$?
+{ [ "$ct_rc" = 0 ] && printf '%s\n' "$ct_out" | grep -q 'matches '; } \
+  && ok "check-model-catalog: the valid fixture matches its routing table (tiers with notes, backticked names)" \
+  || bad "check-model-catalog: the valid fixture matches its routing table ($ct_out)"
+# Each broken fixture fails, and says why.
+ct_case() {  # <fixture> <expected message fragment> [routing.md]
+  local out rc
+  out="$("$CK" "$CF/$1" ${3:+"$CF/$3"} 2>&1)"; rc=$?
+  { [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -qF -- "$2"; } \
+    && ok "check-model-catalog: $1 fails ($2)" \
+    || bad "check-model-catalog: $1 should fail with '$2' (rc=$rc: $out)"
+}
+ct_case invalid-bad-tier.json 'models[0].tier: "T4" is not one of T1|T2|T3'
+ct_case invalid-missing-field.json 'catalog.sources: required, missing'
+ct_case invalid-missing-field.json 'models[1].reach[0].effortStyle: required, missing'
+ct_case invalid-wrong-type.json 'models[2].pinned: expected boolean, got string'
+ct_case invalid-wrong-type.json 'catalog.generatedAt: expected YYYY-MM-DD'
+ct_case invalid-wrong-type.json 'effortStyle: "prefix" is not one of flag|codex-config|suffix|none'
+ct_case valid.json 'catalog says T2, the table says T1' invalid-routing-mismatch.md
+ct_case valid.json 'Sample Open 3: in the catalog but not in the "## Model tiers" table' invalid-routing-mismatch.md
+# Shape rules a schema can't say, made by mutating the valid fixture.
+ct_mut() {  # <desc> <jq program> <expected fragment>
+  local f="$LT/ct-mut.json" out rc
+  jq "$2" "$CF/valid.json" > "$f"
+  out="$("$CK" "$f" 2>&1)"; rc=$?
+  { [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -qF -- "$3"; } \
+    && ok "check-model-catalog: $1" || bad "check-model-catalog: $1 (rc=$rc: $out)"
+}
+ct_mut "a different schemaVersion is rejected" '.schemaVersion = 2' 'schemaVersion: expected 1'
+ct_mut "models out of preference order are rejected" '.models |= reverse' 'models[] must run T1, then T2, then T3'
+ct_mut "a duplicate model name is rejected" '.models[1].name = .models[0].name' 'appears 2 times'
+ct_mut "a pinned model without a reason is rejected" '.models[0].pinned = true' 'a pinned model needs a reason string'
+ct_mut "a routable model with no reach is rejected" '.models[0].reach = []' 'a routable model needs at least one way to reach it'
+ct_mut "a negative price is rejected" '.models[0].priceIn = -1' 'priceIn: must not be negative'
+jq '.futureField = 1 | .models[0].futureField = {} | .accounts[0].cli = "some-new-cli"' "$CF/valid.json" > "$LT/ct-extra.json"
+"$CK" "$LT/ct-extra.json" >/dev/null 2>&1 \
+  && ok "check-model-catalog: unknown fields and an unknown cli value are accepted" \
+  || bad "check-model-catalog: unknown fields and an unknown cli value are accepted"
+printf 'not json {' > "$LT/ct-bad.json"
+"$CK" "$LT/ct-bad.json" >/dev/null 2>&1; ct_rc=$?
+[ "$ct_rc" = 1 ] && ok "check-model-catalog: a file that is not JSON fails" || bad "check-model-catalog: a file that is not JSON fails (rc=$ct_rc)"
+"$CK" >/dev/null 2>&1; ct_rc=$?
+[ "$ct_rc" = 2 ] && ok "check-model-catalog: no argument is a usage error (exit 2)" || bad "check-model-catalog: no argument is a usage error (rc=$ct_rc)"
+# The skill that writes the catalog stages it, validates it, and publishes only on approval.
+UMR="$(tr '\n' ' ' < "$DIR/skills/update-model-routing/SKILL.md" | tr -s ' ')"
+{ printf '%s' "$UMR" | grep -qF 'Stage the machine-readable catalog' \
+  && printf '%s' "$UMR" | grep -qF 'contracts/check-model-catalog.sh ~/.ai/model-catalog.next.json' \
+  && printf '%s' "$UMR" | grep -qF 'mv ~/.ai/model-catalog.next.json ~/.ai/model-catalog.json' \
+  && printf '%s' "$UMR" | grep -qF 'delete `~/.ai/model-catalog.next.json`' \
+  && printf '%s' "$UMR" | grep -qF 'Never write `model-catalog*.json` inside a repo checkout'; } \
+  && ok "update-model-routing stages the catalog, validates it, publishes on approval and deletes it on rejection" \
+  || bad "update-model-routing stages the catalog, validates it, publishes on approval and deletes it on rejection"
+
 rm -rf "$LT"
 
 echo ""

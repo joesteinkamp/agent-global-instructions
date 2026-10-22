@@ -22,7 +22,9 @@ account only.
 1. **Guard and snapshot.** If `~/.ai/model-routing.md` is missing or has no
    `generated:begin` marker, stop and say to run `./customize.sh --global`
    from the harness checkout first. Otherwise
-   `cp ~/.ai/model-routing.md ~/.ai/model-routing.prev.md`.
+   `cp ~/.ai/model-routing.md ~/.ai/model-routing.prev.md`, and
+   `rm -f ~/.ai/model-catalog.next.json` so a leftover from an abandoned run
+   can't be mistaken for this one.
 2. **List what each CLI offers.** For every CLI in the roster probe above, run
    its listing command from the "Calling each CLI" table. Skip models marked
    hidden. Collapse effort and speed variants (`-low`/`-high`/`-xhigh`/`-fast`/
@@ -93,11 +95,58 @@ account only.
    researched. Map `strong` → T2 and `light` → T3. Correct the registry `tier`
    via `LOCAL_MODELS` in `my-context.env` if the evidence contradicts it. If no
    local models are registered, skip this step and leave no file behind.
-9. **Show the diff and ask.** `diff -u ~/.ai/model-routing.prev.md
+9. **Stage the machine-readable catalog.** Beside the markdown, write
+   `~/.ai/model-catalog.next.json` (schema version 1; the format is
+   `contracts/model-catalog-v1.schema.json` in the harness checkout, which lists
+   every field). **Build it from the markdown block you just wrote, not from
+   fresh research**, so the two can't disagree:
+   - `schemaVersion` 1; `generatedAt` today as `YYYY-MM-DD`.
+   - `accounts`: one `{cli, note}` per CLI's account note in `## This machine`.
+     `cli` is `claude`, `codex`, `agent` (Cursor), `agy` or `lm`. Local models
+     stay in `~/.ai/model-routing.local.md`, not in `models`, so add them only as
+     an `lm` account note.
+   - `models`: one entry per table row, **in table order** (T1, then T2, then
+     T3). `name`, `family` as in the row. `tier` is the bare `T1`/`T2`/`T3`;
+     "(pinned by user)" becomes `pinned: true` plus a `pinReason` string,
+     otherwise `pinned: false, pinReason: null`. "T3 at most" and other
+     auto-style rows get tier `T3` and `routable: false`. `priceIn`/`priceOut`
+     are $/Mtok numbers, `null` where the row has `—` or only a billing pool.
+     `reach` has one entry per command prefix in the row's "Reachable via" cell,
+     same order: `cli` the CLI binary, `model` the slug passed to it,
+     `effortStyle` (`flag` for `claude --effort`, `codex-config` for
+     `-c model_reasoning_effort=`, `suffix` when the effort is in the slug,
+     `none` when there is no effort), `efforts` the levels that apply (`[]` for
+     `flag` or `none`), and `command` the row's prefix text verbatim. `command`
+     is for people: nothing may run it. `evidence` is the row's evidence cell.
+   - `unreachable`: the "Listed but not reachable" models with their reasons.
+     Models whose reachability is still unknown go here too, with a reason that
+     starts `unknown:`, because nothing may route to them yet.
+   - `notRouted`: the "Listed but not routed" models with the superseding model.
+   - `vendorByTask`: one `{category, tier, primary, fallback, evidence}` per
+     category, with `tier` the bare required tier. Write the code review
+     category as one entry per author family, its `category` being
+     `code review & refutation (authored by <family>)`.
+   - `sources`: each benchmark in `## Benchmarks consulted` as
+     `{name, url, retrieved}`. Where a source has no URL, use the board's
+     homepage you actually fetched, never a guessed one.
+   Then validate it, from the harness checkout. This skill is installed as a
+   symlink into the checkout, so `cd -P` into this skill's own directory and
+   run `../../contracts/check-model-catalog.sh ~/.ai/model-catalog.next.json
+   ~/.ai/model-routing.md`. Fix every error it prints, in the JSON (or in the
+   markdown, if the markdown is what's wrong) and re-run until it exits 0.
+   **If the validator can't be found or won't pass, publish nothing:** say so,
+   leave the markdown for approval as before, and delete the `.next` file.
+   Never write `model-catalog*.json` inside a repo checkout.
+10. **Show the diff and ask.** `diff -u ~/.ai/model-routing.prev.md
    ~/.ai/model-routing.md`, plus one line per section on what moved and why, and
-   every model whose reachability changed. On approval, delete the `.prev`
-   snapshot. On rejection, `mv ~/.ai/model-routing.prev.md
-   ~/.ai/model-routing.md` and stop. There's no changelog entry: nothing here is
-   in the repo. If the stable method itself looks wrong (a flag changed, a
-   gotcha is missing), say so and propose the repo edit to `MODEL-ROUTING.md`,
-   since that part changes only through the repo.
+   every model whose reachability changed. For the catalog, show the validator's
+   `ok:` line and, if `~/.ai/model-catalog.json` exists,
+   `diff -u ~/.ai/model-catalog.json ~/.ai/model-catalog.next.json` (otherwise
+   say it is new and show the model count). On approval, delete the `.prev`
+   snapshot and `mv ~/.ai/model-catalog.next.json ~/.ai/model-catalog.json`. On
+   rejection, `mv ~/.ai/model-routing.prev.md ~/.ai/model-routing.md`, delete
+   `~/.ai/model-catalog.next.json` (the published catalog is untouched), and
+   stop. There's no changelog entry: nothing here is in the repo. If the stable
+   method itself looks wrong (a flag changed, a gotcha is missing), say so and
+   propose the repo edit to `MODEL-ROUTING.md`, since that part changes only
+   through the repo.

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Model catalog, schema version 1",
+  "description": "Written by the update-model-routing skill to ~/.ai/model-catalog.json (staged as model-catalog.next.json until approved). Never stored inside a repo checkout. models[] is in preference order: T1 first, then T2, then T3, and within a tier the preferred model first. A reader must ignore fields it does not know and must reject a different schemaVersion. reach[].command is for people: a reader must never execute it or build an argument list from it, and uses cli, model, effortStyle and efforts instead.",
+  "type": "object",
+  "required": ["schemaVersion", "generatedAt", "accounts", "models", "unreachable", "notRouted", "vendorByTask", "sources"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "$ref": "#/$defs/date" },
+    "accounts": { "type": "array", "items": { "$ref": "#/$defs/account" } },
+    "models": { "type": "array", "items": { "$ref": "#/$defs/model" } },
+    "unreachable": { "type": "array", "items": { "$ref": "#/$defs/nameReason" } },
+    "notRouted": { "type": "array", "items": { "$ref": "#/$defs/nameReason" } },
+    "vendorByTask": { "type": "array", "items": { "$ref": "#/$defs/vendorTask" } },
+    "sources": { "type": "array", "items": { "$ref": "#/$defs/source" } }
+  },
+  "$defs": {
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "tier": { "enum": ["T1", "T2", "T3"] },
+    "effortStyle": { "enum": ["flag", "codex-config", "suffix", "none"] },
+    "account": {
+      "type": "object",
+      "required": ["cli", "note"],
+      "properties": {
+        "cli": { "type": "string", "minLength": 1, "description": "Open string. Known values: claude, codex, agent (Cursor CLI), agy (Antigravity), lm (local models)." },
+        "note": { "type": "string" }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["name", "family", "tier", "pinned", "pinReason", "routable", "priceIn", "priceOut", "reach", "evidence"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "family": { "type": "string", "minLength": 1 },
+        "tier": { "$ref": "#/$defs/tier" },
+        "pinned": { "type": "boolean", "description": "True when the user pinned this model's tier." },
+        "pinReason": { "type": ["string", "null"], "description": "A reason when pinned is true, otherwise null." },
+        "routable": { "type": "boolean", "description": "False for auto-style models whose backend varies, and others the tier cannot describe." },
+        "priceIn": { "type": ["number", "null"], "minimum": 0, "description": "USD per million input tokens, or null when unknown." },
+        "priceOut": { "type": ["number", "null"], "minimum": 0, "description": "USD per million output tokens, or null when unknown." },
+        "reach": { "type": "array", "description": "Ordered: the first entry is the preferred way to call the model.", "items": { "$ref": "#/$defs/reach" } },
+        "evidence": { "type": "string" }
+      }
+    },
+    "reach": {
+      "type": "object",
+      "required": ["cli", "model", "effortStyle", "efforts", "command"],
+      "properties": {
+        "cli": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1, "description": "The slug passed to that CLI." },
+        "effortStyle": { "$ref": "#/$defs/effortStyle" },
+        "efforts": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "command": { "type": "string", "description": "Informational only. Never execute it." }
+      }
+    },
+    "nameReason": {
+      "type": "object",
+      "required": ["name", "reason"],
+      "properties": { "name": { "type": "string", "minLength": 1 }, "reason": { "type": "string" } }
+    },
+    "vendorTask": {
+      "type": "object",
+      "required": ["category", "tier", "primary", "fallback", "evidence"],
+      "properties": {
+        "category": { "type": "string", "minLength": 1 },
+        "tier": { "$ref": "#/$defs/tier" },
+        "primary": { "type": "string" },
+        "fallback": { "type": "string" },
+        "evidence": { "type": "string" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["name", "url", "retrieved"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "minLength": 1 },
+        "retrieved": { "$ref": "#/$defs/date" }
+      }
+    }
+  }
+}

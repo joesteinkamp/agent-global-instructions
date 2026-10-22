@@ -18,7 +18,7 @@ jobs:
 
       - name: ShellCheck
         # All scripts target bash 3.2+; lint them as bash.
-        run: shellcheck --shell=bash ./*.sh hooks/*.sh evals/*.sh lib/*.sh
+        run: shellcheck --shell=bash ./*.sh hooks/*.sh evals/*.sh lib/*.sh contracts/*.sh
 
       - name: Smoke tests
         run: ./test.sh
