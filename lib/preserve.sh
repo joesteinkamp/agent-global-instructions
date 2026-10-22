@@ -929,13 +929,16 @@ pv_summary() {
         $4 == "appended"        { a[++na] = $1 }
         $4 == "kept-custom" || $4 == "pinned" { k[++nk] = $1 }
         $4 == "left" || $4 == "failed" { l[++nl] = $1 }
+        $4 == "conflict"        { c[++nc] = $1 }
         END {
           if (nr) { print ""; print "Replaced " nr " file(s) you had edited (your versions are in " st "/preserved/):"
                     for (i = 1; i <= nr; i++) print "  " r[i] "   recover: ./install.sh --resolve " r[i] " " rm[i] }
           if (na) { print ""; print "Kept your additions in " na " file(s):"; for (i = 1; i <= na; i++) print "  " a[i] }
           if (nk) { print ""; print "Left " nk " file(s) as yours (kept or pinned):"; for (i = 1; i <= nk; i++) print "  " k[i] }
           if (nl) { print ""; print "Not decided (left untouched; run ./install.sh again):"; for (i = 1; i <= nl; i++) print "  " l[i] }
-          if (nr || na || nk || nl) print "Details for agents: " st "/last-run.json"
+          if (nc) { print ""; print "Skill name conflicts: " nc " skill(s) NOT installed because something of yours already holds the name (left untouched):"
+                    for (i = 1; i <= nc; i++) print "  " c[i] }
+          if (nr || na || nk || nl || nc) print "Details for agents: " st "/last-run.json"
         }'
 }
 

@@ -3168,6 +3168,124 @@ HOME="$LT/flag-home" bash "$DIR/install.sh" --keep > "$LT/flag.out" 2>&1 && fk=0
 { [ "$fk" = 1 ] && grep -q 'only goes with --resolve' "$LT/flag.out" && [ ! -e "$LT/flag-home/AGENTS.md" ]; } \
   && ok "install.sh: --keep without --resolve is refused, not ignored" \
   || bad "install.sh: --keep without --resolve is refused, not ignored"
+
+# ---- entries the harness didn't write -------------------------------------------
+# A hooks file belongs to its user: handlers and matcher groups this repo never
+# wrote must survive an install, a re-install and an uninstall, unchanged.
+# Fixtures use an arbitrary tool path; no installed software is involved.
+FH="$LT/foreign-hooks"; rm -rf "$FH"; mkdir -p "$FH"
+FOREIGN_CMD='/usr/local/bin/some-tool hook'
+OURS_RE='/(guard-paths|guard-bash|format-edited|log-tool|quality-nudge|worktree-reap|load-memory|autonomy-reminder|precompact-archive|log-session-end)(\.ag)?\.sh'
+# fh_ours_gone <file>: none of our scripts is left wired.
+fh_ours_gone() { ! jq -e --arg re "$OURS_RE" '[.. | .command? // empty | select(type == "string" and test($re))] | length > 0' "$1" >/dev/null 2>&1; }
+
+# Codex: nested {matcher, hooks:[...]} groups, plus an event name we never use.
+FHC="$FH/codex"; mkdir -p "$FHC/.codex"
+CXG1="$(jq -nc --arg c "$FOREIGN_CMD" '{matcher:"Bash|SomeTool",hooks:[{type:"command",command:$c,timeout:5}]}')"
+CXG2="$(jq -nc --arg c "$FOREIGN_CMD" '{hooks:[{type:"command",command:$c}]}')"
+jq -n --argjson a "$CXG1" --argjson b "$CXG2" '{toolSetting:{keep:true},hooks:{PreToolUse:[$a],Stop:[$b],SomeToolEvent:[$b]}}' > "$FHC/.codex/hooks.json"
+HOME="$FHC" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
+fc1="$(jq -c . "$FHC/.codex/hooks.json")"
+HOME="$FHC" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
+fc2="$(jq -c . "$FHC/.codex/hooks.json")"
+{ jq -e --argjson a "$CXG1" --argjson b "$CXG2" '
+    ([.hooks.PreToolUse[] | select(. == $a)] | length == 1)
+    and ([.hooks.Stop[] | select(. == $b)] | length == 1)
+    and (.hooks.SomeToolEvent == [$b]) and (.toolSetting == {keep:true})' "$FHC/.codex/hooks.json" >/dev/null 2>&1 \
+  && [ "$fc1" = "$fc2" ] && ! fh_ours_gone "$FHC/.codex/hooks.json"; } \
+  && ok "install-hooks codex: a foreign handler, matcher group, event and top-level key survive install and re-install" \
+  || bad "install-hooks codex: a foreign handler, matcher group, event and top-level key survive install and re-install"
+HOME="$FHC" bash "$DIR/uninstall.sh" codex >/dev/null 2>&1
+{ jq -e --argjson a "$CXG1" --argjson b "$CXG2" '
+    .hooks == {PreToolUse:[$a],Stop:[$b],SomeToolEvent:[$b]} and (.toolSetting == {keep:true})' "$FHC/.codex/hooks.json" >/dev/null 2>&1 \
+  && fh_ours_gone "$FHC/.codex/hooks.json"; } \
+  && ok "uninstall codex: only our hooks leave; the foreign handler and groups remain as written" \
+  || bad "uninstall codex: only our hooks leave; the foreign handler and groups remain as written"
+
+# Cursor: flat entries (one with a matcher), a custom event, top-level version.
+FHU="$FH/cursor"; mkdir -p "$FHU/.cursor"
+CUE1="$(jq -nc --arg c "$FOREIGN_CMD" '{command:$c,matcher:"Shell",loop_limit:2}')"
+CUE2="$(jq -nc --arg c "$FOREIGN_CMD" '{command:$c}')"
+jq -n --argjson a "$CUE1" --argjson b "$CUE2" '{version:1,toolSetting:"x",hooks:{stop:[$a],beforeShellExecution:[$b],someToolEvent:[$b]}}' > "$FHU/.cursor/hooks.json"
+HOME="$FHU" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
+fu1="$(jq -c . "$FHU/.cursor/hooks.json")"
+HOME="$FHU" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
+fu2="$(jq -c . "$FHU/.cursor/hooks.json")"
+{ jq -e --argjson a "$CUE1" --argjson b "$CUE2" '
+    ([.hooks.stop[] | select(. == $a)] | length == 1)
+    and ([.hooks.beforeShellExecution[] | select(. == $b)] | length == 1)
+    and (.hooks.someToolEvent == [$b]) and .version == 1 and .toolSetting == "x"' "$FHU/.cursor/hooks.json" >/dev/null 2>&1 \
+  && [ "$fu1" = "$fu2" ] && ! fh_ours_gone "$FHU/.cursor/hooks.json"; } \
+  && ok "install-hooks cursor: foreign flat entries (with and without a matcher) survive install and re-install" \
+  || bad "install-hooks cursor: foreign flat entries (with and without a matcher) survive install and re-install"
+HOME="$FHU" bash "$DIR/uninstall.sh" cursor >/dev/null 2>&1
+{ jq -e --argjson a "$CUE1" --argjson b "$CUE2" '
+    .hooks == {stop:[$a],beforeShellExecution:[$b],someToolEvent:[$b]} and .toolSetting == "x"' "$FHU/.cursor/hooks.json" >/dev/null 2>&1 \
+  && fh_ours_gone "$FHU/.cursor/hooks.json"; } \
+  && ok "uninstall cursor: only our hooks leave; the foreign entries remain as written" \
+  || bad "uninstall cursor: only our hooks leave; the foreign entries remain as written"
+
+# Antigravity: top-level named hooks; ours are the aigi-* keys.
+FHA="$FH/agy"; mkdir -p "$FHA/.gemini/antigravity-cli"
+AGH="$(jq -nc --arg c "$FOREIGN_CMD" '{PreToolUse:[{matcher:"run_command",hooks:[{type:"command",command:$c,timeout:5}]}],PostToolUse:[{matcher:"*",hooks:[{type:"command",command:$c}]}]}')"
+jq -n --argjson h "$AGH" '{"some-tool":$h}' > "$FHA/.gemini/antigravity-cli/hooks.json"
+HOME="$FHA" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+fa1="$(jq -c . "$FHA/.gemini/antigravity-cli/hooks.json")"
+HOME="$FHA" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+fa2="$(jq -c . "$FHA/.gemini/antigravity-cli/hooks.json")"
+{ jq -e --argjson h "$AGH" '.["some-tool"] == $h and ([keys[] | select(startswith("aigi-"))] | length) > 0' "$FHA/.gemini/antigravity-cli/hooks.json" >/dev/null 2>&1 \
+  && [ "$fa1" = "$fa2" ]; } \
+  && ok "install-hooks antigravity: a foreign named hook survives install and re-install" \
+  || bad "install-hooks antigravity: a foreign named hook survives install and re-install"
+HOME="$FHA" bash "$DIR/uninstall.sh" antigravity >/dev/null 2>&1
+{ jq -e --argjson h "$AGH" '. == {"some-tool":$h}' "$FHA/.gemini/antigravity-cli/hooks.json" >/dev/null 2>&1; } \
+  && ok "uninstall antigravity: only the aigi-* hooks leave; the foreign named hook remains as written" \
+  || bad "uninstall antigravity: only the aigi-* hooks leave; the foreign named hook remains as written"
+
+# ---- a skill name something else already holds ----------------------------------
+# A real directory or a foreign symlink at a skill's name is the user's. It is
+# reported as a conflict (its own line, and again in the closing summary), never
+# overwritten or deleted, and the rest of the skills still install.
+SC="$LT/skill-conflicts"; rm -rf "$SC"; mkdir -p "$SC/.claude/skills/ship" "$SC/.codex/skills" "$SC/foreign-target" "$SC/.cursor/skills"
+printf 'my own ship skill\n' > "$SC/.claude/skills/ship/SKILL.md"
+ln -s "$SC/foreign-target" "$SC/.codex/skills/sync"
+ln -s "$SC/does-not-exist" "$SC/.cursor/skills/verify"
+HOME="$SC" bash "$DIR/install-skills.sh" --no-design claude codex cursor > "$SC/out1" 2>&1; sc_rc=$?
+HOME="$SC" bash "$DIR/install-skills.sh" --no-design claude codex cursor > "$SC/out2" 2>&1
+{ [ "$sc_rc" = 0 ] \
+  && grep -qF "  conflict: $SC/.claude/skills/ship " "$SC/out1" \
+  && grep -qF "  conflict: $SC/.codex/skills/sync " "$SC/out1" \
+  && grep -qF "  conflict: $SC/.cursor/skills/verify " "$SC/out1" \
+  && ! grep -q 'note: ' "$SC/out1"; } \
+  && ok "install-skills: a real directory or foreign symlink at a skill name prints a conflict: line" \
+  || bad "install-skills: a real directory or foreign symlink at a skill name prints a conflict: line"
+{ grep -q '^Skill name conflicts: 3 skill(s)' "$SC/out1" \
+  && sed -n '/^Skill name conflicts/,$p' "$SC/out1" | grep -qF "  $SC/.claude/skills/ship" \
+  && sed -n '/^Skill name conflicts/,$p' "$SC/out1" | grep -qF "  $SC/.codex/skills/sync" \
+  && sed -n '/^Skill name conflicts/,$p' "$SC/out1" | grep -qF "  $SC/.cursor/skills/verify" \
+  && grep -q '^Skill name conflicts: 3 skill(s)' "$SC/out2"; } \
+  && ok "install-skills: conflicts are listed in the closing summary, on every run" \
+  || bad "install-skills: conflicts are listed in the closing summary, on every run"
+{ [ -d "$SC/.claude/skills/ship" ] && [ ! -L "$SC/.claude/skills/ship" ] \
+  && [ "$(cat "$SC/.claude/skills/ship/SKILL.md")" = 'my own ship skill' ] \
+  && [ "$(readlink "$SC/.codex/skills/sync")" = "$SC/foreign-target" ] \
+  && [ "$(readlink "$SC/.cursor/skills/verify")" = "$SC/does-not-exist" ] \
+  && [ -L "$SC/.claude/skills/sync" ] && [ -L "$SC/.codex/skills/ship" ]; } \
+  && ok "install-skills: a conflicting name is never overwritten or deleted, and the other skills still install" \
+  || bad "install-skills: a conflicting name is never overwritten or deleted, and the other skills still install"
+jq -e '[.files[] | select(.action == "conflict")] | length == 3' "$SC/.ai/install-state/last-run.json" >/dev/null 2>&1 \
+  && ok "install-skills: conflicts are recorded in last-run.json for agents" \
+  || bad "install-skills: conflicts are recorded in last-run.json for agents"
+HOME="$SC" bash "$DIR/uninstall.sh" claude codex cursor >/dev/null 2>&1
+{ [ -f "$SC/.claude/skills/ship/SKILL.md" ] && [ -L "$SC/.codex/skills/sync" ] && [ -L "$SC/.cursor/skills/verify" ]; } \
+  && ok "uninstall: a conflicting skill name is left exactly as it was" \
+  || bad "uninstall: a conflicting skill name is left exactly as it was"
+SCC="$LT/skill-clean"; rm -rf "$SCC"; mkdir -p "$SCC"
+HOME="$SCC" bash "$DIR/install-skills.sh" --no-design claude > "$SCC/out" 2>&1
+{ ! grep -q 'conflict' "$SCC/out"; } \
+  && ok "install-skills: a clean install reports no conflicts" \
+  || bad "install-skills: a clean install reports no conflicts"
+
 rm -rf "$LT"
 
 echo ""

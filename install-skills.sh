@@ -96,6 +96,18 @@ is_legacy_port() {  # $1 = dir
   [ -d "$1" ] && [ ! -L "$1" ] && grep -q '^<!-- GENERATED from commands/' "$1/SKILL.md" 2>/dev/null
 }
 
+# Something that is not ours already holds a skill name. Never overwrite or
+# delete it: say so on its own line now, and again in the closing summary, so a
+# skill that silently did not install cannot hide in scrolling output. The
+# ledger row is what puts it in the closing install summary (pv_summary) and
+# in last-run.json.
+note_conflict() {  # $1 = path  $2 = what it is
+  echo "  conflict: $1 $2 — left untouched, so this repo's skill is NOT installed there (rename or remove it to let this repo manage the name)"
+  pv_run_init || return 0
+  PV_VERDICT=CONFLICT; PV_ACTION=conflict; PV_SAVED=""; PV_AI=""
+  pv_log "$1" skill
+}
+
 link_skill() {  # $1 = source dir  $2 = destination skills dir
   local src="${1%/}" dest="$2" name; name="$(basename "$src")"
   valid_name "$name" || return 0
@@ -103,9 +115,9 @@ link_skill() {  # $1 = source dir  $2 = destination skills dir
   if is_legacy_port "$dest/$name"; then
     rm -rf "${dest:?}/$name"; echo "  replaced copied $name skill with a link"
   elif [ -L "$dest/$name" ] && ! is_our_skill_link "$dest/$name"; then
-    echo "  note: $dest/$name is a symlink not managed by this repo — leaving it"; return 0
+    note_conflict "$dest/$name" "is a symlink this repo did not create"; return 0
   elif [ -e "$dest/$name" ] && [ ! -L "$dest/$name" ]; then
-    echo "  note: $dest/$name exists and is not a symlink — leaving it (remove it to let this repo manage the skill)"; return 0
+    note_conflict "$dest/$name" "is a real file or directory, not a link"; return 0
   fi
   ln -sfn "$src" "$dest/$name"
 }
