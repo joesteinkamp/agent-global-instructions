@@ -3301,7 +3301,7 @@ HOME="$SCC" bash "$DIR/install-skills.sh" --no-design claude > "$SCC/out" 2>&1
 # validator, an optional README and fictional fixtures — nothing else, and
 # nothing machine-specific.
 CK="$DIR/contracts/check-model-catalog.sh"; CF="$DIR/contracts/fixtures"
-ct_extra="$(cd "$DIR/contracts" 2>/dev/null && find . -mindepth 1 \( -type f -o -type l \) \
+ct_extra="$(cd "$DIR/contracts" 2>/dev/null && find . -mindepth 1 ! -type d \
   ! -path './fixtures/*' ! -name model-catalog-v1.schema.json ! -name check-model-catalog.sh ! -name README.md | sort)"
 ct_dirs="$(cd "$DIR/contracts" 2>/dev/null && find . -mindepth 1 -type d ! -path './fixtures' ! -path './fixtures/*' | sort)"
 { [ -f "$DIR/contracts/model-catalog-v1.schema.json" ] && [ -x "$CK" ] && [ -d "$CF" ] && [ -z "$ct_extra" ] && [ -z "$ct_dirs" ]; } \
@@ -3316,10 +3316,24 @@ jq -e '.type == "object" and (.required | index("schemaVersion")) and .propertie
 # holds; it catches careless pastes (a home path, a real host, an email, an opaque
 # token, an internal-looking name). It cannot prove a fixture holds no private
 # data, so a new fixture still needs a person to read every field.
-ct_inv="$(cd "$CF" && find . -type f | sed 's|^\./||' | sort | tr '\n' ' ')"
-[ "$ct_inv" = "invalid-bad-tier.json invalid-missing-field.json invalid-routing-mismatch.md invalid-wrong-type.json valid.json valid.routing.md " ] \
-  && ok "contracts/fixtures: exactly the expected fixture files are present" \
-  || bad "contracts/fixtures: exactly the expected fixture files are present (found: $ct_inv)"
+# ct_inventory <fixtures dir>: prints every problem; empty when the directory holds
+# exactly the expected names and each is a regular file. It lists every entry,
+# hidden ones included, and never follows a symlink: git publishes a symlink's
+# target string, so a link is rejected outright whatever it is named. Runs before
+# the content scan.
+ct_inventory() {
+  local d="$1" e got want="invalid-bad-tier.json invalid-missing-field.json invalid-routing-mismatch.md invalid-wrong-type.json valid.json valid.routing.md "
+  got="$(cd "$d" && find . -mindepth 1 | sed 's|^\./||' | sort | tr '\n' ' ')"
+  [ "$got" = "$want" ] || printf 'entries are not exactly the expected fixtures (found: %s)\n' "$got"
+  (cd "$d" && find . -mindepth 1 ! -type f) | sed 's|^\./||' | while IFS= read -r e; do
+    if [ -L "$d/$e" ]; then printf 'symlink, not a regular file: %s -> %s\n' "$e" "$(readlink "$d/$e")"
+    else printf 'not a regular file: %s\n' "$e"; fi
+  done
+}
+ct_inv="$(ct_inventory "$CF")"
+[ -z "$ct_inv" ] \
+  && ok "contracts/fixtures: exactly the expected fixture files are present, all regular files, hidden entries included" \
+  || bad "contracts/fixtures: exactly the expected fixture files are present ($ct_inv)"
 # ct_tripwire <file>: prints every finding; empty when the file passes.
 ct_tripwire() {
   local f="$1" strings
@@ -3345,11 +3359,55 @@ ct_tripwire() {
   printf '%s\n' "$strings" | grep -E '[A-Za-z0-9+/_=-]{32,}' | sed 's/^/opaque token: /' || true
   printf '%s\n' "$strings" | grep -E '[A-Z]{3,}_[A-Z0-9_]+' | sed 's/^/marker: /' || true
 }
-ct_found=""
-for ct_f in "$CF"/*; do ct_r="$(ct_tripwire "$ct_f")"; [ -z "$ct_r" ] || ct_found="$ct_found $(basename "$ct_f"): $ct_r"; done
+# ct_scan <fixtures dir>: the tripwire over every entry, hidden ones included. A
+# symlink is never followed (its target could be any file on the machine); the
+# target string, which is what git would publish, is scanned instead.
+ct_scan() {
+  local d="$1" e r found=""
+  while IFS= read -r e; do
+    [ -n "$e" ] || continue
+    if [ -L "$d/$e" ]; then
+      readlink "$d/$e" > "$LT/ct-link-target.txt"; r="$(ct_tripwire "$LT/ct-link-target.txt")"
+    else r="$(ct_tripwire "$d/$e")"; fi
+    [ -z "$r" ] || found="$found $e: $r"
+  done <<EOF
+$(cd "$d" && find . -mindepth 1 ! -type d | sed 's|^\./||' | sort)
+EOF
+  printf '%s' "$found"
+}
+ct_found="$(ct_scan "$CF")"
 [ -z "$ct_found" ] \
-  && ok "contracts/fixtures: the tripwire passes over every string in every fixture, markdown included" \
+  && ok "contracts/fixtures: the tripwire passes over every string in every fixture, markdown and hidden entries included" \
   || bad "contracts/fixtures: the tripwire fired:$ct_found"
+# Negatives on a scratch copy of contracts/: the same two functions must refuse a
+# hidden symlink with a private-looking target, a symlink under an expected name,
+# a hidden regular file and a nested directory.
+ct_scratch() { rm -rf "$LT/ct-scratch"; cp -R "$DIR/contracts" "$LT/ct-scratch"; }
+ct_scratch; ln -s /Users/PRIVATE_SENTINEL/x "$LT/ct-scratch/fixtures/.private-link"
+ct_r="$(ct_inventory "$LT/ct-scratch/fixtures")"
+printf '%s\n' "$ct_r" | grep -qF 'symlink, not a regular file: .private-link' \
+  && ok "contracts/fixtures inventory: a hidden symlink to a private-looking path fails" \
+  || bad "contracts/fixtures inventory: a hidden symlink to a private-looking path fails (got: $ct_r)"
+ct_r="$(ct_scan "$LT/ct-scratch/fixtures")"
+{ printf '%s\n' "$ct_r" | grep -qF '.private-link:' && printf '%s\n' "$ct_r" | grep -qF 'PRIVATE_SENTINEL'; } \
+  && ok "contracts/fixtures scan: a hidden symlink's target string is scanned" \
+  || bad "contracts/fixtures scan: a hidden symlink's target string is scanned (got: $ct_r)"
+ct_scratch; rm "$LT/ct-scratch/fixtures/valid.routing.md"; ln -s valid.json "$LT/ct-scratch/fixtures/valid.routing.md"
+ct_r="$(ct_inventory "$LT/ct-scratch/fixtures")"
+printf '%s\n' "$ct_r" | grep -qF 'symlink, not a regular file: valid.routing.md' \
+  && ok "contracts/fixtures inventory: a symlink under an expected name fails" \
+  || bad "contracts/fixtures inventory: a symlink under an expected name fails (got: $ct_r)"
+ct_scratch; printf 'nothing private\n' > "$LT/ct-scratch/fixtures/.notes"
+ct_r="$(ct_inventory "$LT/ct-scratch/fixtures")"
+printf '%s\n' "$ct_r" | grep -qF '.notes' \
+  && ok "contracts/fixtures inventory: a hidden regular file fails" \
+  || bad "contracts/fixtures inventory: a hidden regular file fails (got: $ct_r)"
+ct_scratch; mkdir "$LT/ct-scratch/fixtures/sub"
+ct_r="$(ct_inventory "$LT/ct-scratch/fixtures")"
+printf '%s\n' "$ct_r" | grep -qF 'not a regular file: sub' \
+  && ok "contracts/fixtures inventory: a nested directory fails" \
+  || bad "contracts/fixtures inventory: a nested directory fails (got: $ct_r)"
+rm -rf "$LT/ct-scratch"
 # Sentinels: a private-looking string in each kind of free-text field must fire it.
 ct_sentinel() {  # <desc> <jq program>
   local f="$LT/ct-sentinel.json" r

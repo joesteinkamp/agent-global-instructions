@@ -8,7 +8,7 @@ list).
 |---|---|
 | `model-catalog-v1.schema.json` | JSON Schema for `~/.ai/model-catalog.json`, which `/update-model-routing` writes beside `~/.ai/model-routing.md`. |
 | `check-model-catalog.sh` | bash + jq validator. `check-model-catalog.sh <catalog.json> [routing.md]`. Checks fields, types, enums and the size limits below; with the markdown it also checks the table and the catalog agree (see below). Exit 0 valid, 1 invalid, 2 bad usage. |
-| `fixtures/` | Made-up data (models named "Example …", "Sample …"): a valid catalog and its matching table, plus deliberately broken ones. `test.sh` runs a tripwire over every string in them (home paths, real-looking hosts, emails, opaque tokens, non-fictional names); it catches careless pastes and cannot prove a fixture holds no private data, so read every field of a new fixture before adding it. |
+| `fixtures/` | Made-up data (models named "Example …", "Sample …"): a valid catalog and its matching table, plus deliberately broken ones. `test.sh` pins the exact entry list, hidden entries included, and rejects anything that is not a regular file (a symlink publishes its target path); then it runs a tripwire over every string in them (home paths, real-looking hosts, emails, opaque tokens, non-fictional names); it catches careless pastes and cannot prove a fixture holds no private data, so read every field of a new fixture before adding it. |
 
 The catalog lives only on the machine, at `~/.ai/model-catalog.json` (staged as
 `~/.ai/model-catalog.next.json` until you approve it). It is never written into
