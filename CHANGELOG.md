@@ -12,6 +12,21 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Foreign entries, skill conflicts, published model catalog (2026-10-21,
+  Claude).** The ask: other tools on the machine read the harness's routing and
+  share its hook and skill folders, with nothing pinning that they coexist.
+  What changed: tests pin that hook entries the harness didn't write survive
+  install, re-install and uninstall (Codex, Cursor, Antigravity); a foreign
+  folder at a harness skill name is now a visible `conflict:` line, listed in
+  the summary and in `last-run.json`; new `contracts/` holds a model catalog v1
+  schema, a bash + jq checker (bidirectional parity with the markdown, prices
+  included, naming any effort list the table leaves to a placeholder; size
+  limits; a fixture inventory that covers hidden files and rejects
+  symlinks) and fictional fixtures; `update-model-routing` stages
+  `~/.ai/model-catalog.next.json` and publishes it on approval. Why: other
+  tools can read routing without scraping a markdown table, and the harness
+  stays unaware of who consumes it. Rejected: product-specific detection;
+  generating the markdown from JSON (a bigger change than needed).
 - **Disjoint scope covers outputs, not just inputs (2026-10-20, Claude).** The
   ask: user requested the addition. What changed: the "Give every agent a
   disjoint scope" rule now says each agent writes its scratch files, builds and

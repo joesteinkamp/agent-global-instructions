@@ -34,7 +34,7 @@ for ex in examples/*.env; do b=$(basename "$ex" .env)
 The full CI matrix, runnable locally and in this order:
 
 ```sh
-shellcheck --shell=bash ./*.sh hooks/*.sh evals/*.sh lib/*.sh
+shellcheck --shell=bash ./*.sh hooks/*.sh evals/*.sh lib/*.sh contracts/*.sh
 ./test.sh          # structure + pinned instruction text
 ./evals/run.sh     # every behaviour in evals/behaviours.md still has an anchor
 ./verify-skills.sh # vendored skill trees haven't drifted

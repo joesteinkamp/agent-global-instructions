@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "Jan 15 2030",
+  "accounts": [
+    {
+      "cli": "claude",
+      "note": "Example plan; the aliases resolve to the Example models below."
+    },
+    {
+      "cli": "codex",
+      "note": "Example quota; each call loads about 20k tokens of instructions."
+    },
+    {
+      "cli": "agent",
+      "note": "free plan, auto only"
+    },
+    {
+      "cli": "agy",
+      "note": "Example account; -p must come last."
+    },
+    {
+      "cli": "lm",
+      "note": "one local model, text only"
+    }
+  ],
+  "models": [
+    {
+      "name": "Example Large 1",
+      "family": "ExampleLab",
+      "tier": "T1",
+      "pinned": false,
+      "pinReason": null,
+      "routable": true,
+      "priceIn": 4,
+      "priceOut": 20,
+      "reach": [
+        {
+          "cli": "claude",
+          "model": "large",
+          "effortStyle": "flag",
+          "efforts": [],
+          "command": "claude -p --model large --effort <lvl>"
+        },
+        {
+          "cli": "agent",
+          "model": "example-large-1",
+          "effortStyle": "prefix",
+          "efforts": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "command": "agent -p --trust --model example-large-1-<low|medium|high>"
+        }
+      ],
+      "evidence": "Board A 58 (#1); Board B 66% — Board A, Board B, 2030-01-15"
+    },
+    {
+      "name": "Sample Reasoner 2",
+      "family": "SampleWorks",
+      "tier": "T1",
+      "pinned": false,
+      "pinReason": null,
+      "routable": true,
+      "priceIn": 10,
+      "priceOut": 50,
+      "reach": [
+        {
+          "cli": "codex",
+          "model": "sample-reasoner-2",
+          "effortStyle": "codex-config",
+          "efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "command": "codex exec -m sample-reasoner-2 -c model_reasoning_effort=<lvl>"
+        }
+      ],
+      "evidence": "Board A 53; the evidence splits between boards — Board A, 2030-01-15"
+    },
+    {
+      "name": "Example Medium 1",
+      "family": "ExampleLab",
+      "tier": "T2",
+      "pinned": "yes",
+      "pinReason": "pinned by user 2030-01-10: it runs as the lead at default effort",
+      "routable": true,
+      "priceIn": 2,
+      "priceOut": 10,
+      "reach": [
+        {
+          "cli": "claude",
+          "model": "medium",
+          "effortStyle": "flag",
+          "efforts": [],
+          "command": "claude -p --model medium --effort <lvl>"
+        }
+      ],
+      "evidence": "Board A 56 at max effort would be T1; pinned to T2 — Board A, 2030-01-15"
+    },
+    {
+      "name": "Sample Open 3",
+      "family": "SampleOpen",
+      "tier": "T2",
+      "pinned": false,
+      "pinReason": null,
+      "routable": true,
+      "priceIn": "free",
+      "priceOut": null,
+      "reach": [
+        {
+          "cli": "agy",
+          "model": "sample-open-3",
+          "effortStyle": "none",
+          "efforts": [],
+          "command": "agy --model sample-open-3 -p"
+        }
+      ],
+      "evidence": "Board A 44; no price match — Board A, 2030-01-15"
+    },
+    {
+      "name": "Example Local 7B",
+      "family": "ExampleOpen",
+      "tier": "T3",
+      "pinned": false,
+      "pinReason": null,
+      "routable": true,
+      "priceIn": 0,
+      "priceOut": 0,
+      "reach": [
+        {
+          "cli": "lm",
+          "model": "example-local-7b",
+          "effortStyle": "none",
+          "efforts": [],
+          "command": "lm -p \"<prompt>\" --model example-local-7b"
+        }
+      ],
+      "evidence": "Board C 30; measured 40 tok/s with lm bench — Board C, 2030-01-15"
+    },
+    {
+      "name": "Example Auto",
+      "family": "varies",
+      "tier": "T3",
+      "pinned": false,
+      "pinReason": null,
+      "routable": false,
+      "priceIn": null,
+      "priceOut": null,
+      "reach": [
+        {
+          "cli": "agent",
+          "model": "auto",
+          "effortStyle": "none",
+          "efforts": [],
+          "command": "agent -p --trust --model auto"
+        }
+      ],
+      "evidence": "The router picks a model per request, so it cannot be tiered. Never route T1/T2 work to it."
+    }
+  ],
+  "unreachable": [
+    {
+      "name": "Sample Preview 4",
+      "reason": "plan does not include it (\"model not found\")"
+    }
+  ],
+  "notRouted": [
+    {
+      "name": "Example Large 0",
+      "reason": "superseded by Example Large 1"
+    }
+  ],
+  "vendorByTask": [
+    {
+      "category": "hard coding & refactoring",
+      "tier": "T2",
+      "primary": "claude Example Large 1, effort high",
+      "fallback": "codex Sample Reasoner 2, effort high",
+      "evidence": "near-tie on Board B; no clear winner"
+    },
+    {
+      "category": "code review & refutation (authored by ExampleLab)",
+      "tier": "T1",
+      "primary": "codex Sample Reasoner 2, effort xhigh",
+      "fallback": "agent Example Large 1 high",
+      "evidence": "independence from the author matters more than rank"
+    },
+    {
+      "category": "quick mechanical edits & cheap fan-out",
+      "tier": "T3",
+      "primary": "lm Example Local 7B",
+      "fallback": "claude Example Medium 1, effort low",
+      "evidence": "T3 work; Board C"
+    }
+  ],
+  "sources": [
+    {
+      "name": "Example Board A",
+      "url": "https://example.com/board-a",
+      "retrieved": "2030-01-15"
+    },
+    {
+      "name": "Example Board B",
+      "url": "https://example.com/board-b",
+      "retrieved": "2030-01-15"
+    }
+  ]
+}

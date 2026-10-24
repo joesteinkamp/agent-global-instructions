@@ -3168,6 +3168,429 @@ HOME="$LT/flag-home" bash "$DIR/install.sh" --keep > "$LT/flag.out" 2>&1 && fk=0
 { [ "$fk" = 1 ] && grep -q 'only goes with --resolve' "$LT/flag.out" && [ ! -e "$LT/flag-home/AGENTS.md" ]; } \
   && ok "install.sh: --keep without --resolve is refused, not ignored" \
   || bad "install.sh: --keep without --resolve is refused, not ignored"
+
+# ---- entries the harness didn't write -------------------------------------------
+# A hooks file belongs to its user: handlers and matcher groups this repo never
+# wrote must survive an install, a re-install and an uninstall, unchanged.
+# Fixtures use an arbitrary tool path; no installed software is involved.
+FH="$LT/foreign-hooks"; rm -rf "$FH"; mkdir -p "$FH"
+FOREIGN_CMD='/usr/local/bin/some-tool hook'
+OURS_RE='/(guard-paths|guard-bash|format-edited|log-tool|quality-nudge|worktree-reap|load-memory|autonomy-reminder|precompact-archive|log-session-end)(\.ag)?\.sh'
+# fh_ours_gone <file>: none of our scripts is left wired.
+fh_ours_gone() { ! jq -e --arg re "$OURS_RE" '[.. | .command? // empty | select(type == "string" and test($re))] | length > 0' "$1" >/dev/null 2>&1; }
+
+# Codex: nested {matcher, hooks:[...]} groups, plus an event name we never use.
+FHC="$FH/codex"; mkdir -p "$FHC/.codex"
+CXG1="$(jq -nc --arg c "$FOREIGN_CMD" '{matcher:"Bash|SomeTool",hooks:[{type:"command",command:$c,timeout:5}]}')"
+CXG2="$(jq -nc --arg c "$FOREIGN_CMD" '{hooks:[{type:"command",command:$c}]}')"
+jq -n --argjson a "$CXG1" --argjson b "$CXG2" '{toolSetting:{keep:true},hooks:{PreToolUse:[$a],Stop:[$b],SomeToolEvent:[$b]}}' > "$FHC/.codex/hooks.json"
+HOME="$FHC" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
+fc1="$(jq -c . "$FHC/.codex/hooks.json")"
+HOME="$FHC" bash "$DIR/install-hooks.sh" codex >/dev/null 2>&1
+fc2="$(jq -c . "$FHC/.codex/hooks.json")"
+{ jq -e --argjson a "$CXG1" --argjson b "$CXG2" '
+    ([.hooks.PreToolUse[] | select(. == $a)] | length == 1)
+    and ([.hooks.Stop[] | select(. == $b)] | length == 1)
+    and (.hooks.SomeToolEvent == [$b]) and (.toolSetting == {keep:true})' "$FHC/.codex/hooks.json" >/dev/null 2>&1 \
+  && [ "$fc1" = "$fc2" ] && ! fh_ours_gone "$FHC/.codex/hooks.json"; } \
+  && ok "install-hooks codex: a foreign handler, matcher group, event and top-level key survive install and re-install" \
+  || bad "install-hooks codex: a foreign handler, matcher group, event and top-level key survive install and re-install"
+HOME="$FHC" bash "$DIR/uninstall.sh" codex >/dev/null 2>&1
+{ jq -e --argjson a "$CXG1" --argjson b "$CXG2" '
+    .hooks == {PreToolUse:[$a],Stop:[$b],SomeToolEvent:[$b]} and (.toolSetting == {keep:true})' "$FHC/.codex/hooks.json" >/dev/null 2>&1 \
+  && fh_ours_gone "$FHC/.codex/hooks.json"; } \
+  && ok "uninstall codex: only our hooks leave; the foreign handler and groups remain as written" \
+  || bad "uninstall codex: only our hooks leave; the foreign handler and groups remain as written"
+
+# Cursor: flat entries (one with a matcher), a custom event, top-level version.
+FHU="$FH/cursor"; mkdir -p "$FHU/.cursor"
+CUE1="$(jq -nc --arg c "$FOREIGN_CMD" '{command:$c,matcher:"Shell",loop_limit:2}')"
+CUE2="$(jq -nc --arg c "$FOREIGN_CMD" '{command:$c}')"
+jq -n --argjson a "$CUE1" --argjson b "$CUE2" '{version:1,toolSetting:"x",hooks:{stop:[$a],beforeShellExecution:[$b],someToolEvent:[$b]}}' > "$FHU/.cursor/hooks.json"
+HOME="$FHU" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
+fu1="$(jq -c . "$FHU/.cursor/hooks.json")"
+HOME="$FHU" bash "$DIR/install-hooks.sh" cursor >/dev/null 2>&1
+fu2="$(jq -c . "$FHU/.cursor/hooks.json")"
+{ jq -e --argjson a "$CUE1" --argjson b "$CUE2" '
+    ([.hooks.stop[] | select(. == $a)] | length == 1)
+    and ([.hooks.beforeShellExecution[] | select(. == $b)] | length == 1)
+    and (.hooks.someToolEvent == [$b]) and .version == 1 and .toolSetting == "x"' "$FHU/.cursor/hooks.json" >/dev/null 2>&1 \
+  && [ "$fu1" = "$fu2" ] && ! fh_ours_gone "$FHU/.cursor/hooks.json"; } \
+  && ok "install-hooks cursor: foreign flat entries (with and without a matcher) survive install and re-install" \
+  || bad "install-hooks cursor: foreign flat entries (with and without a matcher) survive install and re-install"
+HOME="$FHU" bash "$DIR/uninstall.sh" cursor >/dev/null 2>&1
+{ jq -e --argjson a "$CUE1" --argjson b "$CUE2" '
+    .hooks == {stop:[$a],beforeShellExecution:[$b],someToolEvent:[$b]} and .toolSetting == "x"' "$FHU/.cursor/hooks.json" >/dev/null 2>&1 \
+  && fh_ours_gone "$FHU/.cursor/hooks.json"; } \
+  && ok "uninstall cursor: only our hooks leave; the foreign entries remain as written" \
+  || bad "uninstall cursor: only our hooks leave; the foreign entries remain as written"
+
+# Antigravity: top-level named hooks; ours are the aigi-* keys.
+FHA="$FH/agy"; mkdir -p "$FHA/.gemini/antigravity-cli"
+AGH="$(jq -nc --arg c "$FOREIGN_CMD" '{PreToolUse:[{matcher:"run_command",hooks:[{type:"command",command:$c,timeout:5}]}],PostToolUse:[{matcher:"*",hooks:[{type:"command",command:$c}]}]}')"
+jq -n --argjson h "$AGH" '{"some-tool":$h}' > "$FHA/.gemini/antigravity-cli/hooks.json"
+HOME="$FHA" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+fa1="$(jq -c . "$FHA/.gemini/antigravity-cli/hooks.json")"
+HOME="$FHA" bash "$DIR/install-hooks.sh" antigravity >/dev/null 2>&1
+fa2="$(jq -c . "$FHA/.gemini/antigravity-cli/hooks.json")"
+{ jq -e --argjson h "$AGH" '.["some-tool"] == $h and ([keys[] | select(startswith("aigi-"))] | length) > 0' "$FHA/.gemini/antigravity-cli/hooks.json" >/dev/null 2>&1 \
+  && [ "$fa1" = "$fa2" ]; } \
+  && ok "install-hooks antigravity: a foreign named hook survives install and re-install" \
+  || bad "install-hooks antigravity: a foreign named hook survives install and re-install"
+HOME="$FHA" bash "$DIR/uninstall.sh" antigravity >/dev/null 2>&1
+{ jq -e --argjson h "$AGH" '. == {"some-tool":$h}' "$FHA/.gemini/antigravity-cli/hooks.json" >/dev/null 2>&1; } \
+  && ok "uninstall antigravity: only the aigi-* hooks leave; the foreign named hook remains as written" \
+  || bad "uninstall antigravity: only the aigi-* hooks leave; the foreign named hook remains as written"
+
+# ---- a skill name something else already holds ----------------------------------
+# A real directory or a foreign symlink at a skill's name is the user's. It is
+# reported as a conflict (its own line, and again in the closing summary), never
+# overwritten or deleted, and the rest of the skills still install.
+SC="$LT/skill-conflicts"; rm -rf "$SC"; mkdir -p "$SC/.claude/skills/ship" "$SC/.codex/skills" "$SC/foreign-target" "$SC/.cursor/skills"
+printf 'my own ship skill\n' > "$SC/.claude/skills/ship/SKILL.md"
+ln -s "$SC/foreign-target" "$SC/.codex/skills/sync"
+ln -s "$SC/does-not-exist" "$SC/.cursor/skills/verify"
+HOME="$SC" bash "$DIR/install-skills.sh" --no-design claude codex cursor > "$SC/out1" 2>&1; sc_rc=$?
+HOME="$SC" bash "$DIR/install-skills.sh" --no-design claude codex cursor > "$SC/out2" 2>&1
+{ [ "$sc_rc" = 0 ] \
+  && grep -qF "  conflict: $SC/.claude/skills/ship " "$SC/out1" \
+  && grep -qF "  conflict: $SC/.codex/skills/sync " "$SC/out1" \
+  && grep -qF "  conflict: $SC/.cursor/skills/verify " "$SC/out1" \
+  && ! grep -q 'note: ' "$SC/out1"; } \
+  && ok "install-skills: a real directory or foreign symlink at a skill name prints a conflict: line" \
+  || bad "install-skills: a real directory or foreign symlink at a skill name prints a conflict: line"
+{ grep -q '^Skill name conflicts: 3 skill(s)' "$SC/out1" \
+  && sed -n '/^Skill name conflicts/,$p' "$SC/out1" | grep -qF "  $SC/.claude/skills/ship" \
+  && sed -n '/^Skill name conflicts/,$p' "$SC/out1" | grep -qF "  $SC/.codex/skills/sync" \
+  && sed -n '/^Skill name conflicts/,$p' "$SC/out1" | grep -qF "  $SC/.cursor/skills/verify" \
+  && grep -q '^Skill name conflicts: 3 skill(s)' "$SC/out2"; } \
+  && ok "install-skills: conflicts are listed in the closing summary, on every run" \
+  || bad "install-skills: conflicts are listed in the closing summary, on every run"
+{ [ -d "$SC/.claude/skills/ship" ] && [ ! -L "$SC/.claude/skills/ship" ] \
+  && [ "$(cat "$SC/.claude/skills/ship/SKILL.md")" = 'my own ship skill' ] \
+  && [ "$(readlink "$SC/.codex/skills/sync")" = "$SC/foreign-target" ] \
+  && [ "$(readlink "$SC/.cursor/skills/verify")" = "$SC/does-not-exist" ] \
+  && [ -L "$SC/.claude/skills/sync" ] && [ -L "$SC/.codex/skills/ship" ]; } \
+  && ok "install-skills: a conflicting name is never overwritten or deleted, and the other skills still install" \
+  || bad "install-skills: a conflicting name is never overwritten or deleted, and the other skills still install"
+jq -e '[.files[] | select(.action == "conflict")] | length == 3' "$SC/.ai/install-state/last-run.json" >/dev/null 2>&1 \
+  && ok "install-skills: conflicts are recorded in last-run.json for agents" \
+  || bad "install-skills: conflicts are recorded in last-run.json for agents"
+HOME="$SC" bash "$DIR/uninstall.sh" claude codex cursor >/dev/null 2>&1
+{ [ -f "$SC/.claude/skills/ship/SKILL.md" ] && [ -L "$SC/.codex/skills/sync" ] && [ -L "$SC/.cursor/skills/verify" ]; } \
+  && ok "uninstall: a conflicting skill name is left exactly as it was" \
+  || bad "uninstall: a conflicting skill name is left exactly as it was"
+# Through install.sh the conflict lands in the run's closing summary, after the last layer.
+SCI="$LT/skill-conflict-installsh"; rm -rf "$SCI"; mkdir -p "$SCI/.claude/skills/ship"
+printf 'my own ship skill\n' > "$SCI/.claude/skills/ship/SKILL.md"
+HOME="$SCI" bash "$DIR/install.sh" --yes claude > "$SCI/out" 2>&1
+{ grep -qF "  conflict: $SCI/.claude/skills/ship " "$SCI/out" \
+  && [ "$(grep -n '^Skill name conflicts: 1 skill(s)' "$SCI/out" | tail -1 | cut -d: -f1)" -gt "$(grep -n '^== settings' "$SCI/out" | tail -1 | cut -d: -f1)" ] \
+  && [ "$(cat "$SCI/.claude/skills/ship/SKILL.md")" = 'my own ship skill' ] \
+  && jq -e '[.files[] | select(.action == "conflict")] | length == 1' "$SCI/.ai/install-state/last-run.json" >/dev/null 2>&1; } \
+  && ok "install.sh: a skill-name conflict is in the closing summary (after the last layer) and last-run.json" \
+  || bad "install.sh: a skill-name conflict is in the closing summary (after the last layer) and last-run.json"
+SCC="$LT/skill-clean"; rm -rf "$SCC"; mkdir -p "$SCC"
+HOME="$SCC" bash "$DIR/install-skills.sh" --no-design claude > "$SCC/out" 2>&1
+{ ! grep -q 'conflict' "$SCC/out"; } \
+  && ok "install-skills: a clean install reports no conflicts" \
+  || bad "install-skills: a clean install reports no conflicts"
+
+# ---- the published model catalog (contracts/) -----------------------------------
+# contracts/ holds a format other tools may read, so it holds the schema, its
+# validator, an optional README and fictional fixtures — nothing else, and
+# nothing machine-specific.
+CK="$DIR/contracts/check-model-catalog.sh"; CF="$DIR/contracts/fixtures"
+ct_extra="$(cd "$DIR/contracts" 2>/dev/null && find . -mindepth 1 ! -type d \
+  ! -path './fixtures/*' ! -name model-catalog-v1.schema.json ! -name check-model-catalog.sh ! -name README.md | sort)"
+ct_dirs="$(cd "$DIR/contracts" 2>/dev/null && find . -mindepth 1 -type d ! -path './fixtures' ! -path './fixtures/*' | sort)"
+{ [ -f "$DIR/contracts/model-catalog-v1.schema.json" ] && [ -x "$CK" ] && [ -d "$CF" ] && [ -z "$ct_extra" ] && [ -z "$ct_dirs" ]; } \
+  && ok "contracts/ holds only the schema, the validator, a README and fixtures" \
+  || bad "contracts/ holds only the schema, the validator, a README and fixtures (unexpected: $ct_extra $ct_dirs)"
+jq -e '.type == "object" and (.required | index("schemaVersion")) and .properties.schemaVersion.const == 1' \
+  "$DIR/contracts/model-catalog-v1.schema.json" >/dev/null 2>&1 \
+  && ok "contracts: the schema is valid JSON and pins schemaVersion 1" \
+  || bad "contracts: the schema is valid JSON and pins schemaVersion 1"
+# Fixtures: an explicit inventory, and a TRIPWIRE for private-looking content. The
+# tripwire is a denylist plus name/slug/host allowlists over every string a fixture
+# holds; it catches careless pastes (a home path, a real host, an email, an opaque
+# token, an internal-looking name). It cannot prove a fixture holds no private
+# data, so a new fixture still needs a person to read every field.
+# ct_inventory <fixtures dir>: prints every problem; empty when the directory holds
+# exactly the expected names and each is a regular file. It lists every entry,
+# hidden ones included, and never follows a symlink: git publishes a symlink's
+# target string, so a link is rejected outright whatever it is named. Runs before
+# the content scan.
+ct_inventory() {
+  local d="$1" e got want="invalid-bad-tier.json invalid-missing-field.json invalid-routing-mismatch.md invalid-wrong-type.json valid.json valid.routing.md "
+  got="$(cd "$d" && find . -mindepth 1 | sed 's|^\./||' | sort | tr '\n' ' ')"
+  [ "$got" = "$want" ] || printf 'entries are not exactly the expected fixtures (found: %s)\n' "$got"
+  (cd "$d" && find . -mindepth 1 ! -type f) | sed 's|^\./||' | while IFS= read -r e; do
+    if [ -L "$d/$e" ]; then printf 'symlink, not a regular file: %s -> %s\n' "$e" "$(readlink "$d/$e")"
+    else printf 'not a regular file: %s\n' "$e"; fi
+  done
+}
+ct_inv="$(ct_inventory "$CF")"
+[ -z "$ct_inv" ] \
+  && ok "contracts/fixtures: exactly the expected fixture files are present, all regular files, hidden entries included" \
+  || bad "contracts/fixtures: exactly the expected fixture files are present ($ct_inv)"
+# ct_tripwire <file>: prints every finding; empty when the file passes.
+ct_tripwire() {
+  local f="$1" strings
+  case "$f" in
+    *.json)
+      strings="$(jq -r '[.. | strings] | .[]' "$f" 2>/dev/null)"
+      jq -r '
+        def bad($what; $v): "\($what): \($v | tojson)";
+        ((.models // [])[] | (.name | select(test("^(Example|Sample) ") | not) | bad("model name"; .)),
+                             (.family | select(test("^(Example|Sample)") or . == "varies" | not) | bad("family"; .)),
+                             (.reach[]? | (.model | select(test("^((example|sample)-[a-z0-9.-]+|large|medium|auto)$") | not) | bad("reach model"; .)),
+                                          (.cli | select(IN("claude","codex","agent","agy","lm") | not) | bad("reach cli"; .)))),
+        ((.accounts // [])[] | .cli | select(IN("claude","codex","agent","agy","lm") | not) | bad("account cli"; .)),
+        (((.unreachable // []) + (.notRouted // []))[] | .name | select(test("^(Example|Sample) ") | not) | bad("listed name"; .)),
+        ((.sources // [])[] | .name | select(test("^Example ") | not) | bad("source name"; .))' "$f" 2>/dev/null;;
+    *) strings="$(cat "$f")";;
+  esac
+  printf '%s\n' "$strings" | grep -E '(/Users/|/home/|/root/|[A-Za-z]:\\|~/|\\\\[A-Za-z])' | sed 's/^/home path: /' || true
+  printf '%s\n' "$strings" | grep -E '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' | sed 's/^/email: /' || true
+  printf '%s\n' "$strings" | grep -oE 'https?://[^ )"]+' | grep -vE '^https?://([a-z0-9-]+\.)*example\.(com|org)(/|$)' | sed 's/^/url: /' || true
+  printf '%s\n' "$strings" | sed -E 's/example\.(com|org)//g' | grep -E '[A-Za-z0-9-]+\.(com|net|org|io|ai|dev|app|cloud|internal|corp|local|co|gov|edu)([^A-Za-z]|$)' | sed 's/^/host: /' || true
+  printf '%s\n' "$strings" | grep -E '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | sed 's/^/ip: /' || true
+  printf '%s\n' "$strings" | grep -E '[A-Za-z0-9+/_=-]{32,}' | sed 's/^/opaque token: /' || true
+  printf '%s\n' "$strings" | grep -E '[A-Z]{3,}_[A-Z0-9_]+' | sed 's/^/marker: /' || true
+}
+# ct_scan <fixtures dir>: the tripwire over every entry, hidden ones included. A
+# symlink is never followed (its target could be any file on the machine); the
+# target string, which is what git would publish, is scanned instead.
+ct_scan() {
+  local d="$1" e r found=""
+  while IFS= read -r e; do
+    [ -n "$e" ] || continue
+    if [ -L "$d/$e" ]; then
+      readlink "$d/$e" > "$LT/ct-link-target.txt"; r="$(ct_tripwire "$LT/ct-link-target.txt")"
+    else r="$(ct_tripwire "$d/$e")"; fi
+    [ -z "$r" ] || found="$found $e: $r"
+  done <<EOF
+$(cd "$d" && find . -mindepth 1 ! -type d | sed 's|^\./||' | sort)
+EOF
+  printf '%s' "$found"
+}
+ct_found="$(ct_scan "$CF")"
+[ -z "$ct_found" ] \
+  && ok "contracts/fixtures: the tripwire passes over every string in every fixture, markdown and hidden entries included" \
+  || bad "contracts/fixtures: the tripwire fired:$ct_found"
+# Negatives on a scratch copy of contracts/: the same two functions must refuse a
+# hidden symlink with a private-looking target, a symlink under an expected name,
+# a hidden regular file and a nested directory.
+ct_scratch() { rm -rf "$LT/ct-scratch"; cp -R "$DIR/contracts" "$LT/ct-scratch"; }
+ct_scratch; ln -s /Users/PRIVATE_SENTINEL/x "$LT/ct-scratch/fixtures/.private-link"
+ct_r="$(ct_inventory "$LT/ct-scratch/fixtures")"
+printf '%s\n' "$ct_r" | grep -qF 'symlink, not a regular file: .private-link' \
+  && ok "contracts/fixtures inventory: a hidden symlink to a private-looking path fails" \
+  || bad "contracts/fixtures inventory: a hidden symlink to a private-looking path fails (got: $ct_r)"
+ct_r="$(ct_scan "$LT/ct-scratch/fixtures")"
+{ printf '%s\n' "$ct_r" | grep -qF '.private-link:' && printf '%s\n' "$ct_r" | grep -qF 'PRIVATE_SENTINEL'; } \
+  && ok "contracts/fixtures scan: a hidden symlink's target string is scanned" \
+  || bad "contracts/fixtures scan: a hidden symlink's target string is scanned (got: $ct_r)"
+ct_scratch; rm "$LT/ct-scratch/fixtures/valid.routing.md"; ln -s valid.json "$LT/ct-scratch/fixtures/valid.routing.md"
+ct_r="$(ct_inventory "$LT/ct-scratch/fixtures")"
+printf '%s\n' "$ct_r" | grep -qF 'symlink, not a regular file: valid.routing.md' \
+  && ok "contracts/fixtures inventory: a symlink under an expected name fails" \
+  || bad "contracts/fixtures inventory: a symlink under an expected name fails (got: $ct_r)"
+ct_scratch; printf 'nothing private\n' > "$LT/ct-scratch/fixtures/.notes"
+ct_r="$(ct_inventory "$LT/ct-scratch/fixtures")"
+printf '%s\n' "$ct_r" | grep -qF '.notes' \
+  && ok "contracts/fixtures inventory: a hidden regular file fails" \
+  || bad "contracts/fixtures inventory: a hidden regular file fails (got: $ct_r)"
+ct_scratch; mkdir "$LT/ct-scratch/fixtures/sub"
+ct_r="$(ct_inventory "$LT/ct-scratch/fixtures")"
+printf '%s\n' "$ct_r" | grep -qF 'not a regular file: sub' \
+  && ok "contracts/fixtures inventory: a nested directory fails" \
+  || bad "contracts/fixtures inventory: a nested directory fails (got: $ct_r)"
+rm -rf "$LT/ct-scratch"
+# Sentinels: a private-looking string in each kind of free-text field must fire it.
+ct_sentinel() {  # <desc> <jq program>
+  local f="$LT/ct-sentinel.json" r
+  jq "$2" "$CF/valid.json" > "$f"; r="$(ct_tripwire "$f")"
+  [ -n "$r" ] && ok "tripwire: $1" || bad "tripwire: $1 (it did not fire)"
+}
+ct_sentinel "a home path in an account note" '.accounts[0].note = "token kept in /Users/jane/work/notes"'
+ct_sentinel "a real-looking host in evidence" '.models[0].evidence = "from https://wiki.internal.acme.net/page"'
+ct_sentinel "a bare internal host in a vendorByTask field" '.vendorByTask[0].evidence = "see wiki.acme.corp for the plan"'
+ct_sentinel "an email in a command" '.models[0].reach[0].command = "claude --user jane@acme.com"'
+ct_sentinel "a marker-style secret in an unreachable reason" '.unreachable[0].reason = "PRIVATE_SENTINEL_VALUE"'
+ct_sentinel "an IP address in a source url" '.sources[0].url = "https://example.com/x?host=10.20.30.40"'
+ct_sentinel "a non-example source url" '.sources[0].url = "https://research.acme.net/board"'
+ct_sentinel "an opaque token in a notRouted reason" '.notRouted[0].reason = "key sk0123456789abcdef0123456789abcdef0123"'
+ct_sentinel "a real-looking model name" '.models[0].name = "Acme Large 1"'
+ct_sentinel "a real-looking family" '.models[0].family = "Acme"'
+ct_sentinel "a real-looking reach slug" '.models[0].reach[0].model = "acme-large-1"'
+ct_sentinel "a real-looking source name" '.sources[0].name = "Acme Internal Board"'
+printf '%s\n' '| Example Large 1 | ExampleLab | T1 | 4 / 20 | `claude -p --model large` | notes at /Users/jane/x |' > "$LT/ct-sentinel.md"
+[ -n "$(ct_tripwire "$LT/ct-sentinel.md")" ] \
+  && ok "tripwire: a home path in the fixture markdown" || bad "tripwire: a home path in the fixture markdown (it did not fire)"
+ct_out="$("$CK" "$CF/valid.json" 2>&1)"; ct_rc=$?
+{ [ "$ct_rc" = 0 ] && printf '%s\n' "$ct_out" | grep -q '^ok: '; } \
+  && ok "check-model-catalog: the valid fixture passes" \
+  || bad "check-model-catalog: the valid fixture passes ($ct_out)"
+ct_out="$("$CK" "$CF/valid.json" "$CF/valid.routing.md" 2>&1)"; ct_rc=$?
+{ [ "$ct_rc" = 0 ] && printf '%s\n' "$ct_out" | grep -q 'matches '; } \
+  && ok "check-model-catalog: the valid fixture matches its routing table (tiers with notes, backticked names)" \
+  || bad "check-model-catalog: the valid fixture matches its routing table ($ct_out)"
+# Each broken fixture fails, and says why.
+ct_case() {  # <fixture> <expected message fragment> [routing.md]
+  local out rc
+  out="$("$CK" "$CF/$1" ${3:+"$CF/$3"} 2>&1)"; rc=$?
+  { [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -qF -- "$2"; } \
+    && ok "check-model-catalog: $1 fails ($2)" \
+    || bad "check-model-catalog: $1 should fail with '$2' (rc=$rc: $out)"
+}
+ct_case invalid-bad-tier.json 'models[0].tier: "T4" is not one of T1|T2|T3'
+ct_case invalid-missing-field.json 'catalog.sources: required, missing'
+ct_case invalid-missing-field.json 'models[1].reach[0].effortStyle: required, missing'
+ct_case invalid-wrong-type.json 'models[2].pinned: expected boolean, got string'
+ct_case invalid-wrong-type.json 'catalog.generatedAt: expected YYYY-MM-DD'
+ct_case invalid-wrong-type.json 'effortStyle: "prefix" is not one of flag|codex-config|suffix|none'
+ct_case valid.json 'catalog says T2, the table says T1' invalid-routing-mismatch.md
+ct_case valid.json 'Sample Open 3: in the catalog but not in the "## Model tiers" table' invalid-routing-mismatch.md
+# Shape rules a schema can't say, made by mutating the valid fixture.
+ct_mut() {  # <desc> <jq program> <expected fragment>
+  local f="$LT/ct-mut.json" out rc
+  jq "$2" "$CF/valid.json" > "$f"
+  out="$("$CK" "$f" 2>&1)"; rc=$?
+  { [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -qF -- "$3"; } \
+    && ok "check-model-catalog: $1" || bad "check-model-catalog: $1 (rc=$rc: $out)"
+}
+ct_mut "a different schemaVersion is rejected" '.schemaVersion = 2' 'schemaVersion: expected 1'
+ct_mut "models out of preference order are rejected" '.models |= reverse' 'models[] must run T1, then T2, then T3'
+ct_mut "a duplicate model name is rejected" '.models[1].name = .models[0].name' 'appears 2 times'
+ct_mut "a pinned model without a reason is rejected" '.models[0].pinned = true' 'a pinned model needs a reason string'
+ct_mut "a routable model with no reach is rejected" '.models[0].reach = []' 'a routable model needs at least one way to reach it'
+ct_mut "a negative price is rejected" '.models[0].priceIn = -1' 'priceIn: must not be negative'
+# Markdown parity covers every field the table spells out, in both directions:
+# tier, family, routable/pinned, prices, and each reach. Efforts left to a
+# placeholder are reported as unchecked (below), never claimed as matching.
+ct_md() {  # <desc> <jq program on the catalog, or - for none> <sed/awk-free md edit: shell snippet or -> <expected fragment>
+  local cat="$CF/valid.json" md="$CF/valid.routing.md" out rc
+  if [ "$2" != - ]; then jq "$2" "$CF/valid.json" > "$LT/ct-md.json"; cat="$LT/ct-md.json"; fi
+  if [ "$3" != - ]; then eval "$3" < "$CF/valid.routing.md" > "$LT/ct-md.md"; md="$LT/ct-md.md"; fi
+  out="$("$CK" "$cat" "$md" 2>&1)"; rc=$?
+  { [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -qF -- "$4"; } \
+    && ok "check-model-catalog markdown parity: $1" || bad "check-model-catalog markdown parity: $1 (rc=$rc: $out)"
+}
+ct_md "a changed model slug" '.models[0].reach[0].model = "haiku"' - 'reach[0].model: catalog says "haiku", the table command says "large"'
+ct_md "a changed CLI" '.models[0].reach[0].cli = "codex"' - 'reach[0].cli: catalog says "codex"'
+ct_md "a changed family" '.models[0].family = "OtherLab"' - 'catalog says family "OtherLab", the table says "ExampleLab"'
+ct_md "a changed routable flag (auto-style row marked routable)" '.models[5].routable = true' - 'Example Auto: catalog says routable true'
+ct_md "a changed routable flag (ordinary row marked unroutable)" '.models[0].routable = false' - 'Example Large 1: catalog says routable false'
+ct_md "a changed pinned flag" '.models[2].pinned = false | .models[2].pinReason = null' - 'catalog says pinned false, the table says true'
+ct_md "a changed effort style" '.models[0].reach[1].effortStyle = "none"' - 'reach[1].effortStyle: catalog says "none", the table command says "suffix"'
+ct_md "changed suffix efforts" '.models[0].reach[1].efforts = ["low","high"]' - 'reach[1].efforts: catalog says ["low","high"]'
+ct_md "a dropped reach entry" '.models[0].reach |= .[0:1]' - 'catalog has 1 reach entries, the table row has 2 commands'
+ct_md "a model missing from the catalog" 'del(.models[3])' - 'Sample Open 3: in the "## Model tiers" table but not in the catalog'
+ct_md "a catalog model missing from the table" - 'grep -v "^| Sample Open 3 "' 'Sample Open 3: in the catalog but not in the "## Model tiers" table'
+ct_md "reordered catalog models" '.models |= ([.[1], .[0]] + .[2:])' - 'order differs'
+ct_md "reordered table rows" - 'awk '"'"'/^\| Example Large 1 /{a=$0;next} /^\| Sample Reasoner 2 /{print;print a;next} {print}'"'"'' 'order differs'
+ct_md "a table command with no --model" - 'sed "s/ --model example-local-7b//"' 'the table command has no --model or -m'
+# Prices drive cost-ordered routing, so the "$/Mtok in/out" cell and priceIn/priceOut
+# must agree in both directions; a change to prices alone must fail.
+ct_md "a changed priceOut alone (the cost ordering swap)" '.models[0].priceOut = 999999 | .models[1].priceOut = 0' - 'Example Large 1: catalog says price in/out [4,999999], the table says "4 / 20"'
+ct_md "a changed priceIn alone" '.models[1].priceIn = 11' - 'Sample Reasoner 2: catalog says price in/out [11,50], the table says "10 / 50"'
+ct_md "a known price turned unknown" '.models[0].priceIn = null' - 'Example Large 1: catalog says price in/out [null,20]'
+ct_md "an unknown price turned known" '.models[3].priceIn = 1 | .models[3].priceOut = 2' - 'Sample Open 3: catalog says price in/out [1,2], the table says "—"'
+ct_md "a free row turned unknown" '.models[4].priceIn = null | .models[4].priceOut = null' - 'Example Local 7B: catalog says price in/out [null,null], the table says "0 / 0"'
+ct_md "a table price edited, catalog unchanged" - 'sed "s#| 4 / 20 |#| 5 / 20 |#"' 'Example Large 1: catalog says price in/out [4,20], the table says "5 / 20"'
+ct_md "a table price dropped, catalog unchanged" - 'sed "s#| 10 / 50 |#| — |#"' 'Sample Reasoner 2: catalog says price in/out [10,50], the table says "—"'
+# Success-path parity: exit 0, the fragment present and, when given, another absent.
+ct_mdok() {  # <desc> <jq program or -> <md edit or -> <present fragment> [absent fragment]
+  local cat="$CF/valid.json" md="$CF/valid.routing.md" out rc
+  if [ "$2" != - ]; then jq "$2" "$CF/valid.json" > "$LT/ct-md.json"; cat="$LT/ct-md.json"; fi
+  if [ "$3" != - ]; then eval "$3" < "$CF/valid.routing.md" > "$LT/ct-md.md"; md="$LT/ct-md.md"; fi
+  out="$("$CK" "$cat" "$md" 2>&1)"; rc=$?
+  { [ "$rc" = 0 ] && printf '%s\n' "$out" | grep -qF -- "$4" \
+      && { [ -z "${5:-}" ] || ! printf '%s\n' "$out" | grep -qF -- "$5"; }; } \
+    && ok "check-model-catalog markdown parity: $1" || bad "check-model-catalog markdown parity: $1 (rc=$rc: $out)"
+}
+ct_mdok "a price cell with \$, decimals and a billing pool note is read" '.models[0].priceIn = 0.25 | .models[0].priceOut = 1.5' 'sed "s#| 4 / 20 |#| \$0.25 / \$1.50 (ExamplePool) |#"' 'matches '
+# Efforts the table leaves to a placeholder (codex -c model_reasoning_effort=<lvl>,
+# a -<lvl> slug suffix) cannot be compared; the validator lists them instead of
+# claiming the whole catalog matches.
+ct_mdok "a codex effort list the table cannot spell out is reported unchecked" - - \
+  'unchecked: Sample Reasoner 2 reach[0] (codex, model_reasoning_effort=<lvl> in the table): efforts ["low","medium","high","xhigh"]'
+ct_mdok "the ok line counts the unchecked effort lists" - - 'except 1 effort list the table leaves to a placeholder'
+ct_mdok "a -<lvl> suffix row reports the variants it would launch" '.models[0].reach[1].efforts = ["high"]' \
+  'sed "s/example-large-1-<[^>]*>/example-large-1-<lvl>/"' 'unchecked: Example Large 1 reach[1] (agent, -<lvl> in the table): efforts ["high"], launches example-large-1-high'
+ct_mdok "a table with no placeholders reports nothing unchecked" 'del(.models[1])' 'grep -v "^| Sample Reasoner 2 "' 'matches ' 'unchecked'
+# Published limits: the boundary passes, one past it fails.
+ct_lim() {  # <desc> <jq program> <pass|fail> <fragment>
+  local out rc
+  jq "$2" "$CF/valid.json" > "$LT/ct-lim.json"
+  out="$("$CK" "$LT/ct-lim.json" 2>&1)"; rc=$?
+  if [ "$3" = pass ]; then
+    [ "$rc" = 0 ] && ok "check-model-catalog limit: $1" || bad "check-model-catalog limit: $1 (rc=$rc: $out)"
+  else
+    { [ "$rc" = 1 ] && printf '%s\n' "$out" | grep -qF -- "$4"; } && ok "check-model-catalog limit: $1" || bad "check-model-catalog limit: $1 (rc=$rc: $out)"
+  fi
+}
+ct_lim "a 200-character model name is accepted" '.models[0].name = ("N" * 200)' pass
+ct_lim "a 201-character model name is rejected" '.models[0].name = ("N" * 201)' fail 'models[0].name: 201 characters, the limit is 200'
+ct_lim "a 200-character reach slug is accepted" '.models[0].reach[0].model = ("s" * 200)' pass
+ct_lim "a 201-character reach slug is rejected" '.models[0].reach[0].model = ("s" * 201)' fail 'reach[0].model: 201 characters, the limit is 200'
+ct_lim "an 80-character family is accepted" '.models[0].family = ("F" * 80)' pass
+ct_lim "an 81-character family is rejected" '.models[0].family = ("F" * 81)' fail 'models[0].family: 81 characters, the limit is 80'
+ct_lim "50 reach entries are accepted" '.models[0].reach = [range(0; 50) | {cli:"claude",model:"large",effortStyle:"flag",efforts:[],command:"c"}]' pass
+ct_lim "51 reach entries are rejected" '.models[0].reach = [range(0; 51) | {cli:"claude",model:"large",effortStyle:"flag",efforts:[],command:"c"}]' fail 'models[0].reach: 51 entries, the limit is 50'
+ct_lim "20 efforts are accepted" '.models[0].reach[1].efforts = [range(0; 20) | "e\(.)"]' pass
+ct_lim "21 efforts are rejected" '.models[0].reach[1].efforts = [range(0; 21) | "e\(.)"]' fail 'reach[1].efforts: 21 entries, the limit is 20'
+ct_lim "500 models are accepted" '.models = [range(0; 500) | {name:"Example M\(.)",family:"ExampleLab",tier:"T3",pinned:false,pinReason:null,routable:true,priceIn:null,priceOut:null,reach:[{cli:"claude",model:"large",effortStyle:"flag",efforts:[],command:"c"}],evidence:"e"}]' pass
+ct_lim "501 models are rejected" '.models = [range(0; 501) | {name:"Example M\(.)",family:"ExampleLab",tier:"T3",pinned:false,pinReason:null,routable:true,priceIn:null,priceOut:null,reach:[{cli:"claude",model:"large",effortStyle:"flag",efforts:[],command:"c"}],evidence:"e"}]' fail 'catalog.models: 501 entries, the limit is 500'
+jq -e '.properties.models.maxItems == 500 and ."$defs".model.properties.name.maxLength == 200 and ."$defs".model.properties.family.maxLength == 80
+       and ."$defs".model.properties.reach.maxItems == 50 and ."$defs".reach.properties.model.maxLength == 200 and ."$defs".reach.properties.efforts.maxItems == 20' \
+  "$DIR/contracts/model-catalog-v1.schema.json" >/dev/null 2>&1 \
+  && ok "contracts: the schema publishes the same limits the validator enforces" \
+  || bad "contracts: the schema publishes the same limits the validator enforces"
+jq '.futureField = 1 | .models[0].futureField = {} | .accounts[0].cli = "some-new-cli"' "$CF/valid.json" > "$LT/ct-extra.json"
+"$CK" "$LT/ct-extra.json" >/dev/null 2>&1 \
+  && ok "check-model-catalog: unknown fields and an unknown cli value are accepted" \
+  || bad "check-model-catalog: unknown fields and an unknown cli value are accepted"
+printf 'not json {' > "$LT/ct-bad.json"
+"$CK" "$LT/ct-bad.json" >/dev/null 2>&1; ct_rc=$?
+[ "$ct_rc" = 1 ] && ok "check-model-catalog: a file that is not JSON fails" || bad "check-model-catalog: a file that is not JSON fails (rc=$ct_rc)"
+"$CK" >/dev/null 2>&1; ct_rc=$?
+[ "$ct_rc" = 2 ] && ok "check-model-catalog: no argument is a usage error (exit 2)" || bad "check-model-catalog: no argument is a usage error (rc=$ct_rc)"
+# Drift guard: the validator hand-codes what the schema declares. Every field the
+# schema marks required must make the validator fail when it is deleted, and every
+# $ref must resolve.
+ct_sch="$DIR/contracts/model-catalog-v1.schema.json"
+ct_drift=""
+for ct_pair in '.|.' 'account|.accounts[0]' 'model|.models[0]' 'reach|.models[0].reach[0]' \
+               'nameReason|.unreachable[0]' 'vendorTask|.vendorByTask[0]' 'source|.sources[0]'; do
+  ct_def="${ct_pair%%|*}"; ct_path="${ct_pair#*|}"
+  if [ "$ct_def" = . ]; then ct_req="$(jq -r '.required[]' "$ct_sch")"
+  else ct_req="$(jq -r --arg d "$ct_def" '."$defs"[$d].required[]' "$ct_sch")"; fi
+  [ -n "$ct_req" ] || ct_drift="$ct_drift no-required-list:$ct_def"
+  for ct_key in $ct_req; do
+    jq --arg k "$ct_key" "del(${ct_path}[\$k])" "$CF/valid.json" > "$LT/ct-drift.json"
+    "$CK" "$LT/ct-drift.json" >/dev/null 2>&1 && ct_drift="$ct_drift $ct_def.$ct_key"
+  done
+done
+[ -z "$ct_drift" ] \
+  && ok "contracts: deleting any field the schema requires makes the validator fail" \
+  || bad "contracts: the validator accepts a catalog missing:$ct_drift"
+ct_refs="$(jq -r '[.. | ."$ref"? // empty] | unique[]' "$ct_sch" | sed 's|^#/\$defs/||' | while read -r r; do jq -e --arg r "$r" '."$defs" | has($r)' "$ct_sch" >/dev/null 2>&1 || echo "$r"; done)"
+[ -z "$ct_refs" ] && ok "contracts: every \$ref in the schema resolves" || bad "contracts: unresolved \$ref: $ct_refs"
+# The skill that writes the catalog stages it, validates it, and publishes only on approval.
+UMR="$(tr '\n' ' ' < "$DIR/skills/update-model-routing/SKILL.md" | tr -s ' ')"
+{ printf '%s' "$UMR" | grep -qF 'Stage the machine-readable catalog' \
+  && printf '%s' "$UMR" | grep -qF 'contracts/check-model-catalog.sh ~/.ai/model-catalog.next.json' \
+  && printf '%s' "$UMR" | grep -qF 'mv ~/.ai/model-catalog.next.json ~/.ai/model-catalog.json' \
+  && printf '%s' "$UMR" | grep -qF 'delete `~/.ai/model-catalog.next.json`' \
+  && printf '%s' "$UMR" | grep -qF 'Never write `model-catalog*.json` inside a repo checkout' \
+  && printf '%s' "$UMR" | grep -qF 'every `unchecked:` line' \
+  && printf '%s' "$UMR" | grep -qF 'including on first publication'; } \
+  && ok "update-model-routing stages the catalog, validates it, publishes on approval and deletes it on rejection" \
+  || bad "update-model-routing stages the catalog, validates it, publishes on approval and deletes it on rejection"
+
 rm -rf "$LT"
 
 echo ""
