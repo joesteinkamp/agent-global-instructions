@@ -364,6 +364,7 @@ for t in "${targets[@]}"; do
       remove_skill_links "$HOME/.claude/skills"
       strip_hooks "$HOME/.claude/settings.json"
       sl_strip_perms "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json"
+      [ -f "$DIR/settings-permissions.local.json" ] && sl_strip_perms "$HOME/.claude/settings.json" "$DIR/settings-permissions.local.json"
       disable_agent_teams "$HOME/.claude/settings.json"
       unseed_advisor_model "$HOME/.claude/settings.json"
       restore_global_pointer "$HOME/.claude/CLAUDE.md"
