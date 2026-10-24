@@ -10,6 +10,8 @@ set -uo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 CUSTOMIZE="$DIR/customize.sh"
 export AIGI_NO_USER_ENV=1
+# A checkout's own settings-permissions.local.json never reaches a test install.
+export AIGI_LOCAL_PERMS="$DIR/.no-such-local-perms.json"
 # Nobody answers prompts in a test run, even from a real terminal: the
 # attended cases set AIGI_UNATTENDED=0 and AIGI_TTY to a file of answers.
 export AIGI_UNATTENDED=1
@@ -1023,6 +1025,35 @@ PYEOF
     && ok "sl_strip_perms subtracts the snippet from a pre-ledger file" \
     || bad "sl_strip_perms subtracts the snippet from a pre-ledger file"
   rm -rf "$SLH" "$SLNEXT"
+
+  # The personal layer (settings-permissions.local.json, gitignored) is merged
+  # after the shared snippet and recorded beside it. This suite points
+  # AIGI_LOCAL_PERMS at nothing, so a checkout that has one still tests clean.
+  SLLOC="$(mktemp -d)"
+  cp "$DIR"/install-settings.sh "$DIR"/*.snippet.json "$DIR"/*.snippet.toml "$SLLOC"/
+  cp -R "$DIR/lib" "$SLLOC/lib"
+  printf '%s\n' '{"permissions":{"allow":["Bash(localtool:*)"]}}' > "$SLLOC/settings-permissions.local.json"
+  SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"
+  HOME="$SLH" bash "$SLLOC/install-settings.sh" claude >/dev/null 2>&1
+  jq -e '.permissions.allow | index("Bash(localtool:*)") | not' "$SLF" >/dev/null 2>&1 \
+    && ok "install-settings leaves the checkout's personal permission layer out of test installs" \
+    || bad "install-settings leaves the checkout's personal permission layer out of test installs"
+  rm -rf "$SLH"; SLH="$(mktemp -d)"; SLF="$SLH/.claude/settings.json"
+  ( unset AIGI_LOCAL_PERMS; HOME="$SLH" bash "$SLLOC/install-settings.sh" claude ) >/dev/null 2>&1
+  sl_got="$(awk -F'\t' -v f="$SLF" '$1 == f && $4 == "added"' "$SLH/.ai/install-state/settings.tsv" 2>/dev/null | wc -l | tr -d ' ')"
+  jq -e '.permissions.allow | index("Bash(localtool:*)")' "$SLF" >/dev/null 2>&1 \
+    && [ "$(slrow "$SLH" "$SLF" allow 'Bash(localtool:*)')" = added ] \
+    && [ "$sl_got" = "$((sl_n + 1))" ] \
+    && ok "install-settings merges the personal permission layer and records it beside the shared rules" \
+    || bad "install-settings merges the personal permission layer and records it beside the shared rules (rows $sl_got)"
+  # shellcheck disable=SC2030,SC2031
+  ( export HOME="$SLH"; unset AIGI_STATE_DIR
+    # shellcheck source=lib/settings-ledger.sh
+    . "$DIR/lib/settings-ledger.sh" && sl_strip_perms "$SLF" "$SLLOC/settings-permissions.local.json" ) >/dev/null 2>&1
+  jq -e '(.permissions.allow | index("Bash(localtool:*)") | not) and (.permissions.deny | index("Edit(**/dist/**)"))' "$SLF" >/dev/null 2>&1 \
+    && ok "stripping the personal layer leaves the shared rules" \
+    || bad "stripping the personal layer leaves the shared rules"
+  rm -rf "$SLH" "$SLLOC"
 
   # install-hooks wired the SessionStart memory loader (Claude).
   if jq -e '.hooks.SessionStart[0].hooks[0].command | test("load-memory")' "$SMOKE/.claude/settings.json" >/dev/null 2>&1; then

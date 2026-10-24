@@ -137,8 +137,10 @@ install_claude_settings() {
   merge_perms_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.snippet.json" claude "$CLAUDE_RETIRED_PERMS" || return 1
   # Personal layer (gitignored): rules for tools only this machine has, e.g. a
   # local CLI you want pre-approved. Same shape as the shared snippet.
-  if [ -f "$DIR/settings-permissions.local.json" ]; then
-    merge_perms_json "$HOME/.claude/settings.json" "$DIR/settings-permissions.local.json" "claude (local)"
+  # AIGI_LOCAL_PERMS points elsewhere (test.sh points it at nothing).
+  local lp="${AIGI_LOCAL_PERMS:-$DIR/settings-permissions.local.json}"
+  if [ -f "$lp" ]; then
+    merge_perms_json "$HOME/.claude/settings.json" "$lp" "claude (local)"
   fi
 }
 
