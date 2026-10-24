@@ -12,6 +12,15 @@ so the log reads as the project's decision history, not just a list of diffs.
 ## [Unreleased]
 
 ### Changed
+- **Tests never read a checkout's personal permission layer (2026-10-23,
+  Claude).** The ask: merge the personal permission layer. What changed:
+  `AIGI_LOCAL_PERMS` sets where `install-settings.sh` and `uninstall.sh` find
+  `settings-permissions.local.json`; `test.sh` points it at nothing, and three
+  tests pin the layer (left out of test installs, merged and recorded beside
+  the shared rules, stripped without touching them). Why: with the file
+  present, 4 settings tests failed, because test installs merged the personal
+  rule too. Rejected: reusing `AIGI_NO_USER_ENV`, which `test.sh` turns off
+  partway through for the env-parser tests.
 - **Foreign entries, skill conflicts, published model catalog (2026-10-21,
   Claude).** The ask: other tools on the machine read the harness's routing and
   share its hook and skill folders, with nothing pinning that they coexist.
