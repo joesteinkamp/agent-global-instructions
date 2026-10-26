@@ -98,7 +98,7 @@ an open question) and do nothing beyond the report without a go-ahead.
 `/goal` or `/loop` turn, a scheduled or headless run, or a request that says so. Wherever this skill says
 ask, an unattended run takes the unit of evidence the data supports and the sources it can open, marks it
 *assumed* in the report and lists it under open questions, then finishes. With no source it can open, it
-reports `themes=0` with the sources missing. It starts no server either: it writes the file and gives its
+reports `themes=0` with the sources missing. It starts no preview server either: it writes the file and gives its
 path, because a loop that serves every run leaves a server behind each time.
 
 **End the chat summary with one result line**, in exactly this shape:

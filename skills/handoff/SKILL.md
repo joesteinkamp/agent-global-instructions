@@ -93,7 +93,7 @@ Close the spec with numbered open questions. Each one states what's missing, wha
 recommended answer. Write a self-contained HTML artifact to
 `handoff/<slug>-YYYY-MM-DD/spec.html` at the project root, the way `/verify` keeps its reports, with
 `screenshots/` beside it. First add `/handoff/` to the clone's exclude file if it isn't there, through the
-shell: `f="$(git rev-parse --git-path info/exclude)"; mkdir -p "$(dirname "$f")"; grep -qxF '/handoff/' "$f" || echo '/handoff/' >> "$f"`
+shell: `f="$(git rev-parse --git-path info/exclude 2>/dev/null)" && { mkdir -p "$(dirname "$f")"; grep -qxF '/handoff/' "$f" 2>/dev/null || echo '/handoff/' >> "$f"; }`
 Edit tools are denied on anything under `.git/`, and `--git-path` also
 finds the file in a linked worktree, where `.git` is a file. The exclude file is local and never
 committed, so the spec never shows as a change. Outside a git repo, use
@@ -111,7 +111,7 @@ anywhere without my go-ahead.
 ask, an unattended run takes the fallback the step names (the URL or files path when Figma is
 unavailable), marks it *assumed* in the report and lists it under open questions, then finishes. An
 undesigned state is still an open question, never a guess, so unattended runs add open questions rather
-than fill cells. It starts no server either: it writes the file and gives its path, because a loop that
+than fill cells. It starts no preview server either: it writes the file and gives its path, because a loop that
 serves every run leaves a server behind each time.
 
 **End the chat summary with one result line**, in exactly this shape, so a `/goal` checker, which reads

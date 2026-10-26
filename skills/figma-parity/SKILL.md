@@ -94,7 +94,7 @@ a token exists. *low* for an on-scale value that is the wrong step, or a small o
 Write a self-contained HTML artifact to `figma-parity/<slug>-YYYY-MM-DD/report.html` at the project root,
 the way `/verify` keeps its reports, with its `screenshots/` beside it. First add `/figma-parity/` to the
 clone's exclude file if it isn't there, through the shell:
-`f="$(git rev-parse --git-path info/exclude)"; mkdir -p "$(dirname "$f")"; grep -qxF '/figma-parity/' "$f" || echo '/figma-parity/' >> "$f"`
+`f="$(git rev-parse --git-path info/exclude 2>/dev/null)" && { mkdir -p "$(dirname "$f")"; grep -qxF '/figma-parity/' "$f" 2>/dev/null || echo '/figma-parity/' >> "$f"; }`
 Edit tools are denied on anything under `.git/`, and `--git-path` also finds the file in a linked
 worktree, where `.git` is a file. The exclude file is local and never committed, so the report never
 shows as a change. Outside a git repo, use `~/.ai-context/figma-parity/<slug>-YYYY-MM-DD/`. It contains:
@@ -116,7 +116,7 @@ counts by severity and class, the top three drifts, and the link.
 ask, an unattended run takes the fallback the step names (the tokens-only path, the breakpoints
 `DESIGN.json` gives), marks it *assumed* in the report and lists it under open questions, then finishes.
 With no screen it can reach and nothing to compare against, it ends with `path=blocked` and names what it
-needed. It starts no server either: it writes the file and gives its path, because a loop that serves
+needed. It starts no preview server either: it writes the file and gives its path, because a loop that serves
 every run leaves a server behind each time.
 
 **End the chat summary with one result line**, in exactly this shape, so a `/goal` checker, which reads
@@ -127,4 +127,6 @@ only the conversation, can test it:
 to Figma, because the tokens-only path can't show that. `design-vs-token` rows are the designer's
 decision, so they never go in a done-condition: a goal that waits on them waits on me. When drift is in
 code this session can fix, offer the line with the condition already written, e.g.
-`/goal the PARITY line shows build-drifted=0 and path=live; or stop after 15 turns`.
+`/goal the PARITY line shows build-drifted=0, unverified=0 and path=live; or stop after 15 turns`.
+`unverified=0` is there because a drift moved to *unverified* leaves `build-drifted` at zero without a
+fix.

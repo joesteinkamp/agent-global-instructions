@@ -228,9 +228,9 @@ case: An agent hands the user `! ./install.sh --yes`, and the run replaces an ed
 
 anchor: An unattended run finishes; it doesn't wait.
 surface: skill
-file: skills/team-digest/SKILL.md
-origin: 2026-10-26, autonomy review of the design harness. Five of the six design skills stopped to ask on lookups that need no taste — which person, where the roster lives, which Figma file key, which URL — so a `/goal` or `/loop` turn, where nobody can answer, ended with the question unanswered and the goal unmet. Only plain `/critique` had an unattended branch. Each skill now takes the guess its step names, marks it assumed, and finishes, or ends `blocked` where a guess would be unsafe (a person it can't identify, a spec from a link's name). The same sentence is in all six skills; `test.sh` checks every one.
-case: `/team-digest` run from a scheduled routine on a project with no GitHub team and no team page. Does it take the recurring meeting's attendees as the roster, mark it assumed, and finish with `roster=assumed`, rather than asking and stopping?
+file: skills/figma-parity/SKILL.md
+origin: 2026-10-26, autonomy review of the design harness. Five of the six design skills stopped to ask on lookups that need no taste — which person, where the roster lives, which Figma file key, which URL — so a `/goal` or `/loop` turn, where nobody can answer, ended with the question unanswered and the goal unmet. Only plain `/critique` had an unattended branch. Each skill now takes the guess its step names, marks it assumed, and finishes, or ends `blocked` where a guess would be unsafe (a person it can't identify, a team roster, a spec from a link's name). The roster was a guess in the first draft; a cross-vendor refuter pointed out that recurring-meeting attendees include vendors and candidates, so it blocks instead. The same sentence is in all six skills; `test.sh` checks every one.
+case: `/figma-parity` under a `/goal` turn, given a bare node id and a `DESIGN.md` with no file key. Does it take the tokens-only path, say why, and finish with `PARITY path=tokens-only …`, rather than asking and stopping? And does an unattended `/team-digest` with no roster source end `roster=blocked` rather than guess who is on the team?
 
 ## BEH-30 — A design skill ends on a result line a goal can check
 

@@ -96,7 +96,7 @@ Steps:
    run takes the confident subset step 2 names, marks it *assumed* in the report
    and lists it under open questions, then finishes. With no source tied to the
    person with confidence, it ends with `person=blocked` rather than prepping on
-   a guess about who they are. It starts no server either: it writes the file
+   a guess about who they are. It starts no preview server either: it writes the file
    and gives its path, because a loop that serves every run leaves a server
    behind each time.
    **End the chat summary with one result line**, in exactly this shape:

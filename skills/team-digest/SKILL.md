@@ -31,8 +31,9 @@ Steps:
    Notion, the attendees of the team's recurring meeting, or the last digest
    you produced. Only if none of those yields a roster, ask **once**, in one
    round: the candidates you found and your best guess, plus any Notion
-   work-or-personal ambiguity. On an unattended run (step 10), use the best
-   guess and mark the roster assumed, and skip both Notion connections if you
+   work-or-personal ambiguity. On an unattended run (step 10), a roster you
+   would have asked about ends the run with `roster=blocked`: a guessed roster
+   pulls in people who aren't on the team. Skip both Notion connections if you
    can't tell which is work. Map each person to their handle in every source
    before gathering, so their work isn't counted twice or missed.
 4. **Gather and classify.** Pull the team's activity in the range and sort each
@@ -89,11 +90,10 @@ Steps:
     nobody can answer mid-run: a `/goal` or `/loop` turn, a scheduled or
     headless run, or a request that says so. Wherever this skill says ask, an
     unattended run takes the best guess the step names, marks it *assumed* in
-    the report and lists it under open questions, then finishes. With no roster
-    candidate at all, it ends with `roster=blocked` rather than guessing who is
-    on the team. It starts no server either: it writes the file and gives its
+    the report and lists it under open questions, then finishes. The roster is never one of
+    those guesses: when step 3 would ask, it ends with `roster=blocked`. It starts no preview server either: it writes the file and gives its
     path, because a loop that serves every run leaves a server behind each time.
     **End the chat summary with one result line**, in exactly this shape:
-    `DIGEST range=YYYY-MM-DD..YYYY-MM-DD roster=given|inferred|assumed|blocked shipped=N in-progress=N blocked=N next=N sources-unavailable=N decisions-for-me=N`
+    `DIGEST range=YYYY-MM-DD..YYYY-MM-DD roster=given|inferred|blocked shipped=N in-progress=N blocked=N next=N sources-unavailable=N decisions-for-me=N`
     A digest is a cadence, so it belongs in a `/loop` or a scheduled routine,
     never a goal: there is no end state to reach, only a next week.
