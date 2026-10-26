@@ -20,20 +20,23 @@ a gate. If someone asks "is it good?" in plain mode, answer as a crit and offer 
 **Read-only, always.** Critique never edits, formats, builds, or installs anything in the project. Every
 output (screenshots, ux-audit output, the report) goes in the project, the way `/verify`'s does:
 `critique/<slug>-YYYY-MM-DD/` at the project root, with `-gate` appended to the slug in gate mode so the
-two runs never share a directory. Before writing, add `/critique/` to the clone's `.git/info/exclude` if
-it isn't there. That file is local and never committed, so the report can't show up as a change or be
-committed by accident. Outside a git repo, use `~/.ai-context/critique/<slug>-YYYY-MM-DD/` instead. `cd`
-into the report directory before running `playwright-cli` or ux-audit, because both write working files
-to the current directory.
+two runs never share a directory. Before writing, add `/critique/` to the clone's exclude file if it isn't
+there, through the shell:
+`f="$(git rev-parse --git-path info/exclude)"; mkdir -p "$(dirname "$f")"; grep -qxF '/critique/' "$f" || echo '/critique/' >> "$f"`
+Edit tools are denied on anything under `.git/`, and `--git-path` also finds the file in a linked
+worktree, where `.git` is a file. The exclude file is local and never committed, so the report can't show
+up as a change or be committed by accident. Outside a git repo, use
+`~/.ai-context/critique/<slug>-YYYY-MM-DD/` instead. `cd` into the report directory before running
+`playwright-cli` or ux-audit, because both write working files to the current directory.
 
 ### 1. Get the artifact, and say what you couldn't get
 Work from the thing itself, not a description of it. Find the work and the focus in the request.
 - **URL or route.** Drive it with `playwright-cli`. Read `~/.ai/web-preview.md` first. Use a server that's
   already running. If nothing serves the route, you may serve existing build output statically
   (`python3 -m http.server PORT --bind 0.0.0.0 --directory dist`). Never run an install or a build in the
-  project to get a screenshot: ask for a URL or a screenshot instead. Screenshot at the project's
-  breakpoints (`DESIGN.json` `breakpoints` if it exists, else 390 / 768 / 1280) with `resize <width> 900`
-  and then `screenshot`, and capture interactive states the request names. Before a full-page capture,
+  project to get a screenshot: ask for a URL or a screenshot instead (unattended: step 4). Screenshot at
+  the project's breakpoints (`DESIGN.json` `breakpoints` if it exists, else 390 / 768 / 1280) with
+  `resize <width> 900` and then `screenshot`, and capture interactive states the request names. Before a full-page capture,
   scroll through the page so lazy-loaded and scroll-revealed content renders, then look at the image: a
   capture that's blank below the fold is false evidence, not a finding. **Run `playwright-cli close` once
   every browser-based measurement is done** (screenshots, computed styles, contrast probes), then run the
@@ -121,13 +124,36 @@ primary deliverable is a self-contained `report.html` in the report directory:
 
 Every claim says how you know it: measured, seen in a screenshot, read in a file, or inferred. Serve the
 directory per the preview rules (bind `0.0.0.0`, curl until you get a 200, hand over the
-`http://<host>.ts.net:PORT/report.html` URL) and keep it running unless the caller says otherwise. Report
-its port and PID so whoever is done with it can stop it.
+`http://<host>.ts.net:PORT/report.html` URL) and keep it running unless the caller says otherwise or the
+run is unattended (step 4). Report its port and PID so whoever is done with it can stop it.
 
 In chat, keep it short: the mode, the verdict and threshold (gate) or the two or three most useful crit
 points (plain), counts by severity, missing briefs and inputs, and the URL.
 
-### 4. Leave the project as you found it
+### 4. Unattended runs and the result line
+**An unattended run finishes; it doesn't wait.** A run is unattended when nobody can answer mid-run: a
+`/goal` or `/loop` turn, a scheduled or headless run, or a request that says so. Wherever this skill says
+ask, an unattended run takes the best guess the step names (the goal from `PRODUCT.md`, the inputs that
+are reachable), marks it *assumed* in the report and lists it under open questions, then finishes. When
+there is nothing to work from (no URL, screenshot, frame or file reachable), it ends with
+`verdict=blocked` and names what it needed, rather than critiquing a description of the work. It starts no
+server either: it writes the file and gives its path, because a loop that serves every run leaves a server
+behind each time.
+
+**End the chat summary with one result line**, in exactly this shape, so a `/goal` checker, which reads
+only the conversation, can test it:
+`CRITIQUE mode=gate verdict=pass|pass-with-issues|fail|blocked critical=N high=N medium=N low=N rerated=N briefs-missing=<names|none> ux-audit=run|not-run second-opinion=agree|disagree|not-run|n/a`
+Plain mode prints only `CRITIQUE mode=plain report=<path>` (or `verdict=blocked`), because a crit has no
+verdict to check. `rerated` counts findings rated lower than in the previous gate run of the same work,
+each listed in the report with its reason. Lowering a severity is the easiest way for a loop to reach
+"pass", so the count sits where the checker can see it.
+
+**A gate on work you're fixing is done only on independent agreement.** When a gate fails on work this
+session can fix, offer the goal line with the condition already written, e.g.
+`/goal the CRITIQUE line shows verdict=pass, second-opinion=agree and rerated=0; or stop after 15 turns`
+`verdict=pass` alone is the agent grading its own fixes; step 7's second-vendor verdict is the check.
+
+### 5. Leave the project as you found it
 Re-run `git status --porcelain` in the project and compare it with the start. If anything changed, say
 exactly what changed. Don't clean it up. Then offer next steps: a gate after a crit, a re-gate after
 fixes, or drafting a missing brief section from what the work already does. Don't apply anything.

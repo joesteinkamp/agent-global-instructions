@@ -708,6 +708,25 @@ done
   && ok "the design-team skills are core, not behind the design group" \
   || bad "design-team skills gated behind INC_DESIGN:${ds_gated:- (no DESIGN_SKILLS line found)}"
 unset n_role_files n_role_rows DESIGN_TEAM_SKILLS ds_bad sn sf fm_keys ds_group ds_gated
+# An unattended run (a goal or loop turn, nobody to answer) must finish or say
+# it is blocked, and end on a result line a /goal checker can read from chat.
+# The three skills that report inside the project write the exclude file through
+# the shell: edit tools are denied under .git/ (guard-paths + the deny rule), so
+# telling the agent to edit .git/info/exclude stalls or invites a quiet bypass.
+ua_bad=""
+for pair in critique:CRITIQUE figma-parity:PARITY handoff:HANDOFF research-synthesis:SYNTHESIS one-on-one:ONE-ON-ONE team-digest:DIGEST; do
+  sn="${pair%%:*}"; rl="${pair#*:}"; sf="$DIR/skills/$sn/SKILL.md"
+  grep -qF "An unattended run finishes; it doesn't wait." "$sf" || ua_bad="$ua_bad $sn:unattended"
+  grep -qF "End the chat summary with one result line" "$sf" || ua_bad="$ua_bad $sn:result-line"
+  grep -qE "^ *\`$rl [a-z-]+=" "$sf" || ua_bad="$ua_bad $sn:$rl-shape"
+  grep -qF ".git/info/exclude\` if" "$sf" && ua_bad="$ua_bad $sn:edits-.git"
+done
+for sn in critique figma-parity handoff; do
+  grep -qF 'git rev-parse --git-path info/exclude' "$DIR/skills/$sn/SKILL.md" || ua_bad="$ua_bad $sn:exclude-via-shell"
+done
+[ -z "$ua_bad" ] && ok "design skills finish unattended, print a result line, and write the exclude file through the shell" \
+                 || bad "design skills unattended contract:$ua_bad"
+unset ua_bad pair rl
 
 
 # ---- installer smoke tests — run the installers into a throwaway HOME so a
@@ -736,6 +755,12 @@ if command -v jq >/dev/null 2>&1; then
   { [ -n "$se_total" ] && [ "$se_total" -gt 0 ] && [ "$se_total" = "$se_timed" ]; } \
     && ok "claude SessionEnd hooks declare a timeout (no 1.5s shutdown race)" \
     || bad "claude SessionEnd hooks declare a timeout (total=$se_total timed=$se_timed)"
+  # Failures and auto-mode denials reach the audit log, so a stall can be told
+  # apart from an error (before this, both were a PreToolUse with no PostToolUse).
+  jq -e '[.hooks.PostToolUseFailure[]?.hooks[]?.command, .hooks.PermissionDenied[]?.hooks[]?.command]
+         | (map(select(test("log-tool"))) | length) == 2' "$SMOKE/.claude/settings.json" >/dev/null 2>&1 \
+    && ok "claude logs tool failures and permission denials" \
+    || bad "claude logs tool failures and permission denials"
   if HOME="$SMOKE" bash "$DIR/install-skills.sh" >/dev/null 2>&1 \
      && [ -L "$SMOKE/.claude/skills/ship" ]; then
     ok "install-skills links the skills"

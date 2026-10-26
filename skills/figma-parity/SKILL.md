@@ -27,7 +27,8 @@ lives in the repo but is excluded from git (step 6). Fixes are suggestions, appl
   `~/.ai/web-preview.md` (the Vite/Astro unknown-Host 403 is covered there), require a 200 on the exact
   URL, and stop that server when the run ends. Never start a second server for a tree another agent serves.
 - **The node.** From `figma.com/design/<fileKey>/<name>?node-id=12-345`, take the file key and node id
-  `12:345`. A bare node id also needs the file key. If neither the request nor `DESIGN.md` has it, ask.
+  `12:345`. A bare node id also needs the file key. If neither the request nor `DESIGN.md` has it, ask; on
+  an unattended run (step 7), take the tokens-only path and say why.
 - **Figma access.** Check whether this host has a Figma MCP server connected. Tool names vary by host,
   for example get design context, get variable defs, get screenshot, get metadata. Connected and the
   node loads: the **live path**. Not connected, not authenticated, or the node fetch fails: the
@@ -92,8 +93,11 @@ a token exists. *low* for an on-scale value that is the wrong step, or a small o
 ### 6. Report
 Write a self-contained HTML artifact to `figma-parity/<slug>-YYYY-MM-DD/report.html` at the project root,
 the way `/verify` keeps its reports, with its `screenshots/` beside it. First add `/figma-parity/` to the
-clone's `.git/info/exclude` if it isn't there (local, never committed), so the report never shows as a
-change. Outside a git repo, use `~/.ai-context/figma-parity/<slug>-YYYY-MM-DD/`. It contains:
+clone's exclude file if it isn't there, through the shell:
+`f="$(git rev-parse --git-path info/exclude)"; mkdir -p "$(dirname "$f")"; grep -qxF '/figma-parity/' "$f" || echo '/figma-parity/' >> "$f"`
+Edit tools are denied on anything under `.git/`, and `--git-path` also finds the file in a linked
+worktree, where `.git` is a file. The exclude file is local and never committed, so the report never
+shows as a change. Outside a git repo, use `~/.ai-context/figma-parity/<slug>-YYYY-MM-DD/`. It contains:
 - **Header:** which path ran, every input found and missing, node id and link, URL, breakpoints, the
   snapshot SHA, and the tolerance.
 - **Side by side, per breakpoint:** Figma on the left, build on the right. On the tokens-only path the
@@ -103,5 +107,24 @@ change. Outside a git repo, use `~/.ai-context/figma-parity/<slug>-YYYY-MM-DD/`.
 - **Questions for the designer:** every "design and tokens disagree" row, phrased as a decision.
 - **Not measured / not reached:** what couldn't be checked and why.
 Serve it per my preview method (headless: a static server on `0.0.0.0`, verify the URL you hand me
-returns 200, keep it running). Inline, give only the path that ran, drift counts by severity and class,
-the top three drifts, and the link.
+returns 200, keep it running, unless the run is unattended). Inline, give only the path that ran, drift
+counts by severity and class, the top three drifts, and the link.
+
+### 7. Unattended runs and the result line
+**An unattended run finishes; it doesn't wait.** A run is unattended when nobody can answer mid-run: a
+`/goal` or `/loop` turn, a scheduled or headless run, or a request that says so. Wherever this skill says
+ask, an unattended run takes the fallback the step names (the tokens-only path, the breakpoints
+`DESIGN.json` gives), marks it *assumed* in the report and lists it under open questions, then finishes.
+With no screen it can reach and nothing to compare against, it ends with `path=blocked` and names what it
+needed. It starts no server either: it writes the file and gives its path, because a loop that serves
+every run leaves a server behind each time.
+
+**End the chat summary with one result line**, in exactly this shape, so a `/goal` checker, which reads
+only the conversation, can test it:
+`PARITY path=live|tokens-only|blocked build-drifted=N design-vs-token=N unverified=N high=N medium=N low=N`
+
+**A goal that fixes the build is done at `build-drifted=0`**, plus `path=live` when the claim is fidelity
+to Figma, because the tokens-only path can't show that. `design-vs-token` rows are the designer's
+decision, so they never go in a done-condition: a goal that waits on them waits on me. When drift is in
+code this session can fix, offer the line with the condition already written, e.g.
+`/goal the PARITY line shows build-drifted=0 and path=live; or stop after 15 turns`.

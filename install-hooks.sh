@@ -151,6 +151,8 @@ install_claude() {
       {matcher:"*", hooks:[{type:"command",command:$lg}]},
       {matcher:"Edit|Write|MultiEdit", hooks:[{type:"command",command:$fm}]}
     ],
+    PostToolUseFailure: [ {matcher:"*", hooks:[{type:"command",command:$lg}]} ],
+    PermissionDenied: [ {matcher:"*", hooks:[{type:"command",command:$lg}]} ],
     PreCompact: [ {matcher:"manual|auto", hooks:[{type:"command",command:$pc}]} ],
     Stop: [
       {hooks:[{type:"command",command:$qn}]},
@@ -160,7 +162,7 @@ install_claude() {
       {matcher:"clear|logout|prompt_input_exit|resume|other", hooks:[{type:"command",command:$se,timeout:10}]}
     ]
   }')"
-  echo "  claude  -> $sf (memory-load, log, auto-format, guard paths, guard bash, advisory quality-nudge, worktree-reap, precompact-archive, session-end$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
+  echo "  claude  -> $sf (memory-load, log incl. failures and denials, auto-format, guard paths, guard bash, advisory quality-nudge, worktree-reap, precompact-archive, session-end$([ "$WIRE_AR" = true ] && echo ", autonomy reminder"))"
   claude_hooks_restricted && echo "  claude: WARNING — managed policy sets allowManagedHooksOnly or disableAllHooks, so Claude Code ignores every hook above (guards included) and refuses /goal; agents fall back to /loop" >&2
   return 0
 }

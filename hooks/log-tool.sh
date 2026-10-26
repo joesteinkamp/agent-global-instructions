@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Observability — append one JSONL record per tool event to an audit log, so a
 # long unattended run can be reviewed afterward. Wired to the before- and after-
-# tool events of every tool. Never blocks: always exits 0.
+# tool events of every tool, and in Claude Code also to PostToolUseFailure (a
+# tool that errored or was aborted) and PermissionDenied (an auto-mode denial),
+# so a stall can be told apart from an error. A deny rule or a declined prompt
+# fires neither: those show only as a PreToolUse with no matching record after
+# it. Never blocks: always exits 0.
 #
 # Log path: $AI_TOOL_LOG (default ~/.ai-logs/tool-calls.jsonl). Cross-tool: the
 # `tool` field comes from HOOK_PLATFORM (claude|codex|cursor|antigravity).
@@ -61,10 +65,16 @@ out="$(jq -c --arg tool "$platform" --arg ts "$ts" --arg logresp "$log_resp" '
              (if (.command != null or .file_path != null)
               then {command: .command, file_path: .file_path} else null end))
             | if . == null then null else tojson end),
-    response: (if $logresp == "0" then null else ((.tool_response // .toolResponse) | if . == null then null else tojson end) end)
+    response: (if $logresp == "0" then null else ((.tool_response // .toolResponse) | if . == null then null else tojson end) end),
+    error: (.error // null),
+    interrupted: (if has("is_interrupt") then .is_interrupt else null end),
+    reason: (.reason // null)
   }
   | .input    |= (if . == null then null else (.[0:2000] | redact) end)
   | .response |= (if . == null then null else (.[0:2000] | redact) end)
+  | .error    |= (if . == null then null else (tostring | .[0:2000] | redact) end)
+  | .reason   |= (if . == null then null else (tostring | .[0:500] | redact) end)
+  | with_entries(select(.key as $k | (["error","interrupted","reason"] | index($k)) == null or .value != null))
 ' 2>/dev/null)"
 [ -n "$out" ] || exit 0
 
