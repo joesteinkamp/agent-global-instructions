@@ -33,7 +33,8 @@ spec anywhere. The artifact lives in the repo but is excluded from git (step 10)
 - **Files.** Read what was given. Screenshots show layout and copy, but not values, bindings or behavior,
   so most of those lines will be inferred or open.
 - **Only a Figma link, no Figma access, and nothing else:** stop and ask for a prototype URL or exported
-  frames. Don't build a spec from a link's name.
+  frames. Don't build a spec from a link's name. On an unattended run (step 11) this ends the run with
+  `path=blocked`.
 - **The system.** `DESIGN.json`, the token structure and component library `DESIGN.md` names, the token
   files listed above, and `WRITING.md` for voice. Note which are missing.
 - **State the path in one line**, e.g. "Figma path: 12:345 + DESIGN.json" or "Figma is not connected, so
@@ -91,11 +92,30 @@ target size (at least 24×24 CSS px). Report contrast only from measured or reso
 Close the spec with numbered open questions. Each one states what's missing, what it blocks, and a
 recommended answer. Write a self-contained HTML artifact to
 `handoff/<slug>-YYYY-MM-DD/spec.html` at the project root, the way `/verify` keeps its reports, with
-`screenshots/` beside it. First add `/handoff/` to the clone's `.git/info/exclude` if it isn't there
-(local, never committed), so the spec never shows as a change. Outside a git repo, use
+`screenshots/` beside it. First add `/handoff/` to the clone's exclude file if it isn't there, through the
+shell: `f="$(git rev-parse --git-path info/exclude 2>/dev/null)" && { mkdir -p "$(dirname "$f")"; grep -qxF '/handoff/' "$f" 2>/dev/null || echo '/handoff/' >> "$f"; }`
+Edit tools are denied on anything under `.git/`, and `--git-path` also
+finds the file in a linked worktree, where `.git` is a file. The exclude file is local and never
+committed, so the spec never shows as a change. Outside a git repo, use
 `~/.ai-context/handoff/<slug>-YYYY-MM-DD/`. It holds the header (path ran, inputs found and missing), inventory, state
 matrix, tokens, responsive, motion, a11y, content, edge cases, then the open questions last. Serve it per
 my preview method (headless: a static server on `0.0.0.0`, verify the URL you hand me returns 200, keep it
-running). Inline, give the path that ran, counts of screens, components and open questions, and the link.
+running, unless the run is unattended). Inline, give the path that ran, counts of screens, components and
+open questions, and the link.
 Then **offer a Markdown copy** for an issue or PR body. Write it only if I say yes, and never post it
 anywhere without my go-ahead.
+
+### 11. Unattended runs and the result line
+**An unattended run finishes; it doesn't wait.** A run is unattended when nobody can answer mid-run: a
+`/goal` or `/loop` turn, a scheduled or headless run, or a request that says so. Wherever this skill says
+ask, an unattended run takes the fallback the step names (the URL or files path when Figma is
+unavailable), marks it *assumed* in the report and lists it under open questions, then finishes. An
+undesigned state is still an open question, never a guess, so unattended runs add open questions rather
+than fill cells. It starts no preview server either: it writes the file and gives its path, because a loop that
+serves every run leaves a server behind each time.
+
+**End the chat summary with one result line**, in exactly this shape, so a `/goal` checker, which reads
+only the conversation, can test it:
+`HANDOFF path=figma|url|files|blocked screens=N components=N blank-cells=N token-gaps=N open-questions=N`
+A spec is complete at `blank-cells=0`. Open questions are counted, never a pass condition: answering them
+is the designer's job, and a goal that waits on them waits on me.

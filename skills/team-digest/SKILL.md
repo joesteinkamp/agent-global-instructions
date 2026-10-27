@@ -31,7 +31,10 @@ Steps:
    Notion, the attendees of the team's recurring meeting, or the last digest
    you produced. Only if none of those yields a roster, ask **once**, in one
    round: the candidates you found and your best guess, plus any Notion
-   work-or-personal ambiguity. Map each person to their handle in every source
+   work-or-personal ambiguity. On an unattended run (step 10), a roster you
+   would have asked about ends the run with `roster=blocked`: a guessed roster
+   pulls in people who aren't on the team. Skip both Notion connections if you
+   can't tell which is work. Map each person to their handle in every source
    before gathering, so their work isn't counted twice or missed.
 4. **Gather and classify.** Pull the team's activity in the range and sort each
    piece of work into one bucket:
@@ -72,8 +75,8 @@ Steps:
      table (used / unavailable and why), risks and decisions, then shipped, in
      progress, blocked, and next, each item linked. Write it outside any git
      working tree (e.g. `~/.ai-context/team-digest/<team-slug>-YYYY-MM-DD.html`)
-     and serve it per my preview method if I view artifacts that way. It may
-     name people, so it stays private: no shared doc, channel, or public host.
+     and serve it per my preview method if I view artifacts that way, unless the
+     run is unattended (step 10). It may name people, so it stays private: no shared doc, channel, or public host.
    - **Channel summary.** Paste-ready Markdown, about 10 lines: the range, then
      shipped, blocked, and next by project, with links. It leaves out the risks
      and decisions section. Items that came only from email or a private thread
@@ -82,3 +85,15 @@ Steps:
 9. **Report inline.** The artifact path or URL, the resolved range, the sources
    used and unavailable, the decisions that need me, and the channel summary in
    a fenced block, ready to copy. Then stop. Posting it is mine to do.
+10. **Unattended runs and the result line.**
+    **An unattended run finishes; it doesn't wait.** A run is unattended when
+    nobody can answer mid-run: a `/goal` or `/loop` turn, a scheduled or
+    headless run, or a request that says so. Wherever this skill says ask, an
+    unattended run takes the best guess the step names, marks it *assumed* in
+    the report and lists it under open questions, then finishes. The roster is never one of
+    those guesses: when step 3 would ask, it ends with `roster=blocked`. It starts no preview server either: it writes the file and gives its
+    path, because a loop that serves every run leaves a server behind each time.
+    **End the chat summary with one result line**, in exactly this shape:
+    `DIGEST range=YYYY-MM-DD..YYYY-MM-DD roster=given|inferred|blocked shipped=N in-progress=N blocked=N next=N sources-unavailable=N decisions-for-me=N`
+    A digest is a cadence, so it belongs in a `/loop` or a scheduled routine,
+    never a goal: there is no end state to reach, only a next week.

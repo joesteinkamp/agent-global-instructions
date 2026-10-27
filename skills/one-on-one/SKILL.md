@@ -36,7 +36,10 @@ Steps:
    address. If it matches more than one person, or a handle can't be tied to the
    name with confidence, ask **once**, in one round: the candidates you found
    and your best guess for each, plus any Notion work-or-personal ambiguity from
-   above. Never merge two people's activity on a hunch.
+   above. Never merge two people's activity on a hunch. On an unattended run
+   (step 8), use only the sources tied to the person with confidence, list the
+   rest as not tied to them, and skip both Notion connections if you can't tell
+   which is work.
 3. **Set the window.** Find the last 1:1 on the calendar: a past event whose
    attendees are just me and them, or a recurring event titled like a 1:1. The
    window runs from that event to now. No event found → default to the last 14
@@ -78,10 +81,25 @@ Steps:
    Write it outside any git working tree (e.g.
    `~/.ai-context/one-on-one/<person-slug>-YYYY-MM-DD.html`) so it can't be
    committed by accident. Serving it per my preview method is fine — that is
-   my private tailnet. A shared doc, a channel, a public host, or anywhere the
-   person or a third party can open it is not.
+   my private tailnet, except on an unattended run (step 8). A shared doc, a
+   channel, a public host, or anywhere the person or a third party can open it
+   is not.
 7. **Report inline.** The artifact path or URL, the window, the source list,
    and the two or three things most worth raising. If the request asked for
    feedback on something and no source supports a point, say that in one line
    — a stated gap, never an unsupported point dressed as one. Then stop: the
    conversation is mine to have.
+8. **Unattended runs and the result line.**
+   **An unattended run finishes; it doesn't wait.** A run is unattended when
+   nobody can answer mid-run: a `/goal` or `/loop` turn, a scheduled or headless
+   run, or a request that says so. Wherever this skill says ask, an unattended
+   run takes the confident subset step 2 names, marks it *assumed* in the report
+   and lists it under open questions, then finishes. With no source tied to the
+   person with confidence, it ends with `person=blocked` rather than prepping on
+   a guess about who they are. It starts no preview server either: it writes the file
+   and gives its path, because a loop that serves every run leaves a server
+   behind each time.
+   **End the chat summary with one result line**, in exactly this shape:
+   `ONE-ON-ONE person=resolved|partial|blocked window=YYYY-MM-DD..YYYY-MM-DD sources-used=N sources-unavailable=N assumed=N`
+   It never carries the person's name or any feedback, and it is not a goal's
+   done-condition: the prep is done when the artifact exists.

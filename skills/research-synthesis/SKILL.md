@@ -67,6 +67,7 @@ Re-count each theme's support. Drop or fix anything that doesn't hold, and say h
 If you're unsure the synthesis holds up, have an in-tool `refuter` subagent attack the themes against the
 same sources and report where it disagrees. **Participant data never goes to another vendor's CLI unasked.**
 Sending it there is an external send: offer a cross-vendor refutation and run it only on an explicit yes.
+On an unattended run, nobody can say yes, so report it as offered and not run.
 
 ### 6. Deliver a private artifact
 This is participant data. The report is **private**: write a self-contained `report.html` to
@@ -84,9 +85,23 @@ The report contains, in this order:
 6. limitations: sampling, who recruited the participants if known, and what the data can't speak to
 
 Serve it on the tailnet only, per the preview rules (bind `0.0.0.0`, curl until you get a 200, hand over
-the `http://<host>.ts.net:PORT/report.html` URL). Never use a public tunnel or a share link.
+the `http://<host>.ts.net:PORT/report.html` URL), unless the run is unattended (step 7). Never use a
+public tunnel or a share link.
 
 In chat, give a short summary: the number of themes with each one's support and confidence, which themes
 are thin, the top open question, sources missing, and the URL. **Findings are never trimmed:** every theme
 and outlier goes in the artifact. Then offer next steps (a deeper cut on one theme, a recruiting brief for
 an open question) and do nothing beyond the report without a go-ahead.
+
+### 7. Unattended runs and the result line
+**An unattended run finishes; it doesn't wait.** A run is unattended when nobody can answer mid-run: a
+`/goal` or `/loop` turn, a scheduled or headless run, or a request that says so. Wherever this skill says
+ask, an unattended run takes the unit of evidence the data supports and the sources it can open, marks it
+*assumed* in the report and lists it under open questions, then finishes. With no source it can open, it
+reports `themes=0` with the sources missing. It starts no preview server either: it writes the file and gives its
+path, because a loop that serves every run leaves a server behind each time.
+
+**End the chat summary with one result line**, in exactly this shape:
+`SYNTHESIS themes=N sources=N unit=participant|file|response quotes-reverified=N/N corrected=N sources-missing=N`
+It is a record for a loop or a later reader, not a goal's done-condition: whether the themes hold is a
+judgment, and `quotes-reverified` short of N/N means step 5 didn't finish.
