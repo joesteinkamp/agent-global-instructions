@@ -26,6 +26,28 @@ so the log reads as the project's decision history, not just a list of diffs.
   never route UI copy to it).
 
 ### Changed
+- **Design skills run unattended: finish or block, end on a checkable result
+  line (2026-10-27, Claude).** The ask: let the six design skills run under
+  `/goal`, `/loop`, scheduled or headless runs without stalling on questions
+  nobody can answer. What changed: unattended runs take the guess each step
+  names and mark it assumed, and end `blocked` where a guess is unsafe (an
+  unidentified person, a team roster, a spec built only from a link's name).
+  Each skill ends its summary on a fixed result line (`CRITIQUE …`,
+  `PARITY …`, `HANDOFF …`) the goal checker can test; a critique gate goal
+  needs `second-opinion=agree` and `rerated=0`, so a loop can't reach "pass"
+  by lowering severities. `/critique`, `/figma-parity` and `/handoff` no
+  longer tell the agent to edit `.git/info/exclude`, an edit the harness's own
+  guard refuses; they use a `git rev-parse --git-path` one-liner instead.
+  `log-tool.sh` now also logs `PostToolUseFailure` and `PermissionDenied`.
+  Unattended runs start no preview server. Why: the goal checker reads only
+  the conversation, and verdicts in prose ("pass with issues" contains "pass")
+  can't be tested. A cross-vendor refuter (Gemini 3.8 Flash via agy, because
+  Codex was out of quota) pointed out that a guessed roster would sweep in
+  vendors and candidates, so the roster case blocks instead of guessing.
+  Rejected: goals that wait on the designer's decisions (design-vs-token rows,
+  handoff open questions); those are counted but never part of done. The
+  PR's behaviours were renumbered to BEH-30–33 because main had already
+  landed BEH-29.
 - **Same-tier routing ranks pools by quota before benchmark; `~/.ai/pools`
   records plans and lockouts (2026-10-27, Claude).** The ask: agy was never
   used as the other vendor, though Codex and Cursor are free plans on this
