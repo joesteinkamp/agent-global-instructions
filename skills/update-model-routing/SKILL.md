@@ -73,8 +73,18 @@ account only.
    vals.ai, tbench.ai, LMArena, SWE-bench), vendor numbers only when nothing
    independent exists. Place it in T1/T2/T3 by the stable section's
    definitions. Every placement cites a source and the retrieval date. **One
-   model, one tier**: if the evidence splits, say so in the row and pick the
-   lower tier rather than giving the same model two tiers. **Pins win:** if the
+   model, one tier, by the median board** (the stable section's "Tier by the
+   median board; an even split takes the lower tier"): the middle of the tiers
+   the independent boards' own final numbers support, the lower middle one on
+   an even count. A preliminary or secondhand number goes in the evidence but
+   doesn't count. When the boards split, say so in the row rather than giving
+   the same model two tiers. **Name each family's
+   flagship:** the highest model in the vendor's own lineup, as its docs (its
+   models page or launch post) rank it, that answered in step 4, e.g.
+   Anthropic's Opus while Fable needs credits. Going down the vendor's own
+   ranking is not inferring. Cite the vendor page. Never infer a flagship from price or
+   from a board. If the vendor names none, leave that family without a flagship
+   and say so in the account notes. **Pins win:** if the
    snapshot's generated block has a `Pinned tiers:` line, carry it forward
    verbatim and give each pinned model its pinned tier, with the evidence and
    `pinned by user` in the row. Fan the research out
@@ -96,7 +106,8 @@ account only.
      2026-11-17").
    - `## Model tiers`: one row per base model, columns
      `Model | Family | Tier | $/Mtok in/out | Reachable via (exact command prefix) | Evidence`.
-     Order T1→T3. Put unreachable models in a short "Listed but not
+     Order T1→T3. A flagship's tier cell carries `(flagship)` after the tier
+     (e.g. `T2 (flagship)`), one per family at most. Put unreachable models in a short "Listed but not
      reachable" line with the reason, and superseded ones in "Listed but not
      routed", not in the table.
    - `## Vendor by task`: one block per category with
@@ -109,8 +120,13 @@ account only.
      refutation has no fixed primary**, because the right reviewer depends on
      who wrote the work, which isn't known at generation time. Write that row as
      one line per author family: `Authored by <family> → <reviewer CLI + model + effort>`,
-     each reviewer from a different family than its author, at T1 for the
-     review that decides "done".
+     each reviewer **another family's flagship** (the stable section's
+     "Cross-vendor review goes to the flagship; delegated work goes to the
+     benchmark") at T2 or better. Where more than one qualifies, order them by
+     quota, then by benchmark. Where none qualifies, use the strongest
+     reachable model from another family and say in the line that it isn't a
+     flagship check. Every other category picks by its task benchmarks alone, with
+     no regard to family or flagship.
    - `## Benchmarks consulted`: sources plus retrieval dates.
 9. **Local models: machine-local scores, separate file.** If the local-models
    probe lists entries (`name|backend|url|model|tier[|tok/s]`), score them into
@@ -136,6 +152,8 @@ account only.
      T2, then T3). `name`, `family` as in the row. `tier` is the bare
      `T1`/`T2`/`T3`; a row whose tier cell says "pinned" becomes `pinned: true`
      plus a `pinReason` string, otherwise `pinned: false, pinReason: null`.
+     A row whose tier cell says "flagship" gets `flagship: true`; every other
+     row gets `flagship: false` (an absent field also means false).
      `routable` is `false` when the tier cell says "at most" or the family is
      `varies` (auto-style rows), `true` otherwise. `priceIn`/`priceOut` are
      $/Mtok numbers, `null` where the row has `—` or only a billing pool. The

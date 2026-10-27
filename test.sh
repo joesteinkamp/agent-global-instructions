@@ -3551,6 +3551,13 @@ ct_mut "a routable model with no reach is rejected" '.models[0].reach = []' 'a r
 ct_mut "a negative price is rejected" '.models[0].priceIn = -1' 'priceIn: must not be negative'
 ct_mut "an account plan outside the enum is rejected" '.accounts[1].plan = "cheap"' 'accounts[1].plan: "cheap" is not one of free|paid|api|unknown'
 ct_mut "an account lockedUntil that isn't a date is rejected" '.accounts[1].lockedUntil = "Nov 17"' 'accounts[1].lockedUntil: expected YYYY-MM-DD'
+ct_mut "a flagship that isn't a boolean is rejected" '.models[0].flagship = "yes"' 'models[0].flagship: expected boolean'
+ct_mut "two flagships in one family are rejected" '.models[2].flagship = true' 'family "ExampleLab" has 2 flagships'
+ct_mut "an unroutable flagship is rejected" '.models[5].flagship = true' 'models[5].flagship: a flagship must be routable'
+jq 'del(.models[0].flagship)' "$CF/valid.json" > "$LT/ct-nofl.json"
+"$CK" "$LT/ct-nofl.json" >/dev/null 2>&1 \
+  && ok "check-model-catalog: a catalog without flagship fields is still valid" \
+  || bad "check-model-catalog: a catalog without flagship fields is still valid"
 
 # ---- ~/.ai/pools: plans from signals that cost no quota, locks that outlive a session ----
 # The detectors are sourced from customize.sh and run against a fake HOME, so a
@@ -3603,7 +3610,7 @@ pp_case "an unrecognised plan name reads as unknown, not paid" \
   "{\"auth_mode\":\"chatgpt\",\"tokens\":{\"id_token\":\"$(pp_jwt '{"https://api.openai.com/auth":{"chatgpt_plan_type":"guest"}}')\"}}" unknown
 rm -rf "$PH"
 # Markdown parity covers every field the table spells out, in both directions:
-# tier, family, routable/pinned, prices, and each reach. Efforts left to a
+# tier, family, routable/pinned/flagship, prices, and each reach. Efforts left to a
 # placeholder are reported as unchecked (below), never claimed as matching.
 ct_md() {  # <desc> <jq program on the catalog, or - for none> <sed/awk-free md edit: shell snippet or -> <expected fragment>
   local cat="$CF/valid.json" md="$CF/valid.routing.md" out rc
@@ -3617,7 +3624,10 @@ ct_md "a changed model slug" '.models[0].reach[0].model = "haiku"' - 'reach[0].m
 ct_md "a changed CLI" '.models[0].reach[0].cli = "codex"' - 'reach[0].cli: catalog says "codex"'
 ct_md "a changed family" '.models[0].family = "OtherLab"' - 'catalog says family "OtherLab", the table says "ExampleLab"'
 ct_md "a changed routable flag (auto-style row marked routable)" '.models[5].routable = true' - 'Example Auto: catalog says routable true'
-ct_md "a changed routable flag (ordinary row marked unroutable)" '.models[0].routable = false' - 'Example Large 1: catalog says routable false'
+ct_md "a changed routable flag (ordinary row marked unroutable)" '.models[0].routable = false | del(.models[0].flagship)' - 'Example Large 1: catalog says routable false'
+ct_md "a dropped flagship flag" '.models[0].flagship = false' - 'Example Large 1: catalog says flagship false, the table says true'
+ct_md "a flagship the table doesn't mark" '.models[1].flagship = true' - 'Sample Reasoner 2: catalog says flagship true, the table says false'
+ct_md "a flagship the catalog doesn't mark" - 'sed "s/| Sample Open 3 | SampleOpen | T2 |/| Sample Open 3 | SampleOpen | T2 (flagship) |/"' 'Sample Open 3: catalog says flagship false, the table says true'
 ct_md "a changed pinned flag" '.models[2].pinned = false | .models[2].pinReason = null' - 'catalog says pinned false, the table says true'
 ct_md "a changed effort style" '.models[0].reach[1].effortStyle = "none"' - 'reach[1].effortStyle: catalog says "none", the table command says "suffix"'
 ct_md "changed suffix efforts" '.models[0].reach[1].efforts = ["low","high"]' - 'reach[1].efforts: catalog says ["low","high"]'

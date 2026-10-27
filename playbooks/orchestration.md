@@ -46,7 +46,8 @@ trips any of these:
   in-tool team converged suspiciously fast on something nobody stress-tested.
 - **Refutation that has to count.** A same-model refuter is a real check on the
   *agent* and a weak check on the *model*. When a claim has to survive being
-  wrong, the refuter comes from a different vendor.
+  wrong, the refuter comes from a different vendor: that vendor's flagship,
+  per `~/.ai/model-routing.md`.
 
 **On a plan, ask for a rival — not a review.** Refutation is the right shape for
 a conclusion that already exists; a plan has none to attack yet, and a reviewer

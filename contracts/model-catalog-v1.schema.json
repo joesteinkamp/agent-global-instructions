@@ -37,6 +37,7 @@
         "tier": { "$ref": "#/$defs/tier" },
         "pinned": { "type": "boolean", "description": "True when the user pinned this model's tier." },
         "pinReason": { "type": ["string", "null"], "description": "A reason when pinned is true, otherwise null." },
+        "flagship": { "type": "boolean", "description": "Optional. True for the model its vendor's own docs name as most capable, among those reachable here; at most one per family. The cross-family review that counts goes to a flagship. Absent means false." },
         "routable": { "type": "boolean", "description": "False for auto-style models whose backend varies, and others the tier cannot describe." },
         "priceIn": { "type": ["number", "null"], "minimum": 0, "description": "USD per million input tokens, or null when unknown." },
         "priceOut": { "type": ["number", "null"], "minimum": 0, "description": "USD per million output tokens, or null when unknown." },

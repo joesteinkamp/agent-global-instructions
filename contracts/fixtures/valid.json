@@ -11,7 +11,7 @@
   "models": [
     {
       "name": "Example Large 1", "family": "ExampleLab", "tier": "T1",
-      "pinned": false, "pinReason": null, "routable": true,
+      "pinned": false, "pinReason": null, "flagship": true, "routable": true,
       "priceIn": 4, "priceOut": 20,
       "reach": [
         { "cli": "claude", "model": "large", "effortStyle": "flag", "efforts": [],

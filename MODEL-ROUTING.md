@@ -26,6 +26,13 @@ task type outrank any row below, and the user's explicit choice always wins.
 
 - **A tier belongs to the model, not the CLI.** A model has one tier in every CLI
   that reaches it. Name doesn't decide tier, evidence does (a "Flash" can outrank a "Pro").
+- **Tier by the median board; an even split takes the lower tier.** Read the
+  tier each independent board's standings support, then take the middle one:
+  with three boards, the tier two of them agree on. With an even count, take
+  the lower of the two middle tiers. Only a board's own final numbers count: a
+  preliminary score, or one read from a mirror or a blog, goes in the evidence
+  but doesn't count. Averaging the scores doesn't work, because the boards use
+  different scales (an index, a percentage, an Elo rating).
 - **Effort is a separate dial.** Every effort variant of a model shares its tier.
   Set effort by how much reasoning the task needs; a T1 model on low effort often
   beats a T2 model on max. Try that before moving up a tier.
@@ -47,8 +54,11 @@ Ask in order and stop at the first that applies:
 6. **Otherwise** → **T2**.
 
 - **Escalate one tier, once.** A worker that fails the same check twice, or reports low confidence, gets redone one tier up, never a third time at the same tier.
-- **Floors:** refutation and the review that decides "done" are always T1, from a **different model family** than the author. A lower-tier or local model may add an *extra* review lens, never the one that counts.
-- **When no cross-family T1 is reachable, do the best you can and say so.** Use the strongest reachable model from a different family, at its highest effort, as the review that counts, and tell the user in the report that it was a cross-family check below T1. Don't drop independence to keep the tier (a same-family T1 is not a substitute), and don't stall waiting for a T1.
+- **Floors:** refutation and the review that decides "done" come from a **different model family** than the author: that family's flagship, at T2 or better (below). Any other model, local ones included, may add an *extra* review lens, never the one that counts.
+- **Cross-vendor review goes to the flagship; delegated work goes to the benchmark.** These are two separate picks.
+  - *The review that counts* goes to another family's **flagship**: the highest model in the vendor's own lineup, as its docs rank it, that answers on this machine (Anthropic's Opus while Fable needs credits). Benchmarks comparing vendors split often and move monthly. The flagship is each vendor's own best judgment, and that is what an independent check is for. It stands in for T1 here, with one floor: the flagship must be T2 or better (a pinned tier counts). A flagship below that doesn't qualify. When more than one other family's flagship qualifies, rank them by quota, then by benchmark (see *Rank by quota before benchmark score*). Report it as "cross-family flagship review (<vendor> <model>)".
+  - *Delegated work* (building, UI, research, fan-out) goes to whichever model the task's benchmarks favour, whatever its family and whoever leads. If Sonnet beats Gemini on coding, Sonnet builds, even under an Opus lead. Family decides only who reviews.
+- **When no cross-family flagship qualifies, do the best you can and say so.** Use the strongest reachable model from a different family, at its highest effort, as the review that counts, and tell the user in the report that it wasn't a flagship check. Don't drop independence to get a stronger model (a same-family model is not a substitute), and don't stall waiting for one.
 
 ## When the lead is below the tier
 
