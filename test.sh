@@ -676,10 +676,10 @@ n_role_rows="$(grep -cE '^\| `[a-z-]+` \| .* \| (yes|no|documents only|tests onl
 [ "$n_role_files" = "$n_role_rows" ] \
   && ok "the playbook role table has one row per role ($n_role_files)" \
   || bad "the playbook role table has one row per role (files=$n_role_files rows=$n_role_rows)"
-grep -qF 'All eleven in the table above ship by default' "$DIR/playbooks/agent-teams.md" \
-  && [ "$n_role_files" = 11 ] \
-  && ok "the playbook's role count matches roles/ (eleven)" \
-  || bad "the playbook's role count matches roles/ (says eleven, found $n_role_files)"
+grep -qF 'All twelve in the table above ship by default' "$DIR/playbooks/agent-teams.md" \
+  && [ "$n_role_files" = 12 ] \
+  && ok "the playbook's role count matches roles/ (twelve)" \
+  || bad "the playbook's role count matches roles/ (says twelve, found $n_role_files)"
 
 # The six skills are portable (one dialect for every tool) and CORE: they live
 # in skills/, which installs for everyone, and never in the design group that
