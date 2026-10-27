@@ -458,6 +458,65 @@ install_timeout_shim() {
     || echo "  (note: ~/.local/bin is not on PATH — add it so 'timeout' is invocable)"
 }
 
+# ---- pool plans: ~/.ai/pools, one `cli|plan|status|until|note` line per CLI ----
+# plan is free, paid, api or unknown; status is ok or locked. Each detector
+# reads only what costs no quota, and anything it can't read is `unknown` —
+# never a guess, since a wrong `free` sends work away from a pool that's fine.
+detect_pool_plan() {  # $1 = roster CLI name — prints the plan
+  local raw="" t=""
+  case "$1" in
+    codex)
+      # ChatGPT login: the plan rides in the token's (undocumented)
+      # chatgpt_plan_type claim. API key: billed per token, no plan to exhaust.
+      [ -f "$HOME/.codex/auth.json" ] && command -v jq >/dev/null 2>&1 \
+        && raw="$(jq -r '
+             if (.OPENAI_API_KEY // "") != "" or .auth_mode == "apikey" then "api"
+             else (.tokens.id_token // "" | split(".")[1] // ""
+                   | gsub("-"; "+") | gsub("_"; "/")
+                   | . + ("=" * ((4 - length % 4) % 4))
+                   | try (@base64d | fromjson
+                          | .["https://api.openai.com/auth"].chatgpt_plan_type // "")
+                     catch "")
+             end' "$HOME/.codex/auth.json" 2>/dev/null)" ;;
+    agent|cursor-agent)
+      # `about` asks Cursor's account API, not a model. Skipped under
+      # AIGI_NO_PROBE, like every other probe here.
+      # The shim path covers a macOS shell whose PATH lacks ~/.local/bin yet.
+      for t in timeout gtimeout "$HOME/.local/bin/timeout"; do
+        command -v "$t" >/dev/null 2>&1 && break; t=""
+      done
+      if [ -z "${AIGI_NO_PROBE:-}" ] && [ -n "$t" ]; then
+        raw="$("$t" 20 "$1" about < /dev/null 2>/dev/null \
+               | sed -n 's/^Subscription Tier:\{0,1\}[[:space:]]*//p' | head -1)"
+      fi ;;
+  esac
+  # Only names known to mean a plan count; anything else is unknown, since
+  # a guessed `paid` routes named-model calls a free account can't make.
+  case "$(lc "$raw")" in
+    api) echo api ;;
+    free|hobby) echo free ;;
+    plus|pro|pro+|ultra|team|teams|business|enterprise|edu) echo paid ;;
+    *) echo unknown ;;
+  esac
+}
+
+kept_pool_lock() {  # $1 = CLI, $2 = existing pools file — prints status|until|note
+  local line until today note
+  today="$(date +%Y-%m-%d)"
+  line="$(grep "^$1|" "$2" 2>/dev/null | head -1 || true)"
+  until="$(printf '%s' "$line" | cut -d'|' -f4)"
+  # ISO dates compare as strings, so a lock ends the day its date passes.
+  if [ "$(printf '%s' "$line" | cut -d'|' -f3)" = locked ] && [ -n "$until" ] \
+     && [ ! "$until" \< "$today" ]; then
+    # Rebuilt field by field: a short line or a `|` in the note would
+    # otherwise break the five-field format.
+    note="$(printf '%s' "$line" | cut -s -d'|' -f5- | tr '|' '/')"
+    printf 'locked|%s|%s' "$until" "$note"
+  else
+    printf 'ok||'
+  fi
+}
+
 # ---- render(): filter sections + substitute vars, print to stdout -----------
 # One awk pass. Variable values are passed through the environment (ENVIRON[],
 # which performs NO escape processing), and substituted literally — so newlines,
@@ -758,6 +817,21 @@ write_global() {
     echo "  wrote $mf (installed AI CLI roster)"
   else
     echo "  (could not write $mf — roster skipped)"
+  fi
+  # Each roster CLI's plan, so routing can rank a free pool behind a usable
+  # one in the same tier (MODEL-ROUTING.md, "Rank by quota"). Free signals
+  # only — no model call. A lockout can't be seen without one, so lockouts
+  # come from probes and delegates, and a lock whose date hasn't passed
+  # survives this rewrite. Regenerable, like the roster.
+  local pf="$HOME/.ai/pools" pf_tmp
+  if [ -z "$planning" ] && [ -s "$mf" ]; then
+    # Same directory, then mv: a reader never sees a half-written file.
+    pf_tmp="$(mktemp "$pf.XXXXXX")"; TMPFILES+=("$pf_tmp")
+    while IFS= read -r c; do
+      [ -n "$c" ] && printf '%s|%s|%s\n' "$c" "$(detect_pool_plan "$c")" "$(kept_pool_lock "$c" "$pf")"
+    done < "$mf" > "$pf_tmp" \
+      && mv -f "$pf_tmp" "$pf" && echo "  wrote $pf (each CLI's plan and any lockout)" \
+      || echo "  (could not write $pf — pool plans skipped)"
   fi
   # The roster lived at ~/.ai-logs/ai-clis before ~/.ai/ existed; remove the
   # stale copy so nothing keeps reading the old path (old rendered instructions

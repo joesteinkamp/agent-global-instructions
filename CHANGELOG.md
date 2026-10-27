@@ -11,7 +11,40 @@ so the log reads as the project's decision history, not just a list of diffs.
 
 ## [Unreleased]
 
+### Added
+- **Copywriter role (2026-10-27, Claude).** The ask: add a copywriter agent
+  based on coreyhaines31/marketingskills' `copywriting` skill (MIT, © 2025
+  Corey Haines). What changed: new `roles/copywriter.md` covering page,
+  marketing and product copy; a playbook row and a copy roster; the pinned
+  role count goes to twelve. Why: it keeps the skill's highest-value parts
+  (diagnosis, drafting unit by unit, the three-question test, claims that name
+  their evidence, the AI-tells list) and swaps its context file for
+  WRITING.md, PRODUCT.md and guardrails, so it follows the project's declared
+  voice. Rejected: a straight copy of the skill (it points to reference files
+  and sibling skills that don't exist here, and it asks the user questions a
+  subagent can't put to anyone), and a marketing-only scope (a lead would
+  never route UI copy to it).
+
 ### Changed
+- **Same-tier routing ranks pools by quota before benchmark; `~/.ai/pools`
+  records plans and lockouts (2026-10-27, Claude).** The ask: agy was never
+  used as the other vendor, though Codex and Cursor are free plans on this
+  machine. What changed: `MODEL-ROUTING.md` ranks same-tier candidates paid/api
+  > unknown > free > locked, ahead of the generated table's order; the
+  installer writes `~/.ai/pools` from signals that cost no quota (the codex
+  login's plan claim, `agent about`) and keeps unexpired locks; delegates and
+  `/update-model-routing` record lockouts with their reset date; agy launches
+  with JSON output and is checked for `denied_actions`, and a denied run is
+  resumed once with `--conversation` rather than rerun; the catalog gains
+  optional `plan`/`lockedUntil`. Why: GPT-5.6 Terra edged Gemini 3.8 Flash at
+  the same tier, so codex stayed first choice while locked for weeks, and each
+  session found the lockout again; a denied agy run exits 0 as SUCCESS and
+  loses everything it read. Rejected: free above unknown (agy can't report its
+  plan, so a free codex would still win); per-session lockouts only (the cause
+  of the repeats); `--print-timeout` (a timeout also reports SUCCESS);
+  `--sandbox`, `--mode auto` and a subagent hand-off as denial fixes (probed:
+  none helped, and auto approves file edits). Open: whether api pools, which
+  bill per token, should rank first.
 - **Tests never read a checkout's personal permission layer (2026-10-23,
   Claude).** The ask: merge the personal permission layer. What changed:
   `AIGI_LOCAL_PERMS` sets where `install-settings.sh` and `uninstall.sh` find

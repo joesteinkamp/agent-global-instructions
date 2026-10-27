@@ -76,6 +76,7 @@ may only see the name, so this table is what routes there.
 | `product-designer` | what should exist and why: scope, user value, the flow, what to cut | documents only |
 | `ux-researcher` | what we actually know about users versus what we're guessing | no |
 | `ui-designer` | whether the rendered result matches the design system and reads well | no |
+| `copywriter` | the words a reader sees: page and marketing copy, CTAs, microcopy, empty and error states, AI tells | documents only |
 | `design-manager` | how the design team works: feedback quality, review rigor against the briefs, team health, staffing and sequencing, running a crit | documents only |
 | `technical-architect` | what shape a cross-module change, dependency, or data flow should take | no |
 | `backend-engineer` | server, data, API, migrations, auth — correctness under failure | yes |
@@ -94,6 +95,7 @@ Rosters that work:
 | Feature across layers | `frontend-engineer` + `backend-engineer` + `technical-architect`, disjoint files |
 | A design or scope call | `product-designer` + `ux-researcher` + `ui-designer`, then `refuter` |
 | Research a library or approach | one agent per source or angle, then one synthesis pass |
+| Page, launch, or UX copy | `copywriter` + `product-designer` for the argument and the flow, then `refuter` on every claim |
 | A crit of work in progress | `design-manager` to run it + `product-designer` + `ui-designer`, then `refuter` on the feedback |
 | A design review against the briefs | `ui-designer` + `ux-researcher` + `product-designer`, each holding the work to the briefs and `guardrails/`, then `refuter` |
 | 1:1 or feedback prep | `design-manager` alone, then `refuter` on whether every point has evidence behind it |
@@ -126,7 +128,7 @@ against no brief at all.
 ## The role definitions
 
 Roles are files, not prose, so the same role behaves the same in every tool.
-All eleven in the table above ship by default, and the file name is the name you
+All twelve in the table above ship by default, and the file name is the name you
 spawn by. `harness-steward` is in the palette like the rest, but its subject is
 the tooling itself, not the product — spawn it when that is the work, never as
 a lens on a product task.

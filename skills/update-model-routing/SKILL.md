@@ -7,6 +7,7 @@ Today: run `date +%Y-%m-%d`
 Machine copy header: run `sed -n '/generated:begin/,/^## [A-Z]/p' "$HOME/.ai/model-routing.md" 2>/dev/null | head -12 || echo "MISSING"`
 Installed CLIs: run `cat "$HOME/.ai/clis" 2>/dev/null || command -v codex agy claude agent cursor-agent 2>/dev/null | sed 's|.*/||'`
 Local models: run `cat "$HOME/.ai/local-models" 2>/dev/null || echo "none registered"`
+Pool plans and lockouts: run `cat "$HOME/.ai/pools" 2>/dev/null || echo "none recorded"`
 
 Regenerate **this machine's** routing data in `~/.ai/model-routing.md`. Use any focus supplied in the user request.
 
@@ -25,12 +26,24 @@ account only.
    `cp ~/.ai/model-routing.md ~/.ai/model-routing.prev.md`, and
    `rm -f ~/.ai/model-catalog.next.json` so a leftover from an abandoned run
    can't be mistaken for this one.
-2. **List what each CLI offers.** For every CLI in the roster probe above, run
+2. **Read each pool's plan before spending anything.** Start from the pools
+   probe above (`cli|plan|status|until|note`). Re-check each plan with the free
+   signals in the stable section's flag table: `agent about` (`Subscription
+   Tier`) for Cursor, and `~/.codex/auth.json` for codex (an API key, or the
+   `chatgpt_plan_type` claim inside a ChatGPT login's `id_token`). Neither one
+   calls a model. A CLI with no such signal (`claude`, `agy`, `lm` today) stays
+   `unknown`: never infer a plan from a model list or a price. **Skip every probe
+   for a CLI whose line is `locked` with an `until` date that hasn't passed**.
+   Carry its rows forward from the snapshot unchanged, commands and all, since
+   the commands work again the day the lock ends, and record the lock in that
+   CLI's account note and the catalog's `lockedUntil`. Routing skips it until
+   then by reading `~/.ai/pools`, so the table doesn't have to.
+3. **List what each CLI offers.** For every CLI in the roster probe above, run
    its listing command from the "Calling each CLI" table. Skip models marked
    hidden. Collapse effort and speed variants (`-low`/`-high`/`-xhigh`/`-fast`/
    `-thinking-*`) into one row per base model: effort is never part of the tier.
    `claude` has no listing, so use its four aliases.
-3. **Probe reachability, because a listing isn't proof.** For each base model in
+4. **Probe reachability, because a listing isn't proof.** For each base model in
    each CLI, make one minimal headless call (prompt `Reply with: ok`, lowest
    effort, `timeout 90`, which is `gtimeout` or the installer's
    `~/.local/bin/timeout` shim on macOS) in the CLI's documented headless form, using the
@@ -43,13 +56,19 @@ account only.
    time per account. **A 429, quota, or timeout result is `unknown`, not `no`.**
    Retry it once after the other probes finish, and if it still fails, record
    `unknown` with the error. Only an explicit refusal (plan, permission, model
-   not found) makes a model `no`.
-4. **Price from an API, not from articles.** Fetch the keyless
+   not found) makes a model `no`. **A quota error that names a reset time is a
+   lockout, not a retry:** don't retry it. Treat the CLI as step 2 treats a
+   locked one (rows carried forward from the snapshot, or `unknown: locked
+   until <YYYY-MM-DD>` for a model the snapshot never had), and replace its line in
+   `~/.ai/pools` with `<cli>|<plan>|locked|<YYYY-MM-DD>|<the error, briefly, no "|">`.
+   That file is machine state, not the routing table, so it's written now
+   and isn't part of step 11's approval.
+5. **Price from an API, not from articles.** Fetch the keyless
    `https://openrouter.ai/api/v1/models` once. Map each base model to its
    OpenRouter id (`anthropic/…`, `openai/…`, `google/…`, `x-ai/…`). Convert
    per-token prices to $/Mtok in/out. A model with no match gets `—`, never a
    price from a blog. For `agent` and `agy`, add the billing pool it draws on.
-5. **Tier by evidence, via web search.** For each reachable base model, find a
+6. **Tier by evidence, via web search.** For each reachable base model, find a
    current capability signal: independent boards first (Artificial Analysis,
    vals.ai, tbench.ai, LMArena, SWE-bench), vendor numbers only when nothing
    independent exists. Place it in T1/T2/T3 by the stable section's
@@ -62,7 +81,7 @@ account only.
    by model family to parallel subagents, **unnamed**, since this step waits on
    what they return and a named subagent becomes a teammate (which reports
    idle, not output) wherever agent teams are enabled.
-6. **Vendor by task, with evidence that's current.** For each of the seven
+7. **Vendor by task, with evidence that's current.** For each of the seven
    categories (hard coding & refactoring, code review & refutation, deep
    research & synthesis, planning & architecture, UI/frontend, quick mechanical
    edits & cheap fan-out, long-context analysis), research the latest results
@@ -70,9 +89,11 @@ account only.
    LMArena incl. WebDev, ARC-AGI, GPQA/HLE, MRCR. Same sourcing rules: where
    evidence conflicts or is thin, write "no clear winner", never a manufactured
    ranking. Note the harness when it materially moves a score.
-7. **Rewrite only the generated block**, in this shape, ≤ ~110 lines:
+8. **Rewrite only the generated block**, in this shape, ≤ ~110 lines:
    - `## This machine`: `Last updated: <today>`, the method in one line, and
-     each CLI's account notes (e.g. "Cursor: free plan, `auto` only").
+     each CLI's account notes, each opening with its plan and any lock (e.g.
+     "Cursor: free plan, `auto` only", "codex: free plan, locked until
+     2026-11-17").
    - `## Model tiers`: one row per base model, columns
      `Model | Family | Tier | $/Mtok in/out | Reachable via (exact command prefix) | Evidence`.
      Order T1→T3. Put unreachable models in a short "Listed but not
@@ -80,14 +101,18 @@ account only.
      routed", not in the table.
    - `## Vendor by task`: one block per category with
      `Tier required | Primary (CLI + model + effort) | Fallback (different pool) | Evidence`.
-     The primary and fallback must both be reachable. **Code review &
+     The primary and fallback must both be reachable. **Pick them by the
+     stable section's "Rank by quota before benchmark score":** within a tier,
+     a paid or unknown pool goes ahead of a free one and a locked one is never
+     primary, whatever the benchmarks say. Say in the evidence cell when quota,
+     not score, decided the order. **Code review &
      refutation has no fixed primary**, because the right reviewer depends on
      who wrote the work, which isn't known at generation time. Write that row as
      one line per author family: `Authored by <family> → <reviewer CLI + model + effort>`,
      each reviewer from a different family than its author, at T1 for the
      review that decides "done".
    - `## Benchmarks consulted`: sources plus retrieval dates.
-8. **Local models: machine-local scores, separate file.** If the local-models
+9. **Local models: machine-local scores, separate file.** If the local-models
    probe lists entries (`name|backend|url|model|tier[|tok/s]`), score them into
    `~/.ai/model-routing.local.md`. **Quality** comes from public open-model
    benchmarks for each model tag, same sourcing rules (local quants usually run a
@@ -95,7 +120,7 @@ account only.
    researched. Map `strong` → T2 and `light` → T3. Correct the registry `tier`
    via `LOCAL_MODELS` in `my-context.env` if the evidence contradicts it. If no
    local models are registered, skip this step and leave no file behind.
-9. **Stage the machine-readable catalog.** Beside the markdown, write
+10. **Stage the machine-readable catalog.** Beside the markdown, write
    `~/.ai/model-catalog.next.json` (schema version 1; the format is
    `contracts/model-catalog-v1.schema.json` in the harness checkout, which lists
    every field). **Build it from the markdown block you just wrote, not from
@@ -104,7 +129,9 @@ account only.
    - `accounts`: one `{cli, note}` per CLI's account note in `## This machine`.
      `cli` is `claude`, `codex`, `agent` (Cursor), `agy` or `lm`. Local models
      stay in `~/.ai/model-routing.local.md`, not in `models`, so add them only as
-     an `lm` account note.
+     an `lm` account note. Add `plan` (`free`, `paid`, `api` or `unknown`) from
+     step 2, and `lockedUntil` (`YYYY-MM-DD`) only for a CLI whose lock is
+     still in force; omit it otherwise.
    - `models`: one entry per table row, **every row, in table order** (T1, then
      T2, then T3). `name`, `family` as in the row. `tier` is the bare
      `T1`/`T2`/`T3`; a row whose tier cell says "pinned" becomes `pinned: true`
@@ -125,7 +152,7 @@ account only.
      `-<lvl>` list the levels that apply), and `none`/`[]` otherwise. The
      table can't carry the levels behind `model_reasoning_effort=<lvl>` or a
      `-<lvl>` suffix, so the validator can't check them: it prints each one on
-     an `unchecked:` line, and they reach approval only through step 10. `command`
+     an `unchecked:` line, and they reach approval only through step 11. `command`
      is the row's prefix text, for people: nothing may run it. `evidence` is the
      row's evidence cell. Stay within the schema's size limits (name and slug
      200 characters, family 80, 50 reach entries, 20 efforts, 500 models).
@@ -148,7 +175,7 @@ account only.
    **If the validator can't be found or won't pass, publish nothing:** say so,
    leave the markdown for approval as before, and delete the `.next` file.
    Never write `model-catalog*.json` inside a repo checkout.
-10. **Show the diff and ask.** `diff -u ~/.ai/model-routing.prev.md
+11. **Show the diff and ask.** `diff -u ~/.ai/model-routing.prev.md
    ~/.ai/model-routing.md`, plus one line per section on what moved and why, and
    every model whose reachability changed. For the catalog, show the validator's
    whole output, its `ok:` line and every `unchecked:` line, and, if
