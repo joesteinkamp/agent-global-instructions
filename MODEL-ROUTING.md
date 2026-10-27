@@ -85,17 +85,40 @@ subagents that inherit its model, runs the whole job at T2 without any error.
 - **Independence is per model family, not per CLI.** Families: Anthropic, OpenAI, Google, xAI, Cursor (Composer). Opus through `agy` refuting Opus through `claude` is a same-model check.
 - **Only route to a model marked reachable.** Model lists show models the account can't call (a free Cursor plan lists Opus but runs only `auto`). The generated table records a probe result for each model.
 - **Cost means "which pool has room."** Each CLI bills its own pool: `claude` uses the Anthropic plan, `codex` uses ChatGPT quota, `agy` uses Google AI quota (*including its Claude models*), and `agent` uses Cursor's pools. Send T2/T3 fan-out to included pools first, and save the scarcest pool for T1.
+- **Rank by quota before benchmark score.** Tier comes first, always. Within a
+  tier, rank the candidates by pool health: **paid or API > unknown > free >
+  locked**. Benchmark score breaks ties only inside one health class. A free
+  pool that runs dry can lock out for weeks (Codex, October 2026, twice), so a
+  near-tie on a leaderboard never justifies sending work there ahead of a pool
+  with room. Unknown ranks above free because free is known to be scarce.
+  `~/.ai/pools` records each CLI's plan and any lockout, one
+  `cli|plan|status|until|note` line per CLI (plan `free`/`paid`/`api`/`unknown`,
+  status `ok`/`locked`). The installer writes the plans from signals that cost no
+  quota; whoever hits a quota wall writes the lock. **Never route to a `locked`
+  line whose `until` date hasn't passed.** No file means every plan is unknown.
+  **This rule outranks the generated table's Primary/Fallback order.** That
+  order was fixed when `/update-model-routing` last ran; plans change and locks
+  expire after that. So read `~/.ai/pools` fresh each time you route, and where
+  it disagrees with the table, the pool order wins.
+- **A free pool is for the review that counts, not for drafts.** Where a free
+  pool is the only path to a different family, spend it on the deciding review at
+  medium effort, and send drafts, rival plans and extra lenses elsewhere.
 - **Spread same-tier work across pools** rather than sending a whole wave to one benchmark leader and running it dry.
 - **On a 429 or quota error, stay at the same tier through another CLI.** Never drop a tier to get around a quota limit.
+- **A rate limit passes; an exhausted quota has a date.** A plain 429 or "slow
+  down" is retried later and recorded nowhere. An error naming a reset time
+  ("try again at Nov 17th") is a lockout: replace that CLI's line in
+  `~/.ai/pools` with `<cli>|<plan>|locked|<YYYY-MM-DD>|<the error, briefly, no "|">`, so
+  the next session routes around it instead of finding the wall again.
 
 ## Calling each CLI
 
 | CLI | List models | Pick model | Pick effort | Gotcha |
 |---|---|---|---|---|
 | `claude` | none: aliases `fable` `opus` `sonnet` `haiku` follow the newest model on their own | `--model <alias\|id>` | `--effort low…max` | Subagents: the Agent tool's `model` param per spawn, or `model:` in a role file. Advisor: `advisorModel` in settings, or `--advisor <model>` per session; it must rank at least as high as the main model |
-| `codex` | `codex debug models` (JSON; `visibility: hide` = don't route) | `-m <slug>` | `-c model_reasoning_effort=<lvl>` | Headless form: see `~/.ai/orchestration.md` |
+| `codex` | `codex debug models` (JSON; `visibility: hide` = don't route) | `-m <slug>` | `-c model_reasoning_effort=<lvl>` | Headless form: see `~/.ai/orchestration.md`. **A ChatGPT login's plan** is the `chatgpt_plan_type` claim in `~/.codex/auth.json`'s `id_token` (undocumented; the installer reads it). An API key has no plan to exhaust |
 | `agy` | `agy models` | `--model <slug>` | effort suffix in the slug, or `--effort` | **`-p` must come last.** It treats the next token as the prompt, so `agy -p --model …` sends "--model" as the prompt |
-| `agent` | `agent --list-models` | `--model <slug>` | in the slug (`-high`, `-xhigh`) | **Plan-dependent.** On a paid or team plan, pass the routed slug. On a free plan, named models fail with `Named models unavailable` and only `auto` runs, so pass `--model auto` explicitly, or a named default in `~/.cursor/cli-config.json` fails the same way. The `agent` account note below says which plan this machine has |
+| `agent` | `agent --list-models` | `--model <slug>` | in the slug (`-high`, `-xhigh`) | **Plan-dependent.** `agent about` prints the plan as `Subscription Tier`. On a paid or team plan, pass the routed slug. On a free plan, named models fail with `Named models unavailable` and only `auto` runs, so pass `--model auto` explicitly, or a named default in `~/.cursor/cli-config.json` fails the same way. The `agent` account note below says which plan this machine has |
 
 <!-- generated:begin — /update-model-routing rewrites everything from here down to the end marker -->
 

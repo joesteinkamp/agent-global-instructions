@@ -1255,7 +1255,7 @@ PYEOF
   SMOKE2="$(mktemp -d)"
   # Pre-seed a legacy roster so the install proves it migrates it to ~/.ai/.
   mkdir -p "$SMOKE2/.ai-logs"; echo "stale" > "$SMOKE2/.ai-logs/ai-clis"
-  if HOME="$SMOKE2" bash "$DIR/install.sh" --yes --no-design claude >/dev/null 2>&1 </dev/null \
+  if HOME="$SMOKE2" AIGI_NO_PROBE=1 bash "$DIR/install.sh" --yes --no-design claude >/dev/null 2>&1 </dev/null \
      && jq -e '.permissions.deny and .hooks.SessionStart' "$SMOKE2/.claude/settings.json" >/dev/null 2>&1 \
      && [ -L "$SMOKE2/.claude/skills/ship" ] \
      && [ ! -e "$SMOKE2/.claude/skills/ux-audit" ] \
@@ -1265,6 +1265,7 @@ PYEOF
      && [ -f "$SMOKE2/.claude/CHANGELOG.md" ] \
      && [ -f "$SMOKE2/.claude/loop.md" ] \
      && [ -f "$SMOKE2/.ai/clis" ] && [ ! -e "$SMOKE2/.ai-logs/ai-clis" ] \
+     && { [ ! -s "$SMOKE2/.ai/clis" ] || awk -F'|' 'NF != 5 { exit 1 }' "$SMOKE2/.ai/pools"; } \
      && cmp -s "$DIR/MODEL-ROUTING.md" "$SMOKE2/.ai/model-routing.md"; then
     ok "install.sh orchestrates every layer and forwards --no-design"
   else
@@ -3498,6 +3499,59 @@ ct_mut "a duplicate model name is rejected" '.models[1].name = .models[0].name' 
 ct_mut "a pinned model without a reason is rejected" '.models[0].pinned = true' 'a pinned model needs a reason string'
 ct_mut "a routable model with no reach is rejected" '.models[0].reach = []' 'a routable model needs at least one way to reach it'
 ct_mut "a negative price is rejected" '.models[0].priceIn = -1' 'priceIn: must not be negative'
+ct_mut "an account plan outside the enum is rejected" '.accounts[1].plan = "cheap"' 'accounts[1].plan: "cheap" is not one of free|paid|api|unknown'
+ct_mut "an account lockedUntil that isn't a date is rejected" '.accounts[1].lockedUntil = "Nov 17"' 'accounts[1].lockedUntil: expected YYYY-MM-DD'
+
+# ---- ~/.ai/pools: plans from signals that cost no quota, locks that outlive a session ----
+# The detectors are sourced from customize.sh and run against a fake HOME, so a
+# real account's files are never read. Every case a wrong answer would route by:
+# a free login must say free, an unreadable one unknown (never a guess), and a
+# lock survives a reinstall only while its date hasn't passed.
+pp_jwt() {  # <claims json> — an unsigned token carrying those claims
+  printf 'x.%s.y' "$(printf '%s' "$1" | base64 | tr -d '\n=' | tr '+/' '-_')"
+}
+pp_run() {  # <home> <shell snippet> — runs with the pool helpers loaded
+  HOME="$1" AIGI_NO_PROBE=1 bash -c "
+    lc() { printf '%s' \"\$1\" | tr '[:upper:]' '[:lower:]'; }
+    $(sed -n '/^detect_pool_plan() {/,/^}/p;/^kept_pool_lock() {/,/^}/p' "$DIR/customize.sh")
+    $2"
+}
+PH="$(mktemp -d)"; mkdir -p "$PH/.codex"
+pp_case() {  # <desc> <auth.json content, or - for none> <expected plan>
+  rm -f "$PH/.codex/auth.json"; [ "$2" = - ] || printf '%s' "$2" > "$PH/.codex/auth.json"
+  local got; got="$(pp_run "$PH" 'detect_pool_plan codex')"
+  [ "$got" = "$3" ] && ok "pools: $1" || bad "pools: $1 (got '$got', want '$3')"
+}
+pp_case "a free ChatGPT login reads as free" \
+  "{\"auth_mode\":\"chatgpt\",\"tokens\":{\"id_token\":\"$(pp_jwt '{"https://api.openai.com/auth":{"chatgpt_plan_type":"free"}}')\"}}" free
+pp_case "a Plus ChatGPT login reads as paid" \
+  "{\"auth_mode\":\"chatgpt\",\"tokens\":{\"id_token\":\"$(pp_jwt '{"https://api.openai.com/auth":{"chatgpt_plan_type":"plus"}}')\"}}" paid
+pp_case "an API key reads as api" '{"auth_mode":"apikey","OPENAI_API_KEY":"sk-test"}' api
+pp_case "a token without the plan claim reads as unknown, not free" \
+  "{\"auth_mode\":\"chatgpt\",\"tokens\":{\"id_token\":\"$(pp_jwt '{"sub":"x"}')\"}}" unknown
+pp_case "a garbled token reads as unknown" '{"auth_mode":"chatgpt","tokens":{"id_token":"not-a-jwt"}}' unknown
+pp_case "no codex login reads as unknown" - unknown
+[ "$(pp_run "$PH" 'detect_pool_plan agent')" = unknown ] \
+  && ok "pools: Cursor's account isn't queried under AIGI_NO_PROBE" \
+  || bad "pools: Cursor's account isn't queried under AIGI_NO_PROBE"
+printf 'codex|free|locked|2999-01-01|try again later\nagy|unknown|locked|2000-01-01|old\n' > "$PH/pools"
+[ "$(pp_run "$PH" "kept_pool_lock codex '$PH/pools'")" = 'locked|2999-01-01|try again later' ] \
+  && ok "pools: a lock whose date hasn't passed survives a reinstall" \
+  || bad "pools: a lock whose date hasn't passed survives a reinstall"
+[ "$(pp_run "$PH" "kept_pool_lock agy '$PH/pools'")" = 'ok||' ] \
+  && ok "pools: an expired lock is cleared on reinstall" \
+  || bad "pools: an expired lock is cleared on reinstall"
+[ "$(pp_run "$PH" "kept_pool_lock claude '$PH/pools'")" = 'ok||' ] \
+  && ok "pools: a CLI with no line starts ok" \
+  || bad "pools: a CLI with no line starts ok"
+printf 'codex|free|locked|2999-01-01\nagent|free|locked|2999-01-01|a|b\n' > "$PH/pools"
+[ "$(pp_run "$PH" "kept_pool_lock codex '$PH/pools'")" = 'locked|2999-01-01|' ] \
+  && [ "$(pp_run "$PH" "kept_pool_lock agent '$PH/pools'")" = 'locked|2999-01-01|a/b' ] \
+  && ok "pools: a kept lock stays five fields (short line, a | in the note)" \
+  || bad "pools: a kept lock stays five fields (short line, a | in the note)"
+pp_case "an unrecognised plan name reads as unknown, not paid" \
+  "{\"auth_mode\":\"chatgpt\",\"tokens\":{\"id_token\":\"$(pp_jwt '{"https://api.openai.com/auth":{"chatgpt_plan_type":"guest"}}')\"}}" unknown
+rm -rf "$PH"
 # Markdown parity covers every field the table spells out, in both directions:
 # tier, family, routable/pinned, prices, and each reach. Efforts left to a
 # placeholder are reported as unchecked (below), never claimed as matching.

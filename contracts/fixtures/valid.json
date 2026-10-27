@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "generatedAt": "2030-01-15",
   "accounts": [
-    { "cli": "claude", "note": "Example plan; the aliases resolve to the Example models below." },
-    { "cli": "codex", "note": "Example quota; each call loads about 20k tokens of instructions." },
+    { "cli": "claude", "note": "Example plan; the aliases resolve to the Example models below.", "plan": "paid" },
+    { "cli": "codex", "note": "Example quota; each call loads about 20k tokens of instructions.", "plan": "free", "lockedUntil": "2026-11-17" },
     { "cli": "agent", "note": "free plan, auto only" },
     { "cli": "agy", "note": "Example account; -p must come last." },
     { "cli": "lm", "note": "one local model, text only" }

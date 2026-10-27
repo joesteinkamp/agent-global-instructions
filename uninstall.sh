@@ -413,7 +413,7 @@ for t in "${targets[@]}"; do
 done
 # Machine-wide (not per-tool): the local-model shim customize.sh --global
 # installed. Marker-checked so a foreign `lm` binary is never touched. The
-# ~/.ai/ registry files (clis, local-models, model-routing, playbooks) are
+# ~/.ai/ registry files (clis, pools, local-models, model-routing, playbooks) are
 # regenerable metadata and stay in place, like the roster.
 if [ -f "$HOME/.local/bin/lm" ] && grep -q 'agent-global-instructions' "$HOME/.local/bin/lm" 2>/dev/null; then
   pv_delete "$HOME/.local/bin/lm" uninstall lm shim \
