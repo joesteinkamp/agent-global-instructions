@@ -68,7 +68,8 @@ for k in nameMax slugMax familyMax reachMax effMax modelsMax; do
 done
 
 errors="$(jq -r --argjson lim "$lim" --argjson tiers "$(jq -c '."$defs".tier.enum' "$SCHEMA")" \
-              --argjson styles "$(jq -c '."$defs".effortStyle.enum' "$SCHEMA")" '
+              --argjson styles "$(jq -c '."$defs".effortStyle.enum' "$SCHEMA")" \
+              --argjson plans "$(jq -c '."$defs".account.properties.plan.enum' "$SCHEMA")" '
   def tname: if . == null then "null" else type end;
   # field($obj; $key; $path; [types]): present, and one of the types.
   def field($o; $k; $path; $types):
@@ -112,7 +113,10 @@ errors="$(jq -r --argjson lim "$lim" --argjson tiers "$(jq -c '."$defs".tier.enu
       (if ($c.accounts | type) == "array" then
          ($c.accounts | to_entries[] | "accounts[\(.key)]" as $p | .value as $a
           | (if ($a | type) != "object" then "\($p): expected an object" else
-               str($a; "cli"; $p), nonempty($a; "cli"; $p), str($a; "note"; $p) end))
+               str($a; "cli"; $p), nonempty($a; "cli"; $p), str($a; "note"; $p),
+               # plan and lockedUntil are optional: checked only when present.
+               (if $a | has("plan") then str($a; "plan"; $p), enumf($a; "plan"; $p; $plans) else empty end),
+               (if $a | has("lockedUntil") then datef($a; "lockedUntil"; $p) else empty end) end))
        else empty end),
       (if ($c.models | type) == "array" then
          ($c.models | to_entries[] | "models[\(.key)]" as $p | .value as $m

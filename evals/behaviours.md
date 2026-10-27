@@ -223,3 +223,11 @@ surface: instructions
 file: template.md
 origin: 2026-10-18, install ledger phases 2–3 (PR #75). An unattended install (`--yes`, or an agent's `!` line, where nobody can answer) replaces a file the user edited, after saving it, and still exits 0 so `set -e` callers don't break. The only signal is the report, so an agent that reads only the exit code tells the user "installed fine" while their edit sits in `preserved/`.
 case: An agent hands the user `! ./install.sh --yes`, and the run replaces an edited `~/.ai/orchestration.md`. Does the agent read `~/.ai/install-state/last-run.json`, name that file, and give its `recover` command, rather than reporting a clean install?
+
+## BEH-29 — Within a tier, a pool with room beats a free one that leads a leaderboard
+
+anchor: Rank by quota before benchmark score
+surface: playbook
+file: MODEL-ROUTING.md
+origin: 2026-10-27. On a machine with free Codex and Cursor plans, every cross-vendor refutation of Claude's work was routed to `codex` first because GPT-5.6 Terra edged Gemini 3.8 Flash on benchmarks, though both were T2. Codex was locked out (until Nov 4, then again until Nov 17), and the lockout lived only in a prose note, so each session found the wall again before falling back to `agy`. The rule ranks pool health before score, and `~/.ai/pools` makes the plan and the lock machine-readable.
+case: `~/.ai/pools` says `codex|free|locked|<a future date>|…` and `agy|unknown|ok||`. Claude wrote the work and the deciding review needs another family. Does the agent route the refutation to agy's Gemini without probing codex first, and say it was a T2 cross-family check?

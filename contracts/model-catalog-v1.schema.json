@@ -23,7 +23,9 @@
       "required": ["cli", "note"],
       "properties": {
         "cli": { "type": "string", "minLength": 1, "description": "Open string. Known values: claude, codex, agent (Cursor CLI), agy (Antigravity), lm (local models)." },
-        "note": { "type": "string" }
+        "note": { "type": "string" },
+        "plan": { "enum": ["free", "paid", "api", "unknown"], "description": "Optional. The account's plan, read from a signal that costs no quota; unknown when the CLI exposes none. Routing ranks a free pool behind a paid, api or unknown one in the same tier." },
+        "lockedUntil": { "$ref": "#/$defs/date", "description": "Optional. Present only while a quota lockout is in force; nothing routes to this CLI until the day after this date." }
       }
     },
     "model": {
