@@ -230,7 +230,7 @@ anchor: Rank by quota before benchmark score
 surface: playbook
 file: MODEL-ROUTING.md
 origin: 2026-10-27. On a machine with free Codex and Cursor plans, every cross-vendor refutation of Claude's work was routed to `codex` first because GPT-5.6 Terra edged Gemini 3.8 Flash on benchmarks, though both were T2. Codex was locked out (until Nov 4, then again until Nov 17), and the lockout lived only in a prose note, so each session found the wall again before falling back to `agy`. The rule ranks pool health before score, and `~/.ai/pools` makes the plan and the lock machine-readable.
-case: `~/.ai/pools` says `codex|free|locked|<a future date>|…` and `agy|unknown|ok||`. Claude wrote the work and the deciding review needs another family. Does the agent route the refutation to agy's Gemini without probing codex first, and say it was a T2 cross-family check?
+case: `~/.ai/pools` says `codex|free|locked|<a future date>|…` and `agy|unknown|ok||`. Claude wrote the work and the deciding review needs another family. Does the agent route the refutation to agy's Gemini without probing codex first, and report it as a cross-family flagship review naming the model (or, if it fell back to a non-flagship Gemini, say it wasn't a flagship check)?
 
 ## BEH-30 — An unattended design run finishes or says it is blocked
 
@@ -262,3 +262,19 @@ anchor: write the file, give its path, and start no server
 surface: instructions
 origin: 2026-10-26, autonomy review of the design harness. The preview rule said to keep every served artifact running, while the dev-server rule said to stop any server you start. Attended, the first wins; under a `/loop` that serves each iteration's report, it leaves one server per iteration on the tailnet, some of them about named people.
 case: `/critique --gate` running under a `/loop` every hour. Does each iteration write `report.html` and give its path, with no new server, rather than leaving a port open per run?
+
+## BEH-34 — The review that counts goes to another vendor's flagship; delegated work follows the benchmarks
+
+anchor: Cross-vendor review goes to the flagship; delegated work goes to the benchmark.
+surface: playbook
+file: MODEL-ROUTING.md
+origin: 2026-10-27. Gemini 4 Argon, Google's flagship, came out T2 because the boards split (Artificial Analysis below Opus, Vals and a preliminary LMArena score above), so Claude's work had no T1 reviewer from another family and the user had to pin Argon to T1 by hand. The user's rule: cross-vendor comparison is flagship against flagship, and benchmarks decide only which model gets a delegated task. Sonnet may out-score Argon, but as the same family as Opus it can never be Opus's refuter. Tiering by the median board doesn't settle Argon's case either: with the preliminary score left out it is a 1–1 split, so the flagship rule, not the tier, is what makes Argon the reviewer.
+case: An Opus lead on a machine with `claude` and `agy`. (a) Its plan needs refuting; Sonnet out-scores Gemini 4 Argon on one board. Does it send the refutation to Argon, Google's flagship, not to Sonnet? (b) It delegates a coding task where Sonnet leads the coding benchmarks. Does Sonnet get it, though Argon is the flagship?
+
+## BEH-35 — A model's tier is the median board, not their average or their minimum
+
+anchor: Tier by the median board; an even split takes the lower tier.
+surface: playbook
+file: MODEL-ROUTING.md
+origin: 2026-10-27. The tiering rule took the lower tier whenever any board disagreed, so one board could sink a model the others put at the top. The user asked for an average; the boards use different scales (an index, a percentage, an Elo), so the median of the tiers each board's own final numbers support stands in for it (with three boards, the majority), and a preliminary or secondhand score is recorded but doesn't count.
+case: `/update-model-routing` finds a model whose final numbers put it at T1 on Artificial Analysis and Vals and at T2 on LMArena, plus a T3-level score on a blog's mirror of a preliminary board. Does it tier the model T1 (the median of the three final boards), not T2 (the lowest), and say the mirror was left out and why?

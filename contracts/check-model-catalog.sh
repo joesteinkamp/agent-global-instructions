@@ -7,8 +7,9 @@
 # contracts/model-catalog-v1.schema.json (the enums are read from it, so there
 # is one list). It also checks what a schema cannot say: models are in
 # preference order (T1, then T2, then T3), names are unique, a pinned model
-# carries a reason and an unpinned one does not, and a routable model has at
-# least one way to reach it.
+# carries a reason and an unpinned one does not, a routable model has at
+# least one way to reach it, and a flagship (optional) is routable and the only
+# one in its family.
 #
 # It enforces the size limits the schema publishes (name and model slug 200
 # characters, family 80, 50 reach entries per model, 20 efforts per reach, 500
@@ -18,7 +19,7 @@
 # With a routing markdown file, the "## Model tiers" table and the catalog must
 # describe the same models: every table row is in the catalog and every catalog
 # model is in the table, in the same order, with the same tier, family,
-# routable/pinned flags and prices, and each structured reach equals what the
+# routable/pinned/flagship flags and prices, and each structured reach equals what the
 # row's "Reachable via" commands encode. The table's tier cell may carry a note
 # ("T2 (pinned by user)", "T3 at most"); its first word is the tier. The rules
 # for reading a row (commands are never executed, only read):
@@ -34,6 +35,7 @@
 #            otherwise            -> none, efforts []
 #   routable false when the tier cell says "at most" or the family is "varies".
 #   pinned   true when the tier cell says "pinned".
+#   flagship true when the tier cell says "flagship"; an absent field is false.
 # A command with no --model or -m cannot be checked and is an error.
 #
 # Efforts the row leaves to a placeholder (codex-config, a -<lvl> suffix) can't
@@ -126,6 +128,10 @@ errors="$(jq -r --argjson lim "$lim" --argjson tiers "$(jq -c '."$defs".tier.enu
                str($m; "tier"; $p), enumf($m; "tier"; $p; $tiers),
                field($m; "pinned"; $p; ["boolean"]),
                field($m; "pinReason"; $p; ["string", "null"]),
+               # flagship is optional: checked only when present.
+               (if $m | has("flagship") then field($m; "flagship"; $p; ["boolean"]) else empty end),
+               (if $m.flagship == true and $m.routable == false
+                then "\($p).flagship: a flagship must be routable" else empty end),
                field($m; "routable"; $p; ["boolean"]),
                field($m; "priceIn"; $p; ["number", "null"]),
                field($m; "priceOut"; $p; ["number", "null"]),
@@ -157,7 +163,9 @@ errors="$(jq -r --argjson lim "$lim" --argjson tiers "$(jq -c '."$defs".tier.enu
       (if ($c.models | type) == "array" and ($c.models | all(type == "object" and (.tier | type) == "string" and (.name | type) == "string")) then
          ([range(1; $c.models | length)] | map(select(($c.models[.].tier | tierrank) < ($c.models[. - 1].tier | tierrank)))
           | map("models[\(.)] (\($c.models[.].name)): \($c.models[.].tier) listed after \($c.models[. - 1].tier); models[] must run T1, then T2, then T3") | .[]),
-         ($c.models | group_by(.name) | map(select(length > 1) | "models: name \(.[0].name | tojson) appears \(length) times") | .[])
+         ($c.models | group_by(.name) | map(select(length > 1) | "models: name \(.[0].name | tojson) appears \(length) times") | .[]),
+         ($c.models | map(select(.flagship == true)) | group_by(.family) | map(select(length > 1)
+          | "models: family \(.[0].family | tojson) has \(length) flagships (\(map(.name) | join(", "))); at most one per family") | .[])
        else empty end),
       (["unreachable", "notRouted"][] as $k
        | if ($c[$k] | type) == "array" then
@@ -253,6 +261,8 @@ if [ -n "$ROUTING" ]; then
             | if $m.routable != ($nr | not) then "\($n): catalog says routable \($m.routable), the table implies \($nr | not)" else empty end),
            (($r.tiercell | test("pinned")) as $pn
             | if $m.pinned != $pn then "\($n): catalog says pinned \($m.pinned), the table says \($pn)" else empty end),
+           (($r.tiercell | test("flagship")) as $fl | ($m.flagship == true) as $mf
+            | if $mf != $fl then "\($n): catalog says flagship \($mf), the table says \($fl)" else empty end),
            (if [$m.priceIn, $m.priceOut] != $r.prices
             then "\($n): catalog says price in/out \([$m.priceIn, $m.priceOut] | tojson), the table says \($r.price | tojson) (read as \($r.prices | tojson))" else empty end),
            (($r.cmds | map(parse)) as $want

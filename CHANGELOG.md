@@ -26,6 +26,27 @@ so the log reads as the project's decision history, not just a list of diffs.
   never route UI copy to it).
 
 ### Changed
+- **Cross-vendor review goes to the flagship; tiers by the median board
+  (2026-10-27, Claude).** The ask: Gemini 4 Argon, Google's flagship, came out
+  T2 because the boards split (Artificial Analysis below Opus; Vals and a
+  preliminary LMArena score above), so Claude's work had no T1 reviewer from
+  another family without a hand pin. Joe: compare vendors flagship against
+  flagship, and let benchmarks pick only who gets delegated work. What
+  changed: the review that counts goes to another family's flagship (the
+  highest model in the vendor's own lineup that answers here, T2 or better,
+  ties by quota then benchmark); delegated work goes by task benchmarks alone,
+  whatever the family, so Sonnet can build under an Opus lead but never refute
+  it. A tier is the median board's, counting only final first-party numbers,
+  instead of the lowest. The catalog gains an optional `flagship` flag (one per
+  family, routable, checked against a "(flagship)" tier-cell note); BEH-34 and
+  BEH-35 anchor the rules. Why: cross-vendor benchmarks split often and move
+  monthly, while the flagship is each vendor's own best judgment, which is what
+  an independent check is for. Rejected: averaging scores (the boards use
+  different scales), a plain majority vote (no answer for a T1/T2/T3 split; the
+  median is the same for three boards and defined for any count), pinning each
+  flagship to T1 by hand (overrides the evidence and needs upkeep), and the old
+  take-the-lower rule (one board could sink a model). This replaces the
+  split-evidence rule in `update-model-routing` step 6.
 - **Design skills run unattended: finish or block, end on a checkable result
   line (2026-10-27, Claude).** The ask: let the six design skills run under
   `/goal`, `/loop`, scheduled or headless runs without stalling on questions

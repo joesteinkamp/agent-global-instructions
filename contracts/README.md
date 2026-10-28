@@ -22,8 +22,9 @@ models, 50 `reach` entries per model, 20 `efforts` per reach entry.
 With a routing markdown file the validator requires the `## Model tiers` table
 and the catalog to describe the same models: every row in the catalog and every
 catalog model in the table, in the same order, with the same tier, family and
-`routable`/`pinned` flags (`routable` is false when the tier cell says "at most"
-or the family is "varies"; `pinned` is true when the tier cell says "pinned"),
+`routable`/`pinned`/`flagship` flags (`routable` is false when the tier cell says "at most"
+or the family is "varies"; `pinned` is true when the tier cell says "pinned";
+`flagship` is true when it says "flagship", and an absent field counts as false),
 the same `priceIn`/`priceOut` (a price cell starting `<in> / <out>` gives those
 numbers; any other cell, such as `—` or a billing pool, means `null`), and each
 `reach` entry equal to what the row's backticked commands encode: `cli` is the
@@ -50,5 +51,9 @@ Rules for a reader of the catalog:
   `agy` (Antigravity), `lm` (local models).
 - `routable: false` marks auto-style models whose backend varies; don't route
   tiered work to them. `pinned: true` means the user fixed the tier.
+- `flagship: true` (optional, at most one per family) marks the model the
+  vendor's own docs name as most capable among those reachable. The
+  cross-family review that counts goes to another family's flagship; delegated
+  work ignores it and follows the benchmarks.
 - The markdown table stays the source for people and agents that read prose; the
   catalog carries the same facts in a form a program can read.
