@@ -421,6 +421,7 @@ different surface and this never overrides it.
 ## When I say you did something wrong
 
 - Capture the correction so it doesn't recur: propose the exact instruction wording, ask whether it's global or project-level, and/or whether to save a memory.
+- **A correction in a project with `evals/` becomes a case there.** When the rule you broke lives in that project's briefs, also propose a new entry in its `evals/cases.md`: what you did as the `fail` golden, the fix I approved as the `pass` golden. A memory stops you repeating the mistake; a case stops every agent repeating it, and catches it when a brief edit quietly drops the rule. Propose it; never add it unasked.
 <!--/SECTION:corrections-->
 <!--SECTION:changelog-->
 ## Change Log

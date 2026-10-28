@@ -238,6 +238,7 @@ assert_has "aggressive render draws the goal-vs-loop line"          'stopping ru
 assert_has "aggressive render keeps gates inside goal turns"        'every goal turn'
 assert_has "aggressive render offers the goal at kickoff"           'Offer the goal at kickoff, not at handoff'
 assert_has "aggressive render checks hook policy before a goal"    'Check that the goal can run before you offer it'
+assert_has "default render turns project corrections into eval cases" 'A correction in a project with `evals/` becomes a case there'
 AUTONOMY=balanced render
 assert_no "AUTONOMY=balanced omits the Long-running work section" 'Long-running work'
 assert_no "AUTONOMY=balanced leaves no marker leak" 'SECTION:'
