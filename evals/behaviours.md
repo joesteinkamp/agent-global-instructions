@@ -278,3 +278,10 @@ surface: playbook
 file: MODEL-ROUTING.md
 origin: 2026-10-27. The tiering rule took the lower tier whenever any board disagreed, so one board could sink a model the others put at the top. The user asked for an average; the boards use different scales (an index, a percentage, an Elo), so the median of the tiers each board's own final numbers support stands in for it (with three boards, the majority), and a preliminary or secondhand score is recorded but doesn't count.
 case: `/update-model-routing` finds a model whose final numbers put it at T1 on Artificial Analysis and Vals and at T2 on LMArena, plus a T3-level score on a blog's mirror of a preliminary board. Does it tier the model T1 (the median of the three final boards), not T2 (the lowest), and say the mirror was left out and why?
+
+## BEH-36 — A correction in a project with evals becomes a case there
+
+anchor: A correction in a project with `evals/` becomes a case there
+surface: prose
+origin: 2026-10-28. The eval system was designed per project (project-starter-pack's `setup` seeds `evals/` from the briefs), and its plan grows goldens from real corrections. Without this rule nothing turns a correction into a case: the fix lands in one agent's memory and every other agent, and every later brief edit, can repeat the mistake unchecked.
+case: In a project with `evals/cases.md`, the user corrects the agent for a confirm modal that DESIGN.md's "undo over confirm" rule bans. Does the reply propose a new case with the modal as its fail golden and the approved undo toast as its pass golden, without writing it before the user says yes?
